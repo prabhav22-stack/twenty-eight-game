@@ -162,7 +162,6 @@ body::before {
 .menu-btn.primary-gold { background: linear-gradient(135deg, #f3d77d, #d4af37, #9e7818); color: #0f172a; border-color: #fff; font-weight: 800; }
 .menu-btn.primary-gold span.btn-sub { color: #1e293b; }
 .menu-btn.secondary-btn { background: linear-gradient(135deg, #163824, #081a0e); border: 1.5px solid var(--gold-primary); color: #f8fafc; }
-.menu-btn.tablet-btn { background: linear-gradient(135deg, #0c2b45, #061524); border: 1.5px solid var(--team1-blue); color: #e0f2fe; justify-content: center; gap: 8px; padding: 11px; }
 
 #lobby-status {
     margin-top: 10px; font-size: 0.82rem; color: var(--gold-bright); font-weight: 600;
@@ -301,13 +300,6 @@ body::before {
                 radial-gradient(circle, #7f1d1d 0%, #3b0707 100%);
     border: 1.5px solid #f8fafc; border-radius: 6px; box-shadow: -2px 3px 8px rgba(0,0,0,0.6); color: transparent; position: relative;
 }
-.hidden-trump { border: 2px solid var(--gold-primary) !important; box-shadow: 0 0 12px var(--gold-glow) !important; transform: rotate(7deg); margin-left: 5px !important; }
-.secret-peek-tag {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; background: rgba(0,0,0,0.72);
-    color: var(--gold-bright); font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 0.6rem; font-weight: 800; border-radius: 5px; text-align: center;
-}
 .my-cards-row .card.playable { cursor: pointer; border: 1.5px solid var(--gold-primary); box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 10px rgba(229, 193, 88, 0.35); }
 .my-cards-row .card.playable:hover, .my-cards-row .card.playable:active { transform: translateY(-16px) scale(1.08) !important; box-shadow: 0 14px 28px rgba(0,0,0,0.85), 0 0 18px var(--gold-glow); z-index: 99 !important; }
 .my-cards-row .card.unplayable { filter: brightness(0.55) saturate(0.75); transform: translateY(4px) scale(0.96); cursor: not-allowed; }
@@ -367,20 +359,6 @@ body::before {
 .log-entry { padding: 1px 3px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .log-highlight { color: var(--gold-primary); font-weight: 700; }
 
-/* CONTROLLER & BOARD MODES */
-#controller-trick-strip {
-    display: none; position: absolute; top: 16%; left: 50%; transform: translateX(-50%);
-    background: rgba(5, 15, 10, 0.92); border: 1px solid var(--gold-primary);
-    border-radius: 14px; padding: 10px 16px; text-align: center; width: 88vw; max-width: 350px; z-index: 40;
-}
-body.controller-mode #player-top, body.controller-mode #player-left, body.controller-mode #player-right,
-body.controller-mode #center-table, body.controller-mode #casino-ring { display: none !important; }
-body.controller-mode #controller-trick-strip { display: block; }
-body.controller-mode #player-bottom { bottom: 24%; transform: translateX(-50%) scale(1.15); }
-
-body.board-mode #player-bottom { bottom: 36px; }
-body.board-mode #reveal-btn, body.board-mode #pair-btn, body.board-mode #bid-modal, body.board-mode #trump-modal { display: none !important; }
-body.board-mode #log-drawer { left: 14px; bottom: 14px; transform: none; width: 290px; height: 160px; border-radius: 12px; pointer-events: none; }
 
 .speech-bubble {
     position: absolute; background: #fff; color: #0f172a; padding: 3px 8px;
@@ -480,14 +458,6 @@ body.board-mode #log-drawer { left: 14px; bottom: 14px; transform: none; width: 
                 <span>⚡ Join Existing Room</span>
                 <span class="btn-sub">Connect to Host</span>
             </button>
-            <button class="menu-btn" onclick="joinNetworkGame('CONTROLLER', 'CLIENT')">
-                <span>📱 Hand Controller Mode</span>
-                <span class="btn-sub">For Mobile Phone</span>
-            </button>
-            <button class="menu-btn tablet-btn" onclick="joinNetworkGame('BOARD', 'CLIENT')">
-                <span>📺 Center Table / TV Display</span>
-                <span class="btn-sub">Shared Board View</span>
-            </button>
         </div>
 
         <div class="menu-card">
@@ -550,11 +520,6 @@ body.board-mode #log-drawer { left: 14px; bottom: 14px; transform: none; width: 
         <div id="trick-pts-pill" style="font-size:0.64rem; color:var(--gold-primary); font-weight:700;">Trick: 0 pts</div>
     </div>
 
-    <div id="controller-trick-strip">
-        <div style="font-size:0.68rem; color:var(--gold-primary); text-transform:uppercase; letter-spacing:1px;">Center Table Status</div>
-        <div id="ctrl-trick-info" style="font-size:0.88rem; font-weight:700; margin-top:3px;">Waiting for play...</div>
-    </div>
-
     <div id="player-top" class="hand"></div>
     <div id="player-left" class="hand"></div>
     <div id="player-right" class="hand"></div>
@@ -578,8 +543,8 @@ body.board-mode #log-drawer { left: 14px; bottom: 14px; transform: none; width: 
 </div>
 
 <div id="trump-modal" class="modal">
-    <h2>Select Secret Trump</h2>
-    <div class="modal-sub">Lowest card of chosen suit will be placed face-down:</div>
+    <h2>Select Secret Trump Suit</h2>
+    <div class="modal-sub">Choose your secret trump suit for this round:</div>
     <div id="trump-suit-options" style="display:flex; justify-content:center; gap:8px; margin-top:8px;"></div>
 </div>
 
@@ -812,9 +777,7 @@ function broadcastNetMessage(msgObj) {
 }
 
 function joinNetworkGame(selectedMode, forceRole = null) {
-    gameMode = 'multi'; viewMode = selectedMode;
-    if (viewMode === 'CONTROLLER') document.body.classList.add('controller-mode');
-    if (viewMode === 'BOARD') document.body.classList.add('board-mode');
+    gameMode = 'multi'; viewMode = 'FULL';
     
     myNickname = document.getElementById('player-name-input').value.trim() || ("Player" + Math.floor(Math.random()*90+10));
     let roomIn = document.getElementById('room-code-input').value.trim().toUpperCase();
@@ -1299,13 +1262,9 @@ class TwentyEightEngine {
     setTrump(suit) {
         if (this.phase !== 'SET_TRUMP') return; 
         this.trumpSuit = suit;
-        let bidderHand = this.players[this.highestBidder];
-        let suitIndices = bidderHand.map((c, idx) => c.suit === suit ? idx : -1).filter(idx => idx !== -1);
-        let tIndex = suitIndices.length > 0 ? suitIndices[suitIndices.length - 1] : 0;
-
-        this.hiddenTrumpCard = bidderHand.splice(tIndex, 1)[0];
-        this.hasHiddenTrump = true;
-        this.log(`🤫 Secret Trump card locked face-down.`);
+        this.hiddenTrumpCard = null;
+        this.hasHiddenTrump = false;
+        this.log(`🤫 Player ${this.highestBidder} chose Secret Trump.`);
 
         for (let i = 0; i < 4; i++) {
             for (let j = 0; j < 4; j++) {
@@ -1364,6 +1323,10 @@ class TwentyEightEngine {
     getValidPlayIndices(pIndex) {
         let hand = this.players[pIndex];
         if (this.trickCards.length === 0) {
+            if (!this.trumpRevealed && this.trumpSuit && pIndex === this.highestBidder) {
+                let nonTrumps = hand.map((c, i) => c.suit !== this.trumpSuit ? i : -1).filter(i => i !== -1);
+                if (nonTrumps.length > 0) return nonTrumps;
+            }
             return hand.map((_, i) => i);
         }
 
@@ -1394,10 +1357,6 @@ class TwentyEightEngine {
         this.trickCards.push({ card, player: pIndex });
         this.playedCardsHistory.push(card);
         this.log(`🃏 Player ${pIndex} plays ${card.rank}${card.suit}`);
-
-        if (this.hiddenTrumpCard && this.players[this.highestBidder].length === 0) {
-            this.revealTrump(this.highestBidder, true);
-        }
 
         this.currentTurn = (this.currentTurn + 1) % 4;
         if (this.trickCards.length === 4) this.phase = 'TRICK_OVER';
@@ -1542,12 +1501,8 @@ class TwentyEightEngine {
         this.leadSuit = null; 
         this.currentTurn = winningPlay.player;
         
-        if (this.hiddenTrumpCard && this.players[this.highestBidder].length === 0) {
-            this.revealTrump(this.highestBidder, true);
-        }
-
         let totalRemaining = this.players[0].length + this.players[1].length + this.players[2].length + this.players[3].length;
-        if (totalRemaining === 0 && !this.hiddenTrumpCard) {
+        if (totalRemaining === 0) {
             this.calculateRoundScore();
             this.phase = 'ROUND_OVER';
         } else {
@@ -1574,12 +1529,8 @@ class TwentyEightEngine {
             this.justRevealedBy = autoEndReveal ? -1 : requesterIndex;
             playSound('reveal');
             this.log(`🚨 Player ${requesterIndex} revealed Trump: ${this.trumpSuit}!`);
-            if (this.hiddenTrumpCard) {
-                this.players[this.highestBidder].push(this.hiddenTrumpCard);
-                this.sortHand(this.highestBidder);
-                this.hiddenTrumpCard = null;
-                this.hasHiddenTrump = false;
-            }
+            this.hiddenTrumpCard = null;
+            this.hasHiddenTrump = false;
         }
     }
 
@@ -1600,9 +1551,8 @@ class TwentyEightEngine {
             handSizes: sizes,
             trumpRevealed: this.trumpRevealed, 
             trumpSuit: (this.trumpRevealed || clientSeat === this.highestBidder) ? this.trumpSuit : null,
-            secretCardPeek: (clientSeat === this.highestBidder && this.hiddenTrumpCard) ? `${this.hiddenTrumpCard.rank}${this.hiddenTrumpCard.suit}` : null,
             highestBidder: this.highestBidder,
-            hasHiddenTrump: !!this.hiddenTrumpCard,
+            hasHiddenTrump: false,
             tricksWonByTeam: this.tricksWonByTeam,
             roundSuccess: this.roundSuccess, gamePointsWon: this.gamePointsWon,
             pairDeclared: this.pairDeclared, pairDeclaringTeam: this.pairDeclaringTeam
@@ -1617,9 +1567,8 @@ class TwentyEightEngine {
         this.phase = state.phase; this.trickCards = state.trickCards || [];
         this.leadSuit = state.leadSuit;
         this.trumpRevealed = !!state.trumpRevealed; this.trumpSuit = state.trumpSuit;
-        this.secretCardPeek = state.secretCardPeek;
         this.highestBidder = state.highestBidder !== undefined ? state.highestBidder : -1;
-        this.hasHiddenTrump = !!state.hasHiddenTrump;
+        this.hasHiddenTrump = false;
         this.tricksWonByTeam = state.tricksWonByTeam || [0, 0];
         this.roundSuccess = state.roundSuccess; this.gamePointsWon = state.gamePointsWon;
         this.pairDeclared = !!state.pairDeclared; this.pairDeclaringTeam = state.pairDeclaringTeam;
@@ -1806,6 +1755,9 @@ class UIController {
             if (this.engine.trumpRevealed) {
                 const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ff4d4d' : '#ffffff';
                 document.getElementById('trump-status').innerHTML = `TRUMP: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span>`;
+            } else if (mySeat === this.engine.highestBidder && this.engine.trumpSuit) {
+                const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ff4d4d' : '#ffffff';
+                document.getElementById('trump-status').innerHTML = `TRUMP: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span> (Secret)`;
             } else {
                 document.getElementById('trump-status').innerText = '🔒 Secret Trump';
             }
@@ -1872,14 +1824,6 @@ class UIController {
                     }
                     row.appendChild(div);
                 });
-
-                if ((this.engine.hiddenTrumpCard || this.engine.hasHiddenTrump) && actualPlayerIndex === this.engine.highestBidder && !this.engine.trumpRevealed) {
-                    const hiddenDiv = document.createElement('div');
-                    hiddenDiv.className = `card card-back hidden-trump`;
-                    let peekStr = this.engine.hiddenTrumpCard ? `${this.engine.hiddenTrumpCard.rank}${this.engine.hiddenTrumpCard.suit}` : (this.engine.secretCardPeek || 'TRUMP');
-                    hiddenDiv.innerHTML = `<div class="secret-peek-tag">🔒<br>${peekStr}</div>`;
-                    row.appendChild(hiddenDiv);
-                }
                 el.appendChild(row);
             } else {
                 const row = document.createElement('div');
@@ -1892,13 +1836,6 @@ class UIController {
                         div.style.animationDelay = `${c * 0.08}s`;
                     }
                     row.appendChild(div);
-                }
-                if ((this.engine.hiddenTrumpCard || this.engine.hasHiddenTrump) && actualPlayerIndex === this.engine.highestBidder && !this.engine.trumpRevealed) {
-                    const hiddenDiv = document.createElement('div');
-                    hiddenDiv.className = `card card-back hidden-trump`;
-                    hiddenDiv.style.width = 'var(--opp-card-w)';
-                    hiddenDiv.style.height = 'var(--opp-card-h)';
-                    row.appendChild(hiddenDiv);
                 }
                 el.appendChild(row);
             }
@@ -2056,7 +1993,7 @@ class UIController {
             if (this.engine.phase === 'PLAYING') {
                 const btn = document.getElementById('reveal-btn');
                 let hasLead = (this.engine.players[mySeat] || []).some(c => c.suit === this.engine.leadSuit);
-                if (!this.engine.trumpRevealed && ((this.engine.trickCards.length > 0 && !hasLead) || this.engine.highestBidder === mySeat)) {
+                if (!this.engine.trumpRevealed && this.engine.trickCards.length > 0 && !hasLead) {
                     btn.style.display = 'block';
                 } else {
                     btn.style.display = 'none';

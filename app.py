@@ -177,7 +177,6 @@ init_script = f"""
 <script>
 window.addEventListener('DOMContentLoaded', () => {{
     const urlRoom = "{room_code or initial_room}";
-    const urlMode = "{initial_mode}";
     const urlName = "{initial_name}";
     if (urlRoom) {{
         const rInput = document.getElementById('room-code-input');
@@ -186,11 +185,6 @@ window.addEventListener('DOMContentLoaded', () => {{
     if (urlName) {{
         const nInput = document.getElementById('player-name-input');
         if (nInput) nInput.value = urlName;
-    }}
-    if (urlMode === 'BOARD') {{
-        joinNetworkGame('BOARD');
-    }} else if (urlMode === 'CONTROLLER') {{
-        joinNetworkGame('CONTROLLER');
     }}
 }});
 </script>
