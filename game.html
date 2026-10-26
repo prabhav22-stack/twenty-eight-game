@@ -16,7 +16,6 @@
     --danger: #ef4444; --success: #22c55e;
     --suit-red: #dc2626; --suit-black: #0f172a;
 
-    /* Viewport-adaptive card proportions based on both width and height */
     --card-w: clamp(40px, min(10vw, 10vh), 68px);
     --card-h: clamp(58px, min(15vw, 14.5vh), 96px);
     --opp-card-w: clamp(24px, min(6.5vw, 6.2vh), 42px);
@@ -670,11 +669,13 @@ let uiLocked = false;
 let currentRoom = "";
 let myNickname = "Player 1";
 let playerCustomNames = ["SOUTH", "EAST", "NORTH", "WEST"];
+let myClientId = "cli_" + Math.random().toString(36).substring(2, 10);
 
 // WebRTC Network Manager using PeerJS
 let peer = null;
 let hostConn = null;
 let clientConns = {};
+let stateHeartbeatTimer = null;
 
 function getCleanRoomId(room) {
     return (room || 'ROYAL28').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'ROYAL28';
@@ -786,8 +787,8 @@ function resetServerLobby() {
 
 function sendNetMessage(msgObj) {
     const payload = JSON.stringify(msgObj);
-    if (!isHost && hostConn && hostConn.open) {
-        hostConn.send(payload);
+    if (!isHost && hostConn) {
+        try { hostConn.send(payload); } catch(e) {}
     } else if (isHost) {
         handleIncomingNetworkMessage(null, msgObj);
     }
@@ -798,18 +799,8 @@ function broadcastNetMessage(msgObj) {
     if (isHost) {
         for (let connId in clientConns) {
             let conn = clientConns[connId];
-            if (conn && conn.open) conn.send(payload);
-        }
-    }
-}
-
-function sendToSeat(seat, msgObj) {
-    const payload = JSON.stringify(msgObj);
-    if (isHost) {
-        for (let connId in clientConns) {
-            let conn = clientConns[connId];
-            if (conn && conn.seat === seat && conn.open) {
-                conn.send(payload);
+            if (conn) {
+                try { conn.send(payload); } catch(e) {}
             }
         }
     }
@@ -839,7 +830,7 @@ function joinNetworkGame(selectedMode) {
 
 function initWebRTCConnection() {
     const hostPeerId = `royal28-room-${currentRoom}-host`;
-    const myClientPeerId = `royal28-room-${currentRoom}-c-${Math.random().toString(36).substring(2, 9)}`;
+    const myClientPeerId = `royal28-room-${currentRoom}-c-${myClientId}`;
 
     peer = new Peer(myClientPeerId, {
         debug: 1,
@@ -852,17 +843,16 @@ function initWebRTCConnection() {
     });
 
     peer.on('open', (id) => {
+        // Attempt to connect to Host
         hostConn = peer.connect(hostPeerId, { reliable: true });
-        let hostConnected = false;
 
         hostConn.on('open', () => {
-            hostConnected = true;
             isHost = false;
             document.getElementById('lobby-status').innerText = 'Connected to Host! Requesting seat...';
             if (viewMode === 'BOARD') {
-                hostConn.send(JSON.stringify({ type: 'JOIN_BOARD', name: myNickname }));
+                hostConn.send(JSON.stringify({ type: 'JOIN_BOARD', name: myNickname, clientId: myClientId }));
             } else {
-                hostConn.send(JSON.stringify({ type: 'JOIN_PLAYER', name: myNickname }));
+                hostConn.send(JSON.stringify({ type: 'JOIN_PLAYER', name: myNickname, clientId: myClientId }));
             }
         });
 
@@ -873,24 +863,25 @@ function initWebRTCConnection() {
             } catch(e) {}
         });
 
-        setTimeout(() => {
-            if (!hostConnected) {
-                if (hostConn) hostConn.close();
-                peer.destroy();
-                becomeRoomHost(hostPeerId);
-            }
-        }, 1800);
+        hostConn.on('error', () => {
+            if (!isHost) becomeRoomHost(hostPeerId);
+        });
     });
 
     peer.on('error', (err) => {
-        if (!isHost) {
-            if (peer) peer.destroy();
-            becomeRoomHost(hostPeerId);
+        // If Host peer does not exist, this client becomes the Host
+        if (err.type === 'peer-unavailable') {
+            if (!isHost) becomeRoomHost(hostPeerId);
+        } else if (err.type === 'unavailable-id') {
+            setTimeout(() => initWebRTCConnection(), 600);
         }
     });
 }
 
 function becomeRoomHost(hostPeerId) {
+    if (peer) {
+        try { peer.destroy(); } catch(e) {}
+    }
     isHost = true;
     mySeat = (viewMode === 'BOARD') ? 99 : 0;
     if (mySeat === 0) {
@@ -913,6 +904,14 @@ function becomeRoomHost(hostPeerId) {
         document.getElementById('host-controls').style.display = 'flex';
         const lobbyStatus = document.getElementById('lobby-status');
         lobbyStatus.innerHTML = `👑 You are <b style="color:#fff">ROOM HOST (${COMPASS_FULL[0]})</b><br>Room Code: <b style="color:var(--gold-bright); font-size:1.1rem;">${currentRoom}</b><br>Share the code or tap "Invite" for QR code!`;
+        
+        // Start continuous state heartbeat
+        if (stateHeartbeatTimer) clearInterval(stateHeartbeatTimer);
+        stateHeartbeatTimer = setInterval(() => {
+            if (isHost && game && game.phase && game.phase !== 'ROUND_OVER') {
+                ui.broadcastGameState();
+            }
+        }, 1400);
     });
 
     peer.on('connection', (conn) => {
@@ -938,7 +937,7 @@ function becomeRoomHost(hostPeerId) {
     });
 
     peer.on('error', (err) => {
-        setTimeout(() => initWebRTCConnection(), 500);
+        setTimeout(() => initWebRTCConnection(), 600);
     });
 }
 
@@ -953,19 +952,39 @@ function handleHostProcessMessage(conn, data) {
         }
         if (seat !== -1) {
             conn.seat = seat;
-            humanSeats.push(seat);
+            conn.clientId = data.clientId;
+            if (!humanSeats.includes(seat)) humanSeats.push(seat);
             playerCustomNames[seat] = data.name || ("P" + (seat+1));
-            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seat }));
+
+            // Inform client of seat assignment and sync lobby
+            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seat, playerNames: playerCustomNames, humanSeats: humanSeats }));
             broadcastNetMessage({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames });
             updateTopCompassBar();
+
+            // If game is already active, immediately provide current match state!
+            if (game.phase && game.phase !== 'LOBBY') {
+                conn.send(JSON.stringify({ type: 'START_GAME', humanSeats: humanSeats, playerNames: playerCustomNames }));
+                conn.send(JSON.stringify({ type: 'STATE_UPDATE', target: seat, state: game.exportStateForClient(seat) }));
+            }
         } else {
             conn.send(JSON.stringify({ type: 'FULL_LOBBY' }));
         }
     }
     else if (data.type === 'JOIN_BOARD') {
         conn.seat = 99;
-        conn.send(JSON.stringify({ type: 'ASSIGN_BOARD' }));
+        conn.clientId = data.clientId;
+        conn.send(JSON.stringify({ type: 'ASSIGN_BOARD', playerNames: playerCustomNames, humanSeats: humanSeats }));
         conn.send(JSON.stringify({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames }));
+        if (game.phase && game.phase !== 'LOBBY') {
+            conn.send(JSON.stringify({ type: 'START_GAME', humanSeats: humanSeats, playerNames: playerCustomNames }));
+            conn.send(JSON.stringify({ type: 'STATE_UPDATE', target: 99, state: game.exportStateForClient(99) }));
+        }
+    }
+    else if (data.type === 'REQUEST_STATE') {
+        let s = conn.seat !== undefined ? conn.seat : data.seat;
+        if (s !== undefined && s !== null) {
+            conn.send(JSON.stringify({ type: 'STATE_UPDATE', target: s, state: game.exportStateForClient(s) }));
+        }
     }
     else {
         handleIncomingNetworkMessage(conn, data);
@@ -976,6 +995,7 @@ function handleIncomingNetworkMessage(sourceConn, data) {
     if (data.type === 'ASSIGN_SEAT') {
         mySeat = data.seat; isHost = (mySeat === 0);
         if (!humanSeats.includes(mySeat)) humanSeats.push(mySeat);
+        if (data.playerNames) playerCustomNames = data.playerNames;
         updateTopCompassBar();
         let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
         document.getElementById('lobby-status').innerHTML = `🧭 You are: <b style="color:#fff">${COMPASS_FULL[mySeat]}</b> (${myNickname} • Team ${teamNum})<br>Waiting for Host to start match...`;
@@ -985,6 +1005,7 @@ function handleIncomingNetworkMessage(sourceConn, data) {
     }
     else if (data.type === 'ASSIGN_BOARD') {
         mySeat = 99; isHost = false;
+        if (data.playerNames) playerCustomNames = data.playerNames;
         updateTopCompassBar();
         document.getElementById('lobby-status').innerHTML = `📺 <b>CENTER TABLE ACTIVE</b><br>Bottom: SOUTH | Right: EAST | Top: NORTH | Left: WEST`;
     }
@@ -1003,7 +1024,12 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         ui.updatePlayerNames();
         updateTopCompassBar();
         ui.renderLog("🎮 Match Started!");
-        if (isHost) { game.startRound(); ui.gameLoop(); }
+        if (!isHost) {
+            sendNetMessage({ type: 'REQUEST_STATE', seat: mySeat });
+        } else {
+            game.startRound();
+            ui.gameLoop();
+        }
     }
     else if (data.type === 'NEW_ROUND_RESET') {
         document.getElementById('end-modal').style.display = 'none';
@@ -1012,8 +1038,10 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         ui.animatingTrick = false;
     }
     else if (data.type === 'STATE_UPDATE') {
-        if (!isHost && (data.target === mySeat || data.target === 'ALL')) {
+        if (!isHost && (data.target === mySeat || data.target === 'ALL' || mySeat === 99)) {
             game.syncFromMasterState(data.state);
+            ui.renderStaticBoard();
+            ui.syncTable();
             ui.gameLoop();
         }
     }
@@ -1044,7 +1072,8 @@ function hostStartGame() {
         ui.updatePlayerNames();
         updateTopCompassBar();
         ui.renderLog("🎮 Match Started!");
-        game.startRound(); ui.gameLoop();
+        game.startRound();
+        ui.gameLoop();
     }
 }
 
@@ -1059,6 +1088,9 @@ class TwentyEightEngine {
         this.roundStarter = 0;
         this.callbacks = { onLog: (msg) => {}, onBid: (pIndex, val) => {}, onBidWon: (pIndex, val) => {} };
         this.playedCardsHistory = []; 
+        this.players = [[], [], [], []];
+        this.phase = 'LOBBY';
+        this.trickCards = [];
     }
 
     resetRound() {
@@ -1492,14 +1524,19 @@ class TwentyEightEngine {
     }
 
     exportStateForClient(clientSeat) {
-        let sizes = [this.players[0].length, this.players[1].length, this.players[2].length, this.players[3].length];
+        let sizes = [
+            (this.players[0] || []).length,
+            (this.players[1] || []).length,
+            (this.players[2] || []).length,
+            (this.players[3] || []).length
+        ];
         return {
             t1TrickPts: this.t1TrickPts, t2TrickPts: this.t2TrickPts,
             t1GamePts: this.t1GamePts, t2GamePts: this.t2GamePts,
             currentBid: this.currentBid, currentTurn: this.currentTurn,
-            phase: this.phase, trickCards: this.trickCards,
+            phase: this.phase, trickCards: this.trickCards || [],
             leadSuit: this.leadSuit,
-            myHand: (clientSeat !== 99 && clientSeat >= 0 && clientSeat < 4) ? this.players[clientSeat] : [], 
+            myHand: (clientSeat !== 99 && clientSeat >= 0 && clientSeat < 4) ? (this.players[clientSeat] || []) : [], 
             handSizes: sizes,
             trumpRevealed: this.trumpRevealed, 
             trumpSuit: (this.trumpRevealed || clientSeat === this.highestBidder) ? this.trumpSuit : null,
@@ -1513,30 +1550,35 @@ class TwentyEightEngine {
     }
 
     syncFromMasterState(state) {
-        this.t1TrickPts = state.t1TrickPts; this.t2TrickPts = state.t2TrickPts;
-        this.t1GamePts = state.t1GamePts; this.t2GamePts = state.t2GamePts;
-        this.currentBid = state.currentBid; this.currentTurn = state.currentTurn;
-        this.phase = state.phase; this.trickCards = state.trickCards;
+        if (!state) return;
+        this.t1TrickPts = state.t1TrickPts || 0; this.t2TrickPts = state.t2TrickPts || 0;
+        this.t1GamePts = state.t1GamePts || 0; this.t2GamePts = state.t2GamePts || 0;
+        this.currentBid = state.currentBid || 15; this.currentTurn = state.currentTurn !== undefined ? state.currentTurn : 0;
+        this.phase = state.phase; this.trickCards = state.trickCards || [];
         this.leadSuit = state.leadSuit;
-        this.trumpRevealed = state.trumpRevealed; this.trumpSuit = state.trumpSuit;
+        this.trumpRevealed = !!state.trumpRevealed; this.trumpSuit = state.trumpSuit;
         this.secretCardPeek = state.secretCardPeek;
-        this.highestBidder = state.highestBidder;
-        this.hasHiddenTrump = state.hasHiddenTrump;
+        this.highestBidder = state.highestBidder !== undefined ? state.highestBidder : -1;
+        this.hasHiddenTrump = !!state.hasHiddenTrump;
         this.tricksWonByTeam = state.tricksWonByTeam || [0, 0];
         this.roundSuccess = state.roundSuccess; this.gamePointsWon = state.gamePointsWon;
-        this.pairDeclared = state.pairDeclared; this.pairDeclaringTeam = state.pairDeclaringTeam;
+        this.pairDeclared = !!state.pairDeclared; this.pairDeclaringTeam = state.pairDeclaringTeam;
 
         if (!this.trumpRevealed) ui.uiTrumpRevealed = false;
-        if (this.phase !== 'ROUND_OVER') document.getElementById('end-modal').style.display = 'none';
+        if (this.phase !== 'ROUND_OVER') {
+            const endM = document.getElementById('end-modal');
+            if (endM) endM.style.display = 'none';
+        }
         
         let isDealPhase = (this.phase === 'DEALING_1' || this.phase === 'DEALING_2');
-        if(mySeat !== 99) {
-            this.players[mySeat] = state.myHand; 
+        let sizes = state.handSizes || [0, 0, 0, 0];
+        if (mySeat !== 99 && mySeat >= 0 && mySeat < 4) {
+            this.players[mySeat] = state.myHand || []; 
             for(let i=0; i<4; i++) {
-                if(i !== mySeat) this.players[i] = new Array(state.handSizes[i]).fill({isNew: isDealPhase});
+                if(i !== mySeat) this.players[i] = new Array(sizes[i] || 0).fill({isNew: isDealPhase});
             }
         } else {
-            for(let i=0; i<4; i++) this.players[i] = new Array(state.handSizes[i]).fill({isNew: isDealPhase});
+            for(let i=0; i<4; i++) this.players[i] = new Array(sizes[i] || 0).fill({isNew: isDealPhase});
         }
     }
 }
@@ -1724,17 +1766,17 @@ class UIController {
             if (isCurrent) badgeClass += ' active-turn'; 
 
             let bidderCrown = (actualPlayerIndex === this.engine.highestBidder) ? ' 🎯' : '';
-            let cardCount = this.engine.players[actualPlayerIndex].length;
+            let cardCount = (this.engine.players[actualPlayerIndex] || []).length;
 
             el.innerHTML = `<div class="${badgeClass}">${this.playerNames[actualPlayerIndex]}${bidderCrown} <span class="card-cnt">${cardCount}</span></div>`; 
             
             if (actualPlayerIndex === mySeat && mySeat !== 99) {
                 const row = document.createElement('div');
                 row.className = 'my-cards-row';
-                let total = this.engine.players[mySeat].length;
+                let total = (this.engine.players[mySeat] || []).length;
                 let mid = (total - 1) / 2;
 
-                this.engine.players[mySeat].forEach((card, index) => {
+                (this.engine.players[mySeat] || []).forEach((card, index) => {
                     const isMyTurnToPlay = (this.engine.phase === 'PLAYING' && this.engine.currentTurn === mySeat && !uiLocked);
                     const isPlayable = isMyTurnToPlay && userValidPlays.includes(index);
                     const div = document.createElement('div');
@@ -1785,7 +1827,7 @@ class UIController {
                 for(let c=0; c<cardCount; c++) {
                     const div = document.createElement('div');
                     div.className = `card card-back`; 
-                    if (this.isDealingState && this.engine.players[actualPlayerIndex][c].isNew) {
+                    if (this.isDealingState && this.engine.players[actualPlayerIndex][c] && this.engine.players[actualPlayerIndex][c].isNew) {
                         div.classList.add('anim-deal');
                         div.style.animationDelay = `${c * 0.08}s`;
                     }
@@ -1824,12 +1866,13 @@ class UIController {
     syncTable() {
         if(this.animatingTrick) return;
         const table = document.getElementById('center-table'); 
+        if (!table) return;
         if (this.engine.trickCards.length === 0) { table.innerHTML = ''; return; }
         if (table.children.length > this.engine.trickCards.length) { table.innerHTML = ''; } 
         while(table.children.length < this.engine.trickCards.length) {
             let indexToRender = table.children.length;
             let play = this.engine.trickCards[indexToRender];
-            this.renderPlayedCard(play.card, play.player);
+            if (play) this.renderPlayedCard(play.card, play.player);
         }
     }
 
@@ -1865,12 +1908,20 @@ class UIController {
 
     broadcastGameState() {
         if(gameMode === 'multi' && isHost) {
-            let targets = [...humanSeats, 99];
-            targets.forEach(t => {
-                if (t !== mySeat) {
-                    sendToSeat(t, {type:'STATE_UPDATE', target: t, state: game.exportStateForClient(t)});
+            for (let connId in clientConns) {
+                let conn = clientConns[connId];
+                if (!conn) continue;
+                let s = conn.seat;
+                if (s !== undefined && s !== null) {
+                    try {
+                        conn.send(JSON.stringify({
+                            type: 'STATE_UPDATE',
+                            target: s,
+                            state: game.exportStateForClient(s)
+                        }));
+                    } catch(e) {}
                 }
-            });
+            }
         }
     }
 
@@ -1906,32 +1957,32 @@ class UIController {
             if (this.engine.phase === 'BIDDING') {
                 this.aiTimer = setTimeout(() => {
                     let val = this.engine.getAIBid();
-                    if(gameMode === 'multi') sendNetMessage({type:'SUBMIT_BID', player: this.engine.currentTurn, val: val});
-                    else { this.engine.submitBid(this.engine.currentTurn, val); this.gameLoop(); }
+                    if(gameMode === 'multi') broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex:this.engine.currentTurn, val:val, won:false}});
+                    this.engine.submitBid(this.engine.currentTurn, val);
+                    this.gameLoop();
                 }, 1500); 
             } 
             else if (this.engine.phase === 'SET_TRUMP') {
                 this.aiTimer = setTimeout(() => {
                     let suit = this.engine.getAITrump();
-                    if(gameMode === 'multi') sendNetMessage({type:'SET_TRUMP', suit: suit});
-                    else { this.engine.setTrump(suit); this.gameLoop(); }
+                    this.engine.setTrump(suit);
+                    this.gameLoop();
                 }, 1400); 
             }
             else if (this.engine.phase === 'PLAYING') {
                 let team = (this.engine.currentTurn === 0 || this.engine.currentTurn === 2) ? 0 : 1;
                 if (!this.engine.pairDeclared && this.engine.hasPair(this.engine.currentTurn) && this.engine.tricksWonByTeam[team] > 0) {
-                    if(gameMode === 'multi') sendNetMessage({type:'DECLARE_PAIR', player: this.engine.currentTurn});
-                    else { this.engine.declarePair(this.engine.currentTurn); }
+                    this.engine.declarePair(this.engine.currentTurn);
                 }
 
                 this.aiTimer = setTimeout(() => {
                     let aiDecision = this.engine.getAIPlay();
                     if (aiDecision.reveal) {
-                        if(gameMode === 'multi') sendNetMessage({type:'REVEAL_TRUMP', player: this.engine.currentTurn});
-                        else { this.engine.revealTrump(this.engine.currentTurn); this.gameLoop(); }
+                        this.engine.revealTrump(this.engine.currentTurn);
+                        this.gameLoop();
                     } else {
-                        if(gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: this.engine.currentTurn, cardIndex: aiDecision.index});
-                        else { this.engine.playCard(this.engine.currentTurn, aiDecision.index); this.gameLoop(); }
+                        this.engine.playCard(this.engine.currentTurn, aiDecision.index);
+                        this.gameLoop();
                     }
                 }, 1500); 
             }
@@ -1944,7 +1995,7 @@ class UIController {
 
             if (this.engine.phase === 'PLAYING') {
                 const btn = document.getElementById('reveal-btn');
-                let hasLead = this.engine.players[mySeat].some(c => c.suit === this.engine.leadSuit);
+                let hasLead = (this.engine.players[mySeat] || []).some(c => c.suit === this.engine.leadSuit);
                 if (!this.engine.trumpRevealed && ((this.engine.trickCards.length > 0 && !hasLead) || this.engine.highestBidder === mySeat)) {
                     btn.style.display = 'block';
                 } else {
@@ -1969,7 +2020,9 @@ class UIController {
         if (this.engine.phase === 'TRICK_OVER') {
             if(!this.animatingTrick) {
                 let winningPlay = this.engine._getCurrentTrickWinner();
-                this.aiTimer = setTimeout(() => { this.animateTrickWinnerAndResolve(winningPlay.player); }, 1600);
+                if (winningPlay) {
+                    this.aiTimer = setTimeout(() => { this.animateTrickWinnerAndResolve(winningPlay.player); }, 1600);
+                }
             }
         }
         
@@ -1987,7 +2040,8 @@ class UIController {
     }
 
     showBidModal() {
-        let handPts = this.engine.players[mySeat].reduce((s, c) => s + c.value, 0);
+        let hand = this.engine.players[mySeat] || [];
+        let handPts = hand.reduce((s, c) => s + (c.value || 0), 0);
         document.getElementById('bid-hand-eval').innerText = `Your 4-Card Hand Points: ${handPts} pts`;
         document.getElementById('current-high-bid').innerText = this.engine.currentBid === 15 ? "None (Min 16)" : this.engine.currentBid;
         const opts = document.getElementById('bid-options'); opts.innerHTML = '';
