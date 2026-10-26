@@ -1,7 +1,5 @@
 import os
 import io
-import base64
-import urllib.parse
 import streamlit as st
 import streamlit.components.v1 as components
 import qrcode
@@ -15,27 +13,54 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom Streamlit CSS to remove default top padding and frame the game perfectly
+# Responsive full-screen CSS: eliminates all Streamlit outer padding, scrollbars, and headers
 st.markdown("""
 <style>
-    /* Remove padding around main container */
-    .block-container {
-        padding-top: 0.5rem;
-        padding-bottom: 0rem;
-        padding-left: 0.5rem;
-        padding-right: 0.5rem;
-        max-width: 100% !important;
+    /* Remove all Streamlit page margins and scrollbars */
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stMainBlockContainer"], .block-container {
+        height: 100vh !important;
+        max-height: 100vh !important;
+        min-height: 100vh !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
     }
-    header[data-testid="stHeader"] {
-        background: transparent !important;
-        height: 2.2rem;
-    }
-    footer { display: none !important; }
     
-    /* Sidebar Styling */
+    /* Hide Streamlit top header bar to maximize screen real estate */
+    header[data-testid="stHeader"] {
+        display: none !important;
+    }
+    footer {
+        display: none !important;
+    }
+    
+    /* Force custom component wrapper & iframe to fill exact 100% of device screen */
+    div[data-testid="stCustomComponentV1"],
+    div[data-testid="stCustomComponentV1"] > iframe,
+    iframe {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        min-height: 100vh !important;
+        max-height: 100vh !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        z-index: 10 !important;
+    }
+
+    /* Keep sidebar functional and styled when opened */
     section[data-testid="stSidebar"] {
         background-color: #05140b;
-        border-right: 1px solid rgba(229, 193, 88, 0.3);
+        border-right: 1.5px solid rgba(229, 193, 88, 0.35);
+        z-index: 999999 !important;
     }
     .stSidebar .stMarkdown h1, .stSidebar .stMarkdown h2, .stSidebar .stMarkdown h3 {
         color: #e5c158 !important;
@@ -61,11 +86,9 @@ with st.sidebar:
     
     # Generate QR Code & Invite Link
     if room_code:
-        # Base URL can be current host or configurable
         invite_url = f"?room={room_code}"
         st.markdown(f"**Room Code:** `{room_code}`")
         
-        # Generate QR code
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -174,5 +197,5 @@ window.addEventListener('DOMContentLoaded', () => {{
 """
 game_html = game_html.replace('</body>', f'{init_script}</body>')
 
-# ==================== RENDER COMPONENT ====================
-components.html(game_html, height=890, scrolling=False)
+# Render iframe component - CSS ensures it stretches to 100vh on any display
+components.html(game_html, height=720, scrolling=False)
