@@ -1695,12 +1695,10 @@ class UIController {
     updateTrickHUD() {
         const pill = document.getElementById('trick-hud-pill');
         const ptsPill = document.getElementById('trick-pts-pill');
-        const ctrlStrip = document.getElementById('ctrl-trick-info');
 
         if (this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1') {
             pill.innerHTML = `Auction in progress...`;
             ptsPill.innerText = `Min Bid: 16`;
-            ctrlStrip.innerHTML = `Bidding Phase — Turn: ${this.playerNames[this.engine.currentTurn]}`;
             return;
         }
 
@@ -1708,17 +1706,12 @@ class UIController {
             let leaderName = this.playerNames[this.engine.currentTurn];
             pill.innerHTML = `Waiting for <b>${leaderName}</b> to lead`;
             ptsPill.innerText = `Trick: 0 pts`;
-            ctrlStrip.innerHTML = `${leaderName} is leading the trick...`;
         } else {
             let winner = this.engine._getCurrentTrickWinner();
-            let wName = this.playerNames[winner.player];
             let pts = this.engine._countPointsInTrick();
             let leadColor = (this.engine.leadSuit === '♥' || this.engine.leadSuit === '♦') ? '#f87171' : '#f8fafc';
             pill.innerHTML = `Lead: <span style="color:${leadColor}">${this.engine.leadSuit}</span> &bull; High: <b>${winner.card.rank}${winner.card.suit}</b> (${COMPASS_SHORT[winner.player]})`;
             ptsPill.innerText = `Trick Pot: ${pts} pts`;
-
-            let playedList = this.engine.trickCards.map(tc => `${COMPASS_SHORT[tc.player]}:${tc.card.rank}${tc.card.suit}`).join(' → ');
-            ctrlStrip.innerHTML = `Lead: ${this.engine.leadSuit} | ${playedList}<br><small style="color:#38bdf8">Winning: ${wName} (${pts} pts)</small>`;
         }
     }
 
