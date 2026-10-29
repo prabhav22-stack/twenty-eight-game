@@ -1573,7 +1573,7 @@ const BackendAPI = {
     async getBid(hand, currentBid, highestBidder, playerIdx, passCount) {
         try {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 600);
+            const timer = setTimeout(() => ctrl.abort(), 1500);
             const res = await fetch('/api/bid', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1591,7 +1591,7 @@ const BackendAPI = {
     async getTrump(hand, playerIdx) {
         try {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 600);
+            const timer = setTimeout(() => ctrl.abort(), 1500);
             const res = await fetch('/api/trump', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1609,7 +1609,7 @@ const BackendAPI = {
     async getPlay(hand, trickCards, leadSuit, trumpSuit, trumpRevealed, playerIdx, playedHistory, voidSuits) {
         try {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 600);
+            const timer = setTimeout(() => ctrl.abort(), 1500);
             const res = await fetch('/api/play', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
