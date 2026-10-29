@@ -218,7 +218,7 @@ body::before {
 }
 
 /* ==================== BOARD & TABLE ==================== */
-#board { flex-grow: 1; position: relative; width: 100%; height: 100%; z-index: 10; overflow: hidden; }
+#board { flex: 1 1 0; position: relative; width: 100%; min-height: 0; z-index: 10; overflow: hidden; }
 #casino-ring {
     position: absolute; top: 41%; left: 50%; transform: translate(-50%, -50%);
     width: clamp(130px, min(34vw, 34vh), 210px); height: clamp(130px, min(34vw, 34vh), 210px);
@@ -352,17 +352,29 @@ body::before {
 .modal-pass-btn { width: 100%; padding: clamp(6px, 1.2vh, 9px); border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: clamp(0.72rem, 1.4vh, 0.8rem); }
 .suit-picker-btn { width: clamp(46px, 10vw, 54px); height: clamp(54px, 11vh, 62px); border-radius: 10px; background: linear-gradient(145deg, #ffffff, #e2e8f0); border: 2px solid var(--gold-primary); font-size: clamp(1.6rem, 3.5vh, 2rem); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
 
-/* LOG DRAWER */
-#log-drawer {
-    position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
-    width: clamp(230px, 86vw, 380px); height: 22px; overflow: hidden;
-    background: rgba(4, 12, 8, 0.9); border: 1px solid rgba(229, 193, 88, 0.3);
-    border-radius: 12px; padding: 3px 10px; font-size: 0.68rem; z-index: 90;
-    display: flex; flex-direction: column-reverse; gap: 3px; cursor: pointer;
-    backdrop-filter: blur(10px); transition: height 0.28s ease;
+/* LOG MODAL */
+#log-modal {
+    display: none; position: fixed; inset: 0; background: rgba(3, 10, 6, 0.88);
+    backdrop-filter: blur(12px); z-index: 3200; justify-content: center; align-items: center; padding: 16px;
 }
-#log-drawer.expanded { height: clamp(120px, 24vh, 160px); border-radius: 12px; overflow-y: auto; z-index: 160; padding: 8px 12px; }
-.log-entry { padding: 1px 3px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-modal-box {
+    background: rgba(8, 22, 14, 0.97); border: 1.5px solid var(--gold-primary);
+    border-radius: 18px; padding: 16px; width: clamp(280px, 92vw, 420px); max-height: 75vh;
+    display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+}
+.log-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid rgba(229, 193, 88, 0.28); padding-bottom: 8px; margin-bottom: 8px;
+}
+.log-modal-header h3 { font-family: 'Cinzel', serif; color: var(--gold-bright); margin: 0; font-size: 1.05rem; }
+.log-modal-close {
+    background: transparent; border: none; color: #94a3b8; font-size: 1.3rem; cursor: pointer; padding: 0 4px; line-height: 1;
+}
+#log-drawer {
+    overflow-y: auto; max-height: 55vh; display: flex; flex-direction: column-reverse; gap: 4px;
+    font-size: 0.74rem; padding-right: 4px;
+}
+.log-entry { padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); line-height: 1.4; word-break: break-word; }
 .log-highlight { color: var(--gold-primary); font-weight: 700; }
 
 
@@ -438,8 +450,8 @@ body::before {
 /* ==================== MOBILE SCREEN OPTIMIZATION ==================== */
 @media (max-width: 680px), (max-aspect-ratio: 1/1) {
     :root {
-        --card-w: clamp(52px, 15vw, 68px);
-        --card-h: clamp(76px, 22vw, 102px);
+        --card-w: clamp(56px, 16.5vw, 76px);
+        --card-h: clamp(84px, 24.5vw, 114px);
         --opp-card-w: clamp(26px, 7.5vw, 36px);
         --opp-card-h: clamp(38px, 11vw, 54px);
     }
@@ -453,42 +465,46 @@ body::before {
         font-size: 0.62rem;
     }
     #casino-ring, #center-table {
-        top: 45%;
+        top: 44%;
     }
     #player-top {
         top: clamp(2px, 0.8vh, 6px);
     }
     #player-left {
-        left: clamp(2px, 0.8vw, 6px); top: 45%;
+        left: clamp(2px, 0.8vw, 6px); top: 44%;
     }
     #player-right {
-        right: clamp(2px, 0.8vw, 6px); top: 45%;
+        right: clamp(2px, 0.8vw, 6px); top: 44%;
     }
     #player-bottom {
-        bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(14px, 2.8vh, 24px));
+        bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(8px, 1.8vh, 16px));
         width: 100vw; max-width: 100vw;
     }
     .my-cards-row {
-        width: 100%; max-width: 100vw; padding: 0 4px; justify-content: center; overflow: visible;
+        width: 100%; max-width: 100vw; padding: 0 4px 2px 4px; justify-content: center; overflow: visible;
     }
     .my-cards-row .card {
-        margin-left: clamp(-24px, -4.8vw, -16px);
+        margin-left: clamp(-24px, -5vw, -18px);
+    }
+    .action-btn-container {
+        bottom: calc(var(--card-h) + clamp(36px, 6vh, 50px));
     }
     .modal {
-        width: clamp(290px, 94vw, 390px);
-        padding: 16px 14px;
+        width: clamp(290px, 94vw, 380px);
+        padding: 14px 12px;
+        top: 42%;
     }
     .bid-options-grid {
         grid-template-columns: repeat(4, 1fr);
         gap: 8px; margin: 8px 0 12px 0;
     }
     .bid-chip {
-        width: clamp(46px, 12.5vw, 54px);
-        height: clamp(46px, 12.5vw, 54px);
+        width: clamp(48px, 13vw, 56px);
+        height: clamp(48px, 13vw, 56px);
         font-size: 1.15rem; font-weight: 800;
     }
     .modal-pass-btn {
-        padding: 12px; font-size: 0.95rem; font-weight: 800;
+        padding: 11px; font-size: 0.92rem; font-weight: 800;
     }
 }
 </style>
@@ -506,6 +522,7 @@ body::before {
     </div>
     <div class="bar-quick-actions">
         <button class="bar-icon-btn" onclick="toggleLanguage()" id="lang-toggle-btn" title="Language / भाषा">🌐 हिन्दी</button>
+        <button class="bar-icon-btn" onclick="toggleLogModal()" id="log-icon-btn" title="Game History / Log">📜 <span id="log-btn-text">Log</span></button>
         <button class="bar-icon-btn" onclick="openShareModal()" id="share-icon-btn" title="Share Room Invite">🔗 Invite</button>
         <button class="bar-icon-btn" id="sound-btn" onclick="toggleAudio()" title="Sound On/Off">🔊</button>
         <button class="bar-icon-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶</button>
@@ -635,7 +652,15 @@ body::before {
     <button id="pair-btn" class="act-btn" onclick="ui.onDeclarePairClick()">👑 Declare K-Q Pair</button>
 </div>
 
-<div id="log-drawer" onclick="this.classList.toggle('expanded')" title="Tap to expand/collapse game log"></div>
+<div id="log-modal" onclick="if(event.target===this) toggleLogModal()">
+    <div class="log-modal-box">
+        <div class="log-modal-header">
+            <h3 id="log-modal-title">📜 Game Log & History</h3>
+            <button class="log-modal-close" onclick="toggleLogModal()">✕</button>
+        </div>
+        <div id="log-drawer"></div>
+    </div>
+</div>
 
 <div id="bid-modal" class="modal">
     <h2 id="bid-modal-title">Place Your Bid</h2>
@@ -732,6 +757,13 @@ function toggleAudio() {
     document.getElementById('sound-btn').innerText = soundEnabled ? '🔊' : '🔇';
 }
 
+function toggleLogModal() {
+    const modal = document.getElementById('log-modal');
+    if (!modal) return;
+    const isShowing = modal.style.display === 'flex';
+    modal.style.display = isShowing ? 'none' : 'flex';
+}
+
 
 // ==================== INTERNATIONALIZATION (i18n) ====================
 let currentLang = localStorage.getItem('twentyEight_lang') || 'en';
@@ -797,6 +829,8 @@ const I18N = {
         close: "Close",
         copiedToast: "Invite link copied to clipboard!",
         langBtn: "🌐 हिन्दी",
+        logTitle: "📜 Game Log & History",
+        logBtn: "Log",
         team1Won: "🎉 TEAM 1 (S & N) WON!",
         team1Defeated: "💀 TEAM 1 (S & N) DEFEATED!",
         team2Won: "🎉 TEAM 2 (E & W) WON!",
@@ -866,6 +900,8 @@ const I18N = {
         close: "बंद करें",
         copiedToast: "लिंक क्लिपबोर्ड पर कॉपी हो गया!",
         langBtn: "🌐 English",
+        logTitle: "📜 खेल इतिहास व लॉग",
+        logBtn: "लॉग",
         team1Won: "🎉 टीम 1 (साउथ व नॉर्थ) जीती!",
         team1Defeated: "💀 टीम 1 (साउथ व नॉर्थ) हारी!",
         team2Won: "🎉 टीम 2 (ईस्ट व वेस्ट) जीती!",
@@ -910,6 +946,8 @@ function applyLanguage() {
     if (el('btn-view-invite')) el('btn-view-invite').innerText = t.inviteBtn;
     if (el('btn-reset-lobby')) el('btn-reset-lobby').innerText = t.resetLobby;
     if (el('lang-toggle-btn')) el('lang-toggle-btn').innerText = t.langBtn;
+    if (el('log-modal-title')) el('log-modal-title').innerText = t.logTitle;
+    if (el('log-btn-text')) el('log-btn-text').innerText = t.logBtn;
     if (el('lang-pill-en')) el('lang-pill-en').className = `lang-pill ${currentLang === 'en' ? 'active' : ''}`;
     if (el('lang-pill-hi')) el('lang-pill-hi').className = `lang-pill ${currentLang === 'hi' ? 'active' : ''}`;
     if (el('reveal-btn')) el('reveal-btn').innerText = t.revealTrump;
@@ -1005,17 +1043,23 @@ function copyInviteLink() {
 
 function updateTopCompassBar() {
     const bar = document.getElementById('compass-bar');
-    if (gameMode !== 'multi') {
-        bar.style.display = 'none';
-        return;
-    }
+    if (!bar) return;
     bar.style.display = 'flex';
     const roleEl = document.getElementById('my-compass-role');
-    if (mySeat === 99) {
-        roleEl.innerText = `📺 CENTER TABLE`;
-    } else {
+    const shareBtn = document.getElementById('share-icon-btn');
+
+    if (gameMode !== 'multi') {
+        if (shareBtn) shareBtn.style.display = 'none';
         let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
-        roleEl.innerText = `🧭 ${myNickname} (${COMPASS_FULL[mySeat]} • T${teamNum})`;
+        roleEl.innerText = `🧭 ${myNickname || 'YOU'} (${COMPASS_FULL[mySeat]} • T${teamNum})`;
+    } else {
+        if (shareBtn) shareBtn.style.display = 'flex';
+        if (mySeat === 99) {
+            roleEl.innerText = `📺 CENTER TABLE`;
+        } else {
+            let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
+            roleEl.innerText = `🧭 ${myNickname} (${COMPASS_FULL[mySeat]} • T${teamNum})`;
+        }
     }
 
     for (let i = 0; i < 4; i++) {
@@ -1039,7 +1083,7 @@ function startSinglePlayer() {
     gameMode = 'ai'; mySeat = 0; isHost = true; humanSeats = [0]; viewMode = 'FULL';
     myNickname = document.getElementById('player-name-input').value.trim() || "You";
     playerCustomNames[0] = myNickname;
-    document.getElementById('compass-bar').style.display = 'none';
+    updateTopCompassBar();
     document.getElementById('menu-sections').style.display = 'none';
     document.getElementById('lobby-status').innerText = 'Single Player vs 3 Grandmaster Bots Ready.';
     document.getElementById('lobby-status').style.display = 'block';
@@ -2121,8 +2165,8 @@ class UIController {
                     div.className = `card ${card.suit === '♥' || card.suit === '♦' ? 'red' : 'black'}`;
 
                     let offset = index - mid;
-                    let deg = offset * (isMobile ? 1.6 : 2.8);
-                    let yLift = Math.abs(offset) * (isMobile ? 0.8 : 2);
+                    let deg = offset * (isMobile ? 1.2 : 2.5);
+                    let yLift = Math.abs(offset) * (isMobile ? 0.4 : 1.5);
                     div.style.transform = `rotate(${deg}deg) translateY(${yLift}px)`;
                     div.style.zIndex = index + 10;
 
