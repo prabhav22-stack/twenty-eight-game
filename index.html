@@ -399,6 +399,98 @@ body::before {
 .anim-bump { animation: scoreBump 0.35s ease; display: inline-block; }
 @keyframes dealCard { 0% { opacity: 0; transform: translateY(-60px) scale(0.3); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
 .anim-deal { animation: dealCard 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+/* Language Selector Pills */
+.lang-selector-bar {
+    display: flex; background: rgba(0,0,0,0.55); border: 1.5px solid rgba(229,193,88,0.45);
+    border-radius: 20px; padding: 2px; gap: 2px; margin-bottom: 8px; z-index: 10;
+}
+.lang-pill {
+    background: transparent; border: none; color: #94a3b8; font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.74rem; font-weight: 700; padding: 4px 14px; border-radius: 16px; cursor: pointer;
+    transition: all 0.2s ease;
+}
+.lang-pill.active {
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary));
+    color: #09150d; font-weight: 800; box-shadow: 0 0 10px var(--gold-glow);
+}
+
+/* Modal Partner Box */
+.modal-partner-box {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: rgba(56, 189, 248, 0.12); border: 1.5px solid var(--team1-blue);
+    border-radius: 12px; padding: 7px 12px; margin: 6px 0 8px 0;
+    font-size: 0.8rem; font-weight: 700; color: #bae6fd;
+}
+.modal-partner-box strong { color: #fff; font-size: 0.95rem; }
+
+/* Player Seat Bid Pill */
+.seat-bid-pill {
+    display: inline-block; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.25);
+    padding: 1px 7px; border-radius: 10px; font-size: 0.62rem; font-weight: 800; margin-top: 3px;
+    color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+.seat-bid-pill.partner {
+    border-color: var(--team1-blue); color: #bae6fd; background: rgba(12, 35, 55, 0.85);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
+/* ==================== MOBILE SCREEN OPTIMIZATION ==================== */
+@media (max-width: 680px), (max-aspect-ratio: 1/1) {
+    :root {
+        --card-w: clamp(52px, 15vw, 68px);
+        --card-h: clamp(76px, 22vw, 102px);
+        --opp-card-w: clamp(26px, 7.5vw, 36px);
+        --opp-card-h: clamp(38px, 11vw, 54px);
+    }
+    #top-hud {
+        padding: 4px 6px; gap: 4px;
+    }
+    .team-hud {
+        padding: 2px 6px; max-width: 135px;
+    }
+    .team-name {
+        font-size: 0.62rem;
+    }
+    #casino-ring, #center-table {
+        top: 45%;
+    }
+    #player-top {
+        top: clamp(2px, 0.8vh, 6px);
+    }
+    #player-left {
+        left: clamp(2px, 0.8vw, 6px); top: 45%;
+    }
+    #player-right {
+        right: clamp(2px, 0.8vw, 6px); top: 45%;
+    }
+    #player-bottom {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(14px, 2.8vh, 24px));
+        width: 100vw; max-width: 100vw;
+    }
+    .my-cards-row {
+        width: 100%; max-width: 100vw; padding: 0 4px; justify-content: center; overflow: visible;
+    }
+    .my-cards-row .card {
+        margin-left: clamp(-24px, -4.8vw, -16px);
+    }
+    .modal {
+        width: clamp(290px, 94vw, 390px);
+        padding: 16px 14px;
+    }
+    .bid-options-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px; margin: 8px 0 12px 0;
+    }
+    .bid-chip {
+        width: clamp(46px, 12.5vw, 54px);
+        height: clamp(46px, 12.5vw, 54px);
+        font-size: 1.15rem; font-weight: 800;
+    }
+    .modal-pass-btn {
+        padding: 12px; font-size: 0.95rem; font-weight: 800;
+    }
+}
 </style>
 </head>
 <body>
@@ -413,7 +505,8 @@ body::before {
         <span class="c-seat" id="c-seat-3">W: 🤖</span>
     </div>
     <div class="bar-quick-actions">
-        <button class="bar-icon-btn" onclick="openShareModal()" title="Share Room Invite">🔗 Invite</button>
+        <button class="bar-icon-btn" onclick="toggleLanguage()" id="lang-toggle-btn" title="Language / भाषा">🌐 हिन्दी</button>
+        <button class="bar-icon-btn" onclick="openShareModal()" id="share-icon-btn" title="Share Room Invite">🔗 Invite</button>
         <button class="bar-icon-btn" id="sound-btn" onclick="toggleAudio()" title="Sound On/Off">🔊</button>
         <button class="bar-icon-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶</button>
     </div>
@@ -438,48 +531,52 @@ body::before {
 
 <!-- ==================== START & LOBBY SCREEN ==================== -->
 <div id="start-screen">
+    <div class="lang-selector-bar">
+        <button class="lang-pill active" id="lang-pill-en" onclick="setLanguage('en')">English</button>
+        <button class="lang-pill" id="lang-pill-hi" onclick="setLanguage('hi')">हिन्दी</button>
+    </div>
     <div class="brand-logo">28</div>
-    <h1>TWENTY-EIGHT</h1>
+    <h1 id="start-logo-title">TWENTY-EIGHT</h1>
     <div class="subtitle" id="net-ip-subtitle">Royal Casino Multiplayer Edition</div>
 
     <div class="player-config-box">
         <div>
-            <div class="config-label">Your Nickname</div>
+            <div class="config-label" id="cfg-nick-label">Your Nickname</div>
             <input type="text" id="player-name-input" class="config-input" placeholder="Player 1" value="Player 1">
         </div>
         <div>
-            <div class="config-label">Room Code</div>
+            <div class="config-label" id="cfg-room-label">Room Code</div>
             <input type="text" id="room-code-input" class="config-input" placeholder="e.g. ROYAL28" style="text-transform:uppercase;">
         </div>
     </div>
 
     <div class="menu-grid" id="menu-sections">
         <div class="menu-card">
-            <h3>🌐 Online Multiplayer</h3>
+            <h3 id="menu-online-title">🌐 Online Multiplayer</h3>
             <button class="menu-btn primary-gold" onclick="joinNetworkGame('FULL', 'HOST')">
-                <span>👑 Create & Host Room</span>
-                <span class="btn-sub">Starts as SOUTH (Host)</span>
+                <span id="btn-host-title">👑 Create & Host Room</span>
+                <span class="btn-sub" id="btn-host-sub">Starts as SOUTH (Host)</span>
             </button>
             <button class="menu-btn secondary-btn" onclick="joinNetworkGame('FULL', 'CLIENT')">
-                <span>⚡ Join Existing Room</span>
-                <span class="btn-sub">Connect to Host</span>
+                <span id="btn-join-title">⚡ Join Existing Room</span>
+                <span class="btn-sub" id="btn-join-sub">Connect to Host</span>
             </button>
         </div>
 
         <div class="menu-card">
-            <h3>🤖 Offline Practice</h3>
+            <h3 id="menu-offline-title">🤖 Offline Practice</h3>
             <button class="menu-btn" onclick="startSinglePlayer()">
-                <span>Single Player vs AI</span>
-                <span class="btn-sub">Instant Offline Match</span>
+                <span id="btn-ai-title">Single Player vs AI</span>
+                <span class="btn-sub" id="btn-ai-sub">Instant Offline Match</span>
             </button>
         </div>
     </div>
 
     <div id="lobby-status">Connecting to Royal Room...</div>
     <div id="host-controls">
-        <button class="menu-btn start-match-btn" onclick="hostStartGame()">🏁 START MATCH (FILL EMPTY WITH AI)</button>
-        <button class="menu-btn" style="justify-content:center; font-size:0.78rem; opacity:0.85;" onclick="openShareModal()">🔗 View Invite Link & QR Code</button>
-        <button class="menu-btn" style="justify-content:center; font-size:0.78rem; opacity:0.8;" onclick="resetServerLobby()">🔄 Reset Lobby</button>
+        <button class="menu-btn start-match-btn" id="btn-start-match" onclick="hostStartGame()">🏁 START MATCH (FILL EMPTY WITH AI)</button>
+        <button class="menu-btn" style="justify-content:center; font-size:0.78rem; opacity:0.85;" id="btn-view-invite" onclick="openShareModal()">🔗 View Invite Link & QR Code</button>
+        <button class="menu-btn" style="justify-content:center; font-size:0.78rem; opacity:0.8;" id="btn-reset-lobby" onclick="resetServerLobby()">🔄 Reset Lobby</button>
     </div>
 </div>
 
@@ -541,16 +638,19 @@ body::before {
 <div id="log-drawer" onclick="this.classList.toggle('expanded')" title="Tap to expand/collapse game log"></div>
 
 <div id="bid-modal" class="modal">
-    <h2>Place Your Bid</h2>
-    <div class="modal-sub">Current High Bid: <strong id="current-high-bid" style="color:var(--gold-bright);">None</strong></div>
+    <h2 id="bid-modal-title">Place Your Bid</h2>
+    <div class="modal-sub"><span id="bid-high-label">Current High Bid:</span> <strong id="current-high-bid" style="color:var(--gold-bright);">None</strong></div>
+    <div id="modal-partner-box" class="modal-partner-box">
+        <span id="modal-partner-text">🤝 PARTNER (NORTH): WAITING...</span>
+    </div>
     <div class="hand-eval-pill" id="bid-hand-eval">Your 4-Card Points: 0 pts</div>
     <div id="bid-options" class="bid-options-grid"></div>
-    <button class="modal-pass-btn" onclick="ui.onBidSubmit('Pass')">Pass Turn</button>
+    <button class="modal-pass-btn" id="modal-pass-btn" onclick="ui.onBidSubmit('Pass')">Pass Turn</button>
 </div>
 
 <div id="trump-modal" class="modal">
-    <h2>Select Secret Trump Suit</h2>
-    <div class="modal-sub">Choose your secret trump suit for this round:</div>
+    <h2 id="trump-modal-title">Select Secret Trump Suit</h2>
+    <div class="modal-sub" id="trump-modal-sub">Choose your secret trump suit for this round:</div>
     <div id="trump-suit-options" style="display:flex; justify-content:center; gap:8px; margin-top:8px;"></div>
 </div>
 
@@ -630,6 +730,198 @@ function playSound(type) {
 function toggleAudio() {
     soundEnabled = !soundEnabled;
     document.getElementById('sound-btn').innerText = soundEnabled ? '🔊' : '🔇';
+}
+
+
+// ==================== INTERNATIONALIZATION (i18n) ====================
+let currentLang = localStorage.getItem('twentyEight_lang') || 'en';
+
+const I18N = {
+    en: {
+        appName: "TWENTY-EIGHT",
+        subtitle: "Royal Casino Multiplayer Edition",
+        nicknameLabel: "Your Nickname",
+        roomCodeLabel: "Room Code",
+        onlineMultiplayer: "🌐 Online Multiplayer",
+        createRoom: "👑 Create & Host Room",
+        createRoomSub: "Starts as SOUTH (Host)",
+        joinRoom: "⚡ Join Existing Room",
+        joinRoomSub: "Connect to Host",
+        offlinePractice: "🤖 Offline Practice",
+        singlePlayer: "Single Player vs AI",
+        singlePlayerSub: "Instant Offline Match",
+        startMatch: "🏁 START MATCH (FILL EMPTY WITH AI)",
+        inviteBtn: "🔗 View Invite Link & QR Code",
+        resetLobby: "🔄 Reset Lobby",
+        connecting: "Connecting to Royal Room",
+        youAreHost: "👑 You are ROOM HOST",
+        shareCodeMsg: "Share the code or tap 'Invite' for QR code!",
+        waitingForHost: "Waiting for Host to start match...",
+        allSeatsFull: "All 4 seats (S/E/N/W) are full! Spectating.",
+        yourTeam: "Your Team",
+        opponents: "Opponents",
+        bidding: "BIDDING",
+        phase1: "Phase 1 (4 Cards)",
+        secretTrump: "🔒 Secret Trump",
+        trump: "TRUMP",
+        auctionInProgress: "Auction in progress...",
+        minBid: "Min Bid: 16",
+        waitingToLead: "Waiting for {name} to lead",
+        isLeading: "{name} is leading the trick...",
+        trickPot: "Trick Pot",
+        trickZero: "Trick: 0 pts",
+        lead: "Lead",
+        high: "High",
+        winning: "Winning",
+        placeBid: "Place Your Bid",
+        currentHighBid: "Current High Bid:",
+        noneMin16: "None (Min 16)",
+        handPoints: "Your 4-Card Hand Points: {pts} pts",
+        passTurn: "Pass Turn",
+        partnerLabel: "PARTNER ({dir})",
+        partnerWaiting: "WAITING...",
+        partnerPassed: "PASSED",
+        partnerBid: "BIDS {val}",
+        partnerWonBid: "WON BID!",
+        partnerHasNotBid: "WAITING...",
+        selectTrump: "Select Secret Trump Suit",
+        selectTrumpSub: "Choose your secret trump suit for this round:",
+        revealTrump: "🚨 Reveal Trump",
+        declarePair: "👑 Declare K-Q Pair",
+        pairDeclared: "👑 K-Q PAIR DECLARED",
+        roundComplete: "Round Complete",
+        dealNextRound: "Deal Next Round",
+        inviteTitle: "👑 Invite Friends",
+        inviteSub: "Scan on phone or share room code:",
+        copyInvite: "📋 Copy Invite Link",
+        close: "Close",
+        copiedToast: "Invite link copied to clipboard!",
+        langBtn: "🌐 हिन्दी",
+        team1Won: "🎉 TEAM 1 (S & N) WON!",
+        team1Defeated: "💀 TEAM 1 (S & N) DEFEATED!",
+        team2Won: "🎉 TEAM 2 (E & W) WON!",
+        team2Defeated: "💀 TEAM 2 (E & W) DEFEATED!",
+        gamePtsWon: "Game Point(s) Won!",
+        gamePtsPenalty: "Game Point(s) Penalty!",
+        suits: { '♠': '♠ Spades', '♥': '♥ Hearts', '♣': '♣ Clubs', '♦': '♦ Diamonds' },
+        dirs: { SOUTH: 'SOUTH', NORTH: 'NORTH', EAST: 'EAST', WEST: 'WEST' }
+    },
+    hi: {
+        appName: "अट्ठाइस (28)",
+        subtitle: "रॉयल कसीनो मल्टीप्लेयर एडिशन",
+        nicknameLabel: "आपका नाम (Nickname)",
+        roomCodeLabel: "कमरा कोड (Room Code)",
+        onlineMultiplayer: "🌐 ऑनलाइन मल्टीप्लेयर",
+        createRoom: "👑 नया कमरा बनाएं (Host)",
+        createRoomSub: "साउथ (होस्ट) के रूप में शुरू करें",
+        joinRoom: "⚡ कमरे में जुड़ें (Join)",
+        joinRoomSub: "होस्ट के कमरे से जुड़ें",
+        offlinePractice: "🤖 ऑफलाइन अभ्यास",
+        singlePlayer: "कंप्यूटर (AI) के खिलाफ खेलें",
+        singlePlayerSub: "तुरंत ऑफलाइन मैच शुरू करें",
+        startMatch: "🏁 खेल शुरू करें (AI जोड़ें)",
+        inviteBtn: "🔗 आमंत्रण लिंक व QR कोड देखें",
+        resetLobby: "🔄 लॉबी रीसेट करें",
+        connecting: "रॉयल रूम से कनेक्ट हो रहा है",
+        youAreHost: "👑 आप रूम होस्ट हैं",
+        shareCodeMsg: "कोड शेयर करें या QR कोड देखने के लिए 'Invite' दबाएं!",
+        waitingForHost: "होस्ट द्वारा खेल शुरू करने की प्रतीक्षा...",
+        allSeatsFull: "सभी 4 सीटें भरी हैं! दर्शक मोड।",
+        yourTeam: "आपकी टीम",
+        opponents: "विरोधी टीम",
+        bidding: "बोली (Bidding)",
+        phase1: "चरण 1 (4 पत्ते)",
+        secretTrump: "🔒 गुप्त हुकुम",
+        trump: "हुकुम (Trump)",
+        auctionInProgress: "बोली जारी है...",
+        minBid: "न्यूनतम बोली: 16",
+        waitingToLead: "{name} की चाल की प्रतीक्षा",
+        isLeading: "{name} चाल चल रहे हैं...",
+        trickPot: "चाल के अंक",
+        trickZero: "चाल: 0 अंक",
+        lead: "रंग",
+        high: "बड़ा पत्ता",
+        winning: "जीत रहे हैं",
+        placeBid: "अपनी बोली लगाएं",
+        currentHighBid: "वर्तमान उच्चतम बोली:",
+        noneMin16: "कोई नहीं (न्यूनतम 16)",
+        handPoints: "आपके 4 पत्तों के अंक: {pts} अंक",
+        passTurn: "पास करें (Pass)",
+        partnerLabel: "साथी ({dir})",
+        partnerWaiting: "प्रतीक्षा में...",
+        partnerPassed: "पास किया",
+        partnerBid: "बोली {val}",
+        partnerWonBid: "बोली जीती!",
+        partnerHasNotBid: "प्रतीक्षा में...",
+        selectTrump: "गुप्त हुकुम का रंग चुनें",
+        selectTrumpSub: "इस राउंड के लिए गुप्त हुकुम चुनें:",
+        revealTrump: "🚨 हुकुम खोलें",
+        declarePair: "👑 रॉयल K-Q जोड़ी घोषणा",
+        pairDeclared: "👑 K-Q जोड़ी घोषित",
+        roundComplete: "राउंड समाप्त",
+        dealNextRound: "अगला राउंड खेलें",
+        inviteTitle: "👑 दोस्तों को आमंत्रित करें",
+        inviteSub: "फोन से स्कैन करें या कोड शेयर करें:",
+        copyInvite: "📋 लिंक कॉपी करें",
+        close: "बंद करें",
+        copiedToast: "लिंक क्लिपबोर्ड पर कॉपी हो गया!",
+        langBtn: "🌐 English",
+        team1Won: "🎉 टीम 1 (साउथ व नॉर्थ) जीती!",
+        team1Defeated: "💀 टीम 1 (साउथ व नॉर्थ) हारी!",
+        team2Won: "🎉 टीम 2 (ईस्ट व वेस्ट) जीती!",
+        team2Defeated: "💀 टीम 2 (ईस्ट व वेस्ट) हारी!",
+        gamePtsWon: "गेम पॉइंट मिला!",
+        gamePtsPenalty: "गेम पॉइंट पेनल्टी!",
+        suits: { '♠': '♠ हुकुम', '♥': '♥ पान', '♣': '♣ चिड़ी', '♦': '♦ ईंट' },
+        dirs: { SOUTH: 'दक्षिण (S)', NORTH: 'उत्तर (N)', EAST: 'पूर्व (E)', WEST: 'पश्चिम (W)' }
+    }
+};
+
+function setLanguage(lang) {
+    currentLang = lang;
+    try { localStorage.setItem('twentyEight_lang', lang); } catch(e) {}
+    applyLanguage();
+    if (typeof ui !== 'undefined' && ui) {
+        ui.updatePlayerNames();
+        ui.renderStaticBoard();
+    }
+}
+
+function toggleLanguage() {
+    setLanguage(currentLang === 'en' ? 'hi' : 'en');
+}
+
+function applyLanguage() {
+    const t = I18N[currentLang];
+    const el = (id) => document.getElementById(id);
+    if (el('start-logo-title')) el('start-logo-title').innerText = t.appName;
+    if (el('net-ip-subtitle')) el('net-ip-subtitle').innerText = t.subtitle;
+    if (el('cfg-nick-label')) el('cfg-nick-label').innerText = t.nicknameLabel;
+    if (el('cfg-room-label')) el('cfg-room-label').innerText = t.roomCodeLabel;
+    if (el('menu-online-title')) el('menu-online-title').innerText = t.onlineMultiplayer;
+    if (el('btn-host-title')) el('btn-host-title').innerText = t.createRoom;
+    if (el('btn-host-sub')) el('btn-host-sub').innerText = t.createRoomSub;
+    if (el('btn-join-title')) el('btn-join-title').innerText = t.joinRoom;
+    if (el('btn-join-sub')) el('btn-join-sub').innerText = t.joinRoomSub;
+    if (el('menu-offline-title')) el('menu-offline-title').innerText = t.offlinePractice;
+    if (el('btn-ai-title')) el('btn-ai-title').innerText = t.singlePlayer;
+    if (el('btn-ai-sub')) el('btn-ai-sub').innerText = t.singlePlayerSub;
+    if (el('btn-start-match')) el('btn-start-match').innerText = t.startMatch;
+    if (el('btn-view-invite')) el('btn-view-invite').innerText = t.inviteBtn;
+    if (el('btn-reset-lobby')) el('btn-reset-lobby').innerText = t.resetLobby;
+    if (el('lang-toggle-btn')) el('lang-toggle-btn').innerText = t.langBtn;
+    if (el('lang-pill-en')) el('lang-pill-en').className = `lang-pill ${currentLang === 'en' ? 'active' : ''}`;
+    if (el('lang-pill-hi')) el('lang-pill-hi').className = `lang-pill ${currentLang === 'hi' ? 'active' : ''}`;
+    if (el('reveal-btn')) el('reveal-btn').innerText = t.revealTrump;
+    if (el('pair-btn')) el('pair-btn').innerText = t.declarePair;
+    if (el('trump-modal-title')) el('trump-modal-title').innerText = t.selectTrump;
+    if (el('trump-modal-sub')) el('trump-modal-sub').innerText = t.selectTrumpSub;
+    if (el('pair-badge')) el('pair-badge').innerText = t.pairDeclared;
+    if (el('share-title')) el('share-title').innerText = t.inviteTitle;
+    if (el('share-sub')) el('share-sub').innerText = t.inviteSub;
+    if (el('copy-invite-btn')) el('copy-invite-btn').innerText = t.copyInvite;
+    if (el('close-share-btn')) el('close-share-btn').innerText = t.close;
+    if (el('next-round-btn')) el('next-round-btn').innerText = t.dealNextRound;
 }
 
 // ==================== CONSTANTS & NETWORKING ====================
@@ -1120,12 +1412,14 @@ class TwentyEightEngine {
         this.players = [[], [], [], []];
         this.phase = 'LOBBY';
         this.trickCards = [];
+        this.playerBids = [null, null, null, null];
     }
 
     resetRound() {
         this.deck = []; this.players = [[], [], [], []]; 
         this.currentBid = 15; this.highestBidder = -1;
         this.trumpSuit = null; this.trumpRevealed = false;
+        this.playerBids = [null, null, null, null];
         this.hiddenTrumpCard = null; this.hasHiddenTrump = false;
         this.justRevealedBy = -1;
         this.pairDeclared = false; this.pairDeclaringTeam = -1;
@@ -1186,6 +1480,7 @@ class TwentyEightEngine {
 
     submitBid(pIndex, val) {
         if (this.currentTurn !== pIndex || this.phase !== 'BIDDING') return; 
+        this.playerBids[pIndex] = val;
         if (val === 'Pass') { 
             this.passCount++;
             this.log(`Player ${pIndex} passed.`);
@@ -1329,10 +1624,6 @@ class TwentyEightEngine {
     getValidPlayIndices(pIndex) {
         let hand = this.players[pIndex];
         if (this.trickCards.length === 0) {
-            if (!this.trumpRevealed && this.trumpSuit && pIndex === this.highestBidder) {
-                let nonTrumps = hand.map((c, i) => c.suit !== this.trumpSuit ? i : -1).filter(i => i !== -1);
-                if (nonTrumps.length > 0) return nonTrumps;
-            }
             return hand.map((_, i) => i);
         }
 
@@ -1357,6 +1648,11 @@ class TwentyEightEngine {
             this.leadSuit = card.suit;
         } else if (card.suit !== this.leadSuit) {
             this.voidInSuit[pIndex][this.leadSuit] = true;
+        }
+
+        // Auto-reveal if trump card played before explicit reveal
+        if (card.suit === this.trumpSuit && !this.trumpRevealed) {
+            this.revealTrump(pIndex, false);
         }
 
         this.justRevealedBy = -1;
@@ -1559,6 +1855,7 @@ class TwentyEightEngine {
             trumpSuit: (this.trumpRevealed || clientSeat === this.highestBidder) ? this.trumpSuit : null,
             highestBidder: this.highestBidder,
             hasHiddenTrump: false,
+            playerBids: this.playerBids || [null, null, null, null],
             tricksWonByTeam: this.tricksWonByTeam,
             roundSuccess: this.roundSuccess, gamePointsWon: this.gamePointsWon,
             pairDeclared: this.pairDeclared, pairDeclaringTeam: this.pairDeclaringTeam
@@ -1575,6 +1872,7 @@ class TwentyEightEngine {
         this.trumpRevealed = !!state.trumpRevealed; this.trumpSuit = state.trumpSuit;
         this.highestBidder = state.highestBidder !== undefined ? state.highestBidder : -1;
         this.hasHiddenTrump = false;
+        this.playerBids = state.playerBids || [null, null, null, null];
         this.tricksWonByTeam = state.tricksWonByTeam || [0, 0];
         this.roundSuccess = state.roundSuccess; this.gamePointsWon = state.gamePointsWon;
         this.pairDeclared = !!state.pairDeclared; this.pairDeclaringTeam = state.pairDeclaringTeam;
@@ -1611,20 +1909,34 @@ class UIController {
     }
 
     handleRemoteBidUI(pIndex, val, won) {
+        let t = I18N[currentLang];
+        let partnerIdx = mySeat === 99 ? 2 : (mySeat + 2) % 4;
+        let pDir = COMPASS_FULL[pIndex];
+        let pDirName = currentLang === 'hi' ? (t.dirs && t.dirs[pDir] ? t.dirs[pDir] : pDir) : pDir;
+        let isPartner = (pIndex === partnerIdx && mySeat !== 99);
+
         if (!won) {
-            let text = val === 'Pass' ? 'Pass' : `Bid ${val}`;
+            let text = val === 'Pass' ? t.passTurn : `${t.bidding} ${val}`;
             this.showSpeechBubble(pIndex, text);
-            if (pIndex === (mySeat === 99 ? 2 : (mySeat + 2)%4) && val !== 'Pass' && mySeat !== 99) {
-                this.triggerPartnerBidSplash(`PARTNER (${COMPASS_FULL[pIndex]})`, `BIDS ${val}`);
+            if (isPartner) {
+                if (val === 'Pass') {
+                    this.triggerPartnerBidSplash(t.partnerStatus.replace('{dir}', pDirName), t.partnerPassed);
+                } else {
+                    this.triggerPartnerBidSplash(t.partnerStatus.replace('{dir}', pDirName), t.partnerBid.replace('{val}', val));
+                }
             }
         } else {
-            if (pIndex === (mySeat === 99 ? 2 : (mySeat + 2)%4) && mySeat !== 99) {
-                this.triggerPartnerBidSplash(`PARTNER (${COMPASS_FULL[pIndex]}) WON BID!`, `${val} PTS`);
+            if (isPartner) {
+                this.triggerPartnerBidSplash(t.partnerStatus.replace('{dir}', pDirName), `${t.partnerWonBid} (${val})`);
             }
+        }
+        if (this.engine.phase === 'BIDDING') {
+            this.renderStaticBoard();
         }
     }
 
     updatePlayerNames() {
+        let t = I18N[currentLang];
         if(viewMode === 'BOARD') {
             for(let i=0; i<4; i++) {
                 let isHuman = humanSeats.includes(i);
@@ -1639,15 +1951,16 @@ class UIController {
             let isHuman = humanSeats.includes(i);
             let icon = isHuman ? "👤" : "🤖";
             let dir = COMPASS_FULL[i];
+            let dirName = currentLang === 'hi' ? (t.dirs && t.dirs[dir] ? t.dirs[dir] : dir) : dir;
             let name = playerCustomNames[i] || dir;
-            if (i === mySeat) { this.playerNames[i] = `👤 ${myNickname} (${dir})`; } 
-            else if (i === (mySeat + 2) % 4) { this.playerNames[i] = `${icon} PARTNER (${name})`; } 
+            if (i === mySeat) { this.playerNames[i] = `👤 ${myNickname} (${dirName})`; } 
+            else if (i === (mySeat + 2) % 4) { this.playerNames[i] = `${icon} ${currentLang === 'hi' ? 'साथी' : 'PARTNER'} (${name})`; } 
             else { this.playerNames[i] = `${icon} ${name}`; }
         }
         let myDir = COMPASS_SHORT[mySeat];
         let partDir = COMPASS_SHORT[(mySeat + 2) % 4];
-        document.getElementById('t1-header').innerText = `Your Team (${myDir} & ${partDir})`;
-        document.getElementById('t2-header').innerText = "Opponents";
+        document.getElementById('t1-header').innerText = `${t.yourTeam} (${myDir} & ${partDir})`;
+        document.getElementById('t2-header').innerText = t.opponents;
     }
 
     triggerPartnerBidSplash(title, value) {
@@ -1701,23 +2014,24 @@ class UIController {
     updateTrickHUD() {
         const pill = document.getElementById('trick-hud-pill');
         const ptsPill = document.getElementById('trick-pts-pill');
+        let t = I18N[currentLang];
 
         if (this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1') {
-            pill.innerHTML = `Auction in progress...`;
-            ptsPill.innerText = `Min Bid: 16`;
+            pill.innerHTML = t.auctionInProgress;
+            ptsPill.innerText = t.minBid;
             return;
         }
 
         if (this.engine.trickCards.length === 0) {
             let leaderName = this.playerNames[this.engine.currentTurn];
-            pill.innerHTML = `Waiting for <b>${leaderName}</b> to lead`;
-            ptsPill.innerText = `Trick: 0 pts`;
+            pill.innerHTML = t.waitingToLead.replace('{name}', `<b>${leaderName}</b>`);
+            ptsPill.innerText = `${t.trickPot}: 0 ${t.pts}`;
         } else {
             let winner = this.engine._getCurrentTrickWinner();
             let pts = this.engine._countPointsInTrick();
             let leadColor = (this.engine.leadSuit === '♥' || this.engine.leadSuit === '♦') ? '#f87171' : '#f8fafc';
-            pill.innerHTML = `Lead: <span style="color:${leadColor}">${this.engine.leadSuit}</span> &bull; High: <b>${winner.card.rank}${winner.card.suit}</b> (${COMPASS_SHORT[winner.player]})`;
-            ptsPill.innerText = `Trick Pot: ${pts} pts`;
+            pill.innerHTML = `${t.lead}: <span style="color:${leadColor}">${this.engine.leadSuit}</span> &bull; ${t.high}: <b>${winner.card.rank}${winner.card.suit}</b> (${COMPASS_SHORT[winner.player]})`;
+            ptsPill.innerText = `${t.trickPot}: ${pts} ${t.pts}`;
         }
     }
 
@@ -1746,19 +2060,20 @@ class UIController {
             t1Target.style.display = 'none'; t2Target.style.display = 'none';
         }
 
+        let t = I18N[currentLang];
         if (this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1') {
-            document.getElementById('bid-status').innerText = this.engine.highestBidder === -1 ? 'BIDDING' : `BID: ${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
-            document.getElementById('trump-status').innerText = 'Phase 1 (4 Cards)';
+            document.getElementById('bid-status').innerText = this.engine.highestBidder === -1 ? t.bidding : `BID: ${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
+            document.getElementById('trump-status').innerText = t.phase1;
         } else if (this.engine.highestBidder !== -1) {
-            document.getElementById('bid-status').innerText = `${this.engine.currentBid} (${COMPASS_FULL[this.engine.highestBidder]})`;
+            document.getElementById('bid-status').innerText = `${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
             if (this.engine.trumpRevealed) {
                 const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ff4d4d' : '#ffffff';
-                document.getElementById('trump-status').innerHTML = `TRUMP: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span>`;
+                document.getElementById('trump-status').innerHTML = `${t.trump}: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span>`;
             } else if (mySeat === this.engine.highestBidder && this.engine.trumpSuit) {
                 const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ff4d4d' : '#ffffff';
-                document.getElementById('trump-status').innerHTML = `TRUMP: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span> (Secret)`;
+                document.getElementById('trump-status').innerHTML = `${t.trump}: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span> (${currentLang === 'hi' ? 'गुप्त' : 'Secret'})`;
             } else {
-                document.getElementById('trump-status').innerText = '🔒 Secret Trump';
+                document.getElementById('trump-status').innerText = t.secretTrump;
             }
         }
 
@@ -1778,14 +2093,26 @@ class UIController {
 
             let bidderCrown = (actualPlayerIndex === this.engine.highestBidder) ? ' 🎯' : '';
             let cardCount = (this.engine.players[actualPlayerIndex] || []).length;
+            let partnerIdx = (mySeat === 99) ? 2 : (mySeat + 2) % 4;
 
-            el.innerHTML = `<div class="${badgeClass}">${this.playerNames[actualPlayerIndex]}${bidderCrown} <span class="card-cnt">${cardCount}</span></div>`; 
+            // Partner or player bid badge during bidding phase
+            let bidBadge = '';
+            if (this.engine.phase === 'BIDDING' && this.engine.playerBids && this.engine.playerBids[actualPlayerIndex] !== null && this.engine.playerBids[actualPlayerIndex] !== undefined) {
+                let bVal = this.engine.playerBids[actualPlayerIndex];
+                let isPass = bVal === 'Pass';
+                let isP = (actualPlayerIndex === partnerIdx);
+                let badgeText = isPass ? t.partnerPassed : `${t.bidding} ${bVal}`;
+                bidBadge = `<div class="seat-bid-pill ${isP ? 'partner' : ''}">${isP ? '🤝 ' : ''}${badgeText}</div>`;
+            }
+
+            el.innerHTML = `<div class="${badgeClass}">${this.playerNames[actualPlayerIndex]}${bidderCrown} <span class="card-cnt">${cardCount}</span></div>${bidBadge}`; 
             
             if (actualPlayerIndex === mySeat && mySeat !== 99) {
                 const row = document.createElement('div');
                 row.className = 'my-cards-row';
                 let total = (this.engine.players[mySeat] || []).length;
                 let mid = (total - 1) / 2;
+                let isMobile = window.innerWidth <= 680;
 
                 (this.engine.players[mySeat] || []).forEach((card, index) => {
                     const isMyTurnToPlay = (this.engine.phase === 'PLAYING' && this.engine.currentTurn === mySeat && !uiLocked);
@@ -1794,8 +2121,8 @@ class UIController {
                     div.className = `card ${card.suit === '♥' || card.suit === '♦' ? 'red' : 'black'}`;
 
                     let offset = index - mid;
-                    let deg = offset * 2.8;
-                    let yLift = Math.abs(offset) * 2;
+                    let deg = offset * (isMobile ? 1.6 : 2.8);
+                    let yLift = Math.abs(offset) * (isMobile ? 0.8 : 2);
                     div.style.transform = `rotate(${deg}deg) translateY(${yLift}px)`;
                     div.style.zIndex = index + 10;
 
@@ -2038,8 +2365,31 @@ class UIController {
     showBidModal() {
         let hand = this.engine.players[mySeat] || [];
         let handPts = hand.reduce((s, c) => s + (c.value || 0), 0);
-        document.getElementById('bid-hand-eval').innerText = `Your 4-Card Hand Points: ${handPts} pts`;
-        document.getElementById('current-high-bid').innerText = this.engine.currentBid === 15 ? "None (Min 16)" : this.engine.currentBid;
+        let t = I18N[currentLang];
+        
+        if (document.getElementById('bid-modal-title')) document.getElementById('bid-modal-title').innerText = t.placeBid;
+        if (document.getElementById('bid-high-label')) document.getElementById('bid-high-label').innerText = t.currentHighBid;
+        document.getElementById('bid-hand-eval').innerText = t.handPoints.replace('{pts}', handPts);
+        document.getElementById('current-high-bid').innerText = this.engine.currentBid === 15 ? t.noneMin16 : this.engine.currentBid;
+        if (document.getElementById('modal-pass-btn')) document.getElementById('modal-pass-btn').innerText = t.passTurn;
+
+        // Partner bid indicator inside modal
+        let partnerIndex = mySeat === 99 ? 2 : (mySeat + 2) % 4;
+        let pBid = (this.engine.playerBids && this.engine.playerBids[partnerIndex] !== undefined) ? this.engine.playerBids[partnerIndex] : null;
+        let pDir = COMPASS_FULL[partnerIndex];
+        let pDirName = currentLang === 'hi' ? (t.dirs && t.dirs[pDir] ? t.dirs[pDir] : pDir) : pDir;
+        let pText = document.getElementById('modal-partner-text');
+        if (pText) {
+            let pLabel = t.partnerLabel.replace('{dir}', pDirName);
+            if (pBid === 'Pass') {
+                pText.innerHTML = `🤝 ${pLabel}: <span style="color:#94a3b8; font-weight:800;">${t.partnerPassed}</span>`;
+            } else if (typeof pBid === 'number') {
+                pText.innerHTML = `🤝 ${pLabel}: <span style="color:var(--gold-bright); font-weight:900;">${t.partnerBid.replace('{val}', pBid)}</span>`;
+            } else {
+                pText.innerHTML = `🤝 ${pLabel}: <span style="color:#cbd5e1;">${t.partnerWaiting}</span>`;
+            }
+        }
+
         const opts = document.getElementById('bid-options'); opts.innerHTML = '';
         for(let b = this.engine.currentBid + 1; b <= Math.min(this.engine.currentBid + 8, 28); b++) {
             const chip = document.createElement('div'); chip.className = 'bid-chip'; chip.innerText = b;
@@ -2050,10 +2400,14 @@ class UIController {
 
     showTrumpModal() {
         const container = document.getElementById('trump-suit-options'); container.innerHTML = '';
+        let t = I18N[currentLang];
+        if (document.getElementById('trump-modal-title')) document.getElementById('trump-modal-title').innerText = t.selectTrump;
+        if (document.getElementById('trump-modal-sub')) document.getElementById('trump-modal-sub').innerText = t.selectTrumpSub;
         this.engine.getAvailableSuits(mySeat).forEach(suit => {
             let btn = document.createElement('button');
             btn.className = 'suit-picker-btn';
-            btn.innerText = suit;
+            let suitName = t.suits[suit] || suit;
+            btn.innerHTML = `<span style="font-size:1.4rem;">${suit}</span><span style="font-size:0.75rem; margin-top:2px;">${suitName.replace(suit, '').trim()}</span>`;
             btn.style.color = (suit === '♥' || suit === '♦') ? '#dc2626' : '#0f172a';
             btn.onclick = () => { 
                 if(uiLocked) return; uiLocked = true;
@@ -2093,25 +2447,30 @@ class UIController {
         document.getElementById('end-modal').style.display = 'block'; 
         let bidTeam = (this.engine.highestBidder === 0 || this.engine.highestBidder === 2) ? 1 : 2;
         let pts = bidTeam === 1 ? this.engine.t1TrickPts : this.engine.t2TrickPts;
+        let t = I18N[currentLang];
         
         let titleEl = document.getElementById('end-title');
         if (bidTeam === 1) {
-            titleEl.innerText = this.engine.roundSuccess ? "🎉 TEAM 1 (S & N) WON!" : "💀 TEAM 1 (S & N) DEFEATED!";
+            titleEl.innerText = this.engine.roundSuccess ? t.team1Won : t.team1Defeated;
         } else {
-            titleEl.innerText = this.engine.roundSuccess ? "💀 TEAM 2 (E & W) WON!" : "🎉 TEAM 2 (E & W) DEFEATED!";
+            titleEl.innerText = this.engine.roundSuccess ? t.team2Won : t.team2Defeated;
         }
 
-        let msg = `Team ${bidTeam} needed <b style="color:var(--gold-bright)">${this.engine.currentBid}</b> pts and scored <b>${pts}</b> pts.<br><br>`;
-        if (this.engine.roundSuccess) msg += `<span style="color:var(--success); font-weight:700;">+${this.engine.gamePointsWon} Game Point(s) Awarded!</span>`;
-        else msg += `<span style="color:var(--danger); font-weight:700;">-${this.engine.gamePointsWon} Game Point(s) Penalty!</span>`;
+        let msg = `${currentLang === 'hi' ? 'टीम' : 'Team'} ${bidTeam} ${currentLang === 'hi' ? 'का लक्ष्य' : 'target'}: <b style="color:var(--gold-bright)">${this.engine.currentBid}</b> | ${currentLang === 'hi' ? 'स्कोर' : 'Scored'}: <b>${pts}</b> ${t.pts}.<br><br>`;
+        if (this.engine.roundSuccess) msg += `<span style="color:var(--success); font-weight:700;">+${this.engine.gamePointsWon} ${t.gamePtsWon}</span>`;
+        else msg += `<span style="color:var(--danger); font-weight:700;">-${this.engine.gamePointsWon} ${t.gamePtsPenalty}</span>`;
         
         document.getElementById('end-text').innerHTML = msg;
+        document.getElementById('next-round-btn').innerText = t.dealNextRound;
         document.getElementById('next-round-btn').style.display = isHost ? 'inline-flex' : 'none';
     }
 }
 
 const game = new TwentyEightEngine();
 const ui = new UIController(game);
+window.addEventListener('DOMContentLoaded', () => {
+    applyLanguage();
+});
 </script>
 </body>
 </html>
