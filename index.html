@@ -885,6 +885,7 @@ const I18N = {
         team2Defeated: "💀 TEAM 2 (E & W) DEFEATED!",
         gamePtsWon: "Game Point(s) Won!",
         gamePtsPenalty: "Game Point(s) Penalty!",
+        pts: "pts",
         suits: { '♠': '♠ Spades', '♥': '♥ Hearts', '♣': '♣ Clubs', '♦': '♦ Diamonds' },
         dirs: { SOUTH: 'SOUTH', NORTH: 'NORTH', EAST: 'EAST', WEST: 'WEST' }
     },
@@ -958,6 +959,7 @@ const I18N = {
         team2Defeated: "💀 टीम 2 (ईस्ट व वेस्ट) हारी!",
         gamePtsWon: "गेम पॉइंट मिला!",
         gamePtsPenalty: "गेम पॉइंट पेनल्टी!",
+        pts: "अंक",
         suits: { '♠': '♠ हुकुम', '♥': '♥ पान', '♣': '♣ चिड़ी', '♦': '♦ ईंट' },
         dirs: { SOUTH: 'दक्षिण (S)', NORTH: 'उत्तर (N)', EAST: 'पूर्व (E)', WEST: 'पश्चिम (W)' }
     }
@@ -1097,27 +1099,36 @@ function updateTopCompassBar() {
     bar.style.display = 'flex';
     const roleEl = document.getElementById('my-compass-role');
     const shareBtn = document.getElementById('share-icon-btn');
+    let t = I18N[currentLang] || I18N.en;
+
+    let dir = COMPASS_FULL[mySeat] || 'SOUTH';
+    let dirName = currentLang === 'hi' ? (t.dirs && t.dirs[dir] ? t.dirs[dir] : dir) : dir;
 
     if (gameMode !== 'multi') {
         if (shareBtn) shareBtn.style.display = 'none';
         let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
-        roleEl.innerText = `🧭 ${myNickname || 'YOU'} (${COMPASS_FULL[mySeat]} • T${teamNum})`;
+        let selfName = myNickname || (currentLang === 'hi' ? 'आप' : 'YOU');
+        roleEl.innerText = `🧭 ${selfName} (${dirName} • T${teamNum})`;
     } else {
         if (shareBtn) shareBtn.style.display = 'flex';
         if (mySeat === 99) {
-            roleEl.innerText = `📺 CENTER TABLE`;
+            roleEl.innerText = currentLang === 'hi' ? `📺 मुख्य टेबल` : `📺 CENTER TABLE`;
         } else {
             let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
-            roleEl.innerText = `🧭 ${myNickname} (${COMPASS_FULL[mySeat]} • T${teamNum})`;
+            roleEl.innerText = `🧭 ${myNickname} (${dirName} • T${teamNum})`;
         }
     }
 
     for (let i = 0; i < 4; i++) {
         const seatEl = document.getElementById(`c-seat-${i}`);
         let isHuman = humanSeats.includes(i);
-        let name = playerCustomNames[i] || COMPASS_SHORT[i];
-        let label = `${COMPASS_SHORT[i]}: ${isHuman ? ('👤' + name) : '🤖Bot'}`;
-        if (i === mySeat && mySeat !== 99) label = `${COMPASS_SHORT[i]}: 👤YOU`;
+        let seatFull = COMPASS_FULL[i];
+        let seatDirName = currentLang === 'hi' ? (t.dirs && t.dirs[seatFull] ? t.dirs[seatFull] : seatFull) : seatFull;
+        let isDefaultName = !playerCustomNames[i] || COMPASS_FULL.includes(playerCustomNames[i]);
+        let botLabel = currentLang === 'hi' ? 'बॉट' : 'Bot';
+        let youLabel = currentLang === 'hi' ? 'आप' : 'YOU';
+        let name = isDefaultName ? seatDirName : playerCustomNames[i];
+        let label = `${COMPASS_SHORT[i]}: ${isHuman ? ('👤' + (i === mySeat && mySeat !== 99 ? youLabel : name)) : ('🤖' + botLabel)}`;
         seatEl.innerText = label;
 
         seatEl.className = 'c-seat';
@@ -1512,7 +1523,7 @@ class TwentyEightEngine {
     resetRound() {
         this.deck = []; this.players = [[], [], [], []]; 
         this.currentBid = 15; this.highestBidder = -1;
-        this.trumpSuit = null; this.trumpRevealed = false;
+        this.trumpSuit = null; this.trumpRevealed = false; this.phase2Hands = null;
         this.playerBids = [null, null, null, null];
         this.hiddenTrumpCard = null; this.hasHiddenTrump = false;
         this.justRevealedBy = -1;
@@ -1538,28 +1549,36 @@ class TwentyEightEngine {
         }
     }
 
-    startRound() {
+    async startRound() {
         this.resetRound();
-        for (let suit of this.suits) {
-            for (let rank of this.ranks) {
-                this.deck.push({ suit, rank, value: this.values[rank], power: this.power[rank], isNew: false });
+        let apiDealt = await BackendAPI.deal();
+        if (apiDealt && apiDealt.phase1 && apiDealt.phase2) {
+            this.players = apiDealt.phase1;
+            this.phase2Hands = apiDealt.phase2;
+        } else {
+            this.phase2Hands = null;
+            for (let suit of this.suits) {
+                for (let rank of this.ranks) {
+                    this.deck.push({ suit, rank, value: this.values[rank], power: this.power[rank], isNew: false });
+                }
             }
-        }
-        for (let i = this.deck.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
-        }
-        for (let i = 0; i < 4; i++) {
-            for (let j = 0; j < 4; j++) {
-                let c = this.deck.pop();
-                c.isNew = true;
-                this.players[j].push(c);
+            for (let i = this.deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+            }
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    let c = this.deck.pop();
+                    c.isNew = true;
+                    this.players[j].push(c);
+                }
             }
         }
         this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
         this.phase = 'DEALING_1';
         playSound('deal');
         this.log("♣ Dealing first 4 cards — Bidding begins!");
+        if (typeof ui !== 'undefined' && ui) ui.gameLoop();
     }
 
     finishDealAnimation() {
@@ -1620,6 +1639,52 @@ class TwentyEightEngine {
         }
     }
 
+
+    async getAIBidAsync() {
+        let pIndex = this.currentTurn;
+        let remoteBid = await BackendAPI.getBid(
+            this.players[pIndex],
+            this.currentBid,
+            this.highestBidder,
+            pIndex,
+            this.passCount
+        );
+        if (remoteBid !== null && remoteBid !== undefined) {
+            return remoteBid;
+        }
+        return this.getAIBid();
+    }
+
+    async getAITrumpAsync() {
+        let pIndex = this.highestBidder;
+        let remoteTrump = await BackendAPI.getTrump(this.players[pIndex], pIndex);
+        if (remoteTrump && this.suits.includes(remoteTrump)) {
+            return remoteTrump;
+        }
+        return this.getAITrump();
+    }
+
+    async getAIPlayAsync() {
+        let pIndex = this.currentTurn;
+        let remotePlay = await BackendAPI.getPlay(
+            this.players[pIndex],
+            this.trickCards,
+            this.leadSuit,
+            this.trumpSuit,
+            this.trumpRevealed,
+            pIndex,
+            this.playedCardsHistory,
+            this.voidInSuit[pIndex] || {}
+        );
+        if (remotePlay && typeof remotePlay.card_index === 'number') {
+            let valids = this.getValidPlayIndices(pIndex);
+            if (valids.includes(remotePlay.card_index)) {
+                return { reveal: !!remotePlay.reveal_trump, index: remotePlay.card_index };
+            }
+        }
+        return this.getAIPlay();
+    }
+
     getAIBid() {
         let pIndex = this.currentTurn;
         let partnerIndex = (pIndex + 2) % 4;
@@ -1672,11 +1737,23 @@ class TwentyEightEngine {
         this.hasHiddenTrump = false;
         this.log(`🤫 Player ${this.highestBidder} chose Secret Trump.`);
 
-        for (let i = 0; i < 4; i++) {
+        if (this.phase2Hands && this.phase2Hands.length === 4) {
             for (let j = 0; j < 4; j++) {
-                let c = this.deck.pop();
-                c.isNew = true;
-                this.players[j].push(c);
+                for (let c of this.phase2Hands[j]) {
+                    c.isNew = true;
+                    this.players[j].push(c);
+                }
+            }
+            this.phase2Hands = null;
+        } else {
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    let c = this.deck.pop();
+                    if (c) {
+                        c.isNew = true;
+                        this.players[j].push(c);
+                    }
+                }
             }
         }
         this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
@@ -1755,10 +1832,7 @@ class TwentyEightEngine {
             this.voidInSuit[pIndex][this.leadSuit] = true;
         }
 
-        // Auto-reveal if trump card played before explicit reveal
-        if (card.suit === this.trumpSuit && !this.trumpRevealed) {
-            this.revealTrump(pIndex, false);
-        }
+        // Trump card does not auto-reveal before explicit player request
 
         this.justRevealedBy = -1;
         this.trickCards.push({ card, player: pIndex });
@@ -1807,7 +1881,7 @@ class TwentyEightEngine {
             hand.some(c => c.suit === knownTrumpSuit && c.rank === 'K') &&
             hand.some(c => c.suit === knownTrumpSuit && c.rank === 'Q');
 
-        if (this.trickCards.length > 0 && !this.trumpRevealed) {
+        if (this.trickCards.length > 0 && !this.trumpRevealed && this.playedCardsHistory.length >= 4) {
             let hasLead = hand.some(c => c.suit === this.leadSuit);
             if (!hasLead) {
                 let currentWinner = this._getCurrentTrickWinner();
@@ -2047,15 +2121,18 @@ class UIController {
     }
 
     updatePlayerNames() {
-        let t = I18N[currentLang];
+        let t = I18N[currentLang] || I18N.en;
         if(viewMode === 'BOARD') {
             for(let i=0; i<4; i++) {
                 let isHuman = humanSeats.includes(i);
-                let pName = playerCustomNames[i] || COMPASS_FULL[i];
+                let dir = COMPASS_FULL[i];
+                let dirName = currentLang === 'hi' ? (t.dirs && t.dirs[dir] ? t.dirs[dir] : dir) : dir;
+                let isDefault = !playerCustomNames[i] || COMPASS_FULL.includes(playerCustomNames[i]);
+                let pName = isDefault ? dirName : playerCustomNames[i];
                 this.playerNames[i] = `${isHuman ? "👤" : "🤖"} ${pName}`;
             }
-            document.getElementById('t1-header').innerText = "Team 1 (S & N)";
-            document.getElementById('t2-header').innerText = "Team 2 (E & W)";
+            document.getElementById('t1-header').innerText = currentLang === 'hi' ? "टीम 1 (द व उ)" : "Team 1 (S & N)";
+            document.getElementById('t2-header').innerText = currentLang === 'hi' ? "टीम 2 (पू व प)" : "Team 2 (E & W)";
             return;
         }
         for(let i=0; i<4; i++) {
@@ -2063,10 +2140,17 @@ class UIController {
             let icon = isHuman ? "👤" : "🤖";
             let dir = COMPASS_FULL[i];
             let dirName = currentLang === 'hi' ? (t.dirs && t.dirs[dir] ? t.dirs[dir] : dir) : dir;
-            let name = playerCustomNames[i] || dir;
-            if (i === mySeat) { this.playerNames[i] = `👤 ${myNickname} (${dirName})`; } 
-            else if (i === (mySeat + 2) % 4) { this.playerNames[i] = `${icon} ${currentLang === 'hi' ? 'साथी' : 'PARTNER'} (${name})`; } 
-            else { this.playerNames[i] = `${icon} ${name}`; }
+            let isDefaultName = !playerCustomNames[i] || COMPASS_FULL.includes(playerCustomNames[i]);
+            let displayName = isDefaultName ? dirName : playerCustomNames[i];
+            if (i === mySeat) { 
+                let youLabel = myNickname || (currentLang === 'hi' ? 'खिलाड़ी 1' : 'Player 1');
+                this.playerNames[i] = `👤 ${youLabel} (${dirName})`; 
+            } else if (i === (mySeat + 2) % 4) { 
+                let partnerLabel = currentLang === 'hi' ? 'साथी' : 'PARTNER';
+                this.playerNames[i] = `${icon} ${partnerLabel} (${dirName})`; 
+            } else { 
+                this.playerNames[i] = `${icon} ${displayName}`; 
+            }
         }
         let myDir = COMPASS_SHORT[mySeat];
         let partDir = COMPASS_SHORT[(mySeat + 2) % 4];
@@ -2427,16 +2511,16 @@ class UIController {
 
         if (isAITurn && (gameMode === 'ai' || (gameMode === 'multi' && isHost))) {
             if (this.engine.phase === 'BIDDING') {
-                this.aiTimer = setTimeout(() => {
-                    let val = this.engine.getAIBid();
+                this.aiTimer = setTimeout(async () => {
+                    let val = await this.engine.getAIBidAsync();
                     if(gameMode === 'multi') broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex:this.engine.currentTurn, val:val, won:false}});
                     this.engine.submitBid(this.engine.currentTurn, val);
                     this.gameLoop();
                 }, 1500); 
             } 
             else if (this.engine.phase === 'SET_TRUMP') {
-                this.aiTimer = setTimeout(() => {
-                    let suit = this.engine.getAITrump();
+                this.aiTimer = setTimeout(async () => {
+                    let suit = await this.engine.getAITrumpAsync();
                     this.engine.setTrump(suit);
                     this.gameLoop();
                 }, 1400); 
@@ -2447,8 +2531,8 @@ class UIController {
                     this.engine.declarePair(this.engine.currentTurn);
                 }
 
-                this.aiTimer = setTimeout(() => {
-                    let aiDecision = this.engine.getAIPlay();
+                this.aiTimer = setTimeout(async () => {
+                    let aiDecision = await this.engine.getAIPlayAsync();
                     if (aiDecision.reveal) {
                         this.engine.revealTrump(this.engine.currentTurn);
                         this.gameLoop();
@@ -2468,7 +2552,11 @@ class UIController {
             if (this.engine.phase === 'PLAYING') {
                 const btn = document.getElementById('reveal-btn');
                 let hasLead = (this.engine.players[mySeat] || []).some(c => c.suit === this.engine.leadSuit);
-                if (!this.engine.trumpRevealed && this.engine.trickCards.length > 0 && !hasLead) {
+                let canReveal = !this.engine.trumpRevealed && 
+                                this.engine.trickCards.length > 0 && 
+                                !hasLead && 
+                                this.engine.playedCardsHistory.length >= 4;
+                if (canReveal) {
                     btn.style.display = 'block';
                 } else {
                     btn.style.display = 'none';

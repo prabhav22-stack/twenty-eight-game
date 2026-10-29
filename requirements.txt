@@ -1,0 +1,2 @@
+# Serverless Python dependencies for 28 Card Game
+# Built-in standard library http.server and json used for ultra-low latency (<50ms)
