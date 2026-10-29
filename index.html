@@ -400,12 +400,57 @@ body::before {
     100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
 }
 #partner-bid-splash {
-    position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(0);
-    background: linear-gradient(135deg, rgba(12, 32, 54, 0.96), rgba(5, 15, 28, 0.98));
-    border: 2px solid var(--team1-blue); border-radius: 12px; padding: 8px 20px;
-    text-align: center; z-index: 500; opacity: 0; transition: all 0.3s ease; pointer-events: none;
+    position: fixed; top: 28%; left: 50%; transform: translate(-50%, -50%) scale(0);
+    background: linear-gradient(135deg, rgba(10, 25, 40, 0.96), rgba(4, 12, 22, 0.98));
+    border: 2px solid var(--team1-blue); border-radius: 16px; padding: 10px 22px;
+    text-align: center; z-index: 2500; opacity: 0; transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none; min-width: clamp(230px, 80vw, 340px);
+    box-shadow: 0 10px 35px rgba(0,0,0,0.85);
 }
-#partner-bid-splash.show { transform: translate(-50%, -50%) scale(1); opacity: 1; box-shadow: 0 0 25px rgba(56, 189, 248, 0.5); }
+#partner-bid-splash.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+#partner-bid-splash.type-partner {
+    border-color: var(--team1-blue);
+    box-shadow: 0 0 32px rgba(56, 189, 248, 0.6), 0 12px 30px rgba(0,0,0,0.85);
+    background: linear-gradient(135deg, rgba(8, 28, 48, 0.97), rgba(3, 12, 24, 0.98));
+}
+#partner-bid-splash.type-opponent {
+    border-color: var(--team2-coral);
+    box-shadow: 0 0 32px rgba(251, 113, 133, 0.6), 0 12px 30px rgba(0,0,0,0.85);
+    background: linear-gradient(135deg, rgba(48, 12, 20, 0.97), rgba(22, 4, 8, 0.98));
+}
+#partner-bid-splash.type-self {
+    border-color: var(--gold-primary);
+    box-shadow: 0 0 32px rgba(229, 193, 88, 0.6), 0 12px 30px rgba(0,0,0,0.85);
+    background: linear-gradient(135deg, rgba(32, 26, 8, 0.97), rgba(16, 12, 3, 0.98));
+}
+#partner-bid-splash.type-won {
+    border-color: #4ade80;
+    box-shadow: 0 0 45px rgba(74, 222, 128, 0.7), 0 12px 30px rgba(0,0,0,0.85);
+    background: linear-gradient(135deg, rgba(6, 36, 18, 0.97), rgba(2, 16, 8, 0.98));
+}
+
+.modal-bid-history-row {
+    display: flex; justify-content: space-between; gap: 4px;
+    background: rgba(0,0,0,0.5); border: 1px solid rgba(229, 193, 88, 0.28);
+    border-radius: 10px; padding: 5px 6px; margin: 4px 0 8px 0;
+}
+.bid-seat-badge {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 3px 2px; border-radius: 6px; background: rgba(255,255,255,0.06);
+    font-size: 0.62rem; font-weight: 700; color: #cbd5e1;
+}
+.bid-seat-badge.active-turn {
+    background: rgba(229, 193, 88, 0.25); border: 1px solid var(--gold-primary); color: #fff;
+    box-shadow: 0 0 8px var(--gold-glow);
+}
+.bid-seat-badge.partner {
+    border-color: var(--team1-blue); color: #bae6fd;
+}
+.bid-seat-badge .seat-action {
+    font-size: 0.72rem; font-weight: 800; margin-top: 1px;
+}
+.bid-seat-badge.passed .seat-action { color: #94a3b8; }
+.bid-seat-badge.bid-placed .seat-action { color: var(--gold-bright); }
 @keyframes pulseGlow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 @keyframes scoreBump { 0% { transform: scale(1); } 50% { transform: scale(1.4); color: var(--gold-primary); } 100% { transform: scale(1); } }
 .anim-bump { animation: scoreBump 0.35s ease; display: inline-block; }
@@ -668,6 +713,7 @@ body::before {
     <div id="modal-partner-box" class="modal-partner-box">
         <span id="modal-partner-text">🤝 PARTNER (NORTH): WAITING...</span>
     </div>
+    <div id="modal-bid-history-row" class="modal-bid-history-row"></div>
     <div class="hand-eval-pill" id="bid-hand-eval">Your 4-Card Points: 0 pts</div>
     <div id="bid-options" class="bid-options-grid"></div>
     <button class="modal-pass-btn" id="modal-pass-btn" onclick="ui.onBidSubmit('Pass')">Pass Turn</button>
@@ -816,6 +862,8 @@ const I18N = {
         partnerBid: "BIDS {val}",
         partnerWonBid: "WON BID!",
         partnerHasNotBid: "WAITING...",
+        passedSkipped: "PASSED (SKIPPED)",
+        decidingBid: "is deciding bid...",
         selectTrump: "Select Secret Trump Suit",
         selectTrumpSub: "Choose your secret trump suit for this round:",
         revealTrump: "🚨 Reveal Trump",
@@ -887,6 +935,8 @@ const I18N = {
         partnerBid: "बोली {val}",
         partnerWonBid: "बोली जीती!",
         partnerHasNotBid: "प्रतीक्षा में...",
+        passedSkipped: "पास किया (स्किप)",
+        decidingBid: "की बोली की प्रतीक्षा...",
         selectTrump: "गुप्त हुकुम का रंग चुनें",
         selectTrumpSub: "इस राउंड के लिए गुप्त हुकुम चुनें:",
         revealTrump: "🚨 हुकुम खोलें",
@@ -1553,9 +1603,15 @@ class TwentyEightEngine {
             this.currentTurn = this.highestBidder;
             this.log(`🎯 Player ${this.highestBidder} wins contract at ${this.currentBid}`); 
             if(this.callbacks.onBidWon) this.callbacks.onBidWon(this.highestBidder, this.currentBid);
-            if(gameMode === 'multi' && isHost) broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex:this.highestBidder, val:this.currentBid, won:true}});
+            if(gameMode === 'multi' && isHost) {
+                broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex:this.highestBidder, val:this.currentBid, won:true}});
+                if (typeof ui !== 'undefined' && ui) ui.broadcastGameState();
+            }
         } else { 
             this.currentTurn = (this.currentTurn + 1) % 4; 
+            if(gameMode === 'multi' && isHost) {
+                if (typeof ui !== 'undefined' && ui) ui.broadcastGameState();
+            }
         }
     }
 
@@ -1958,22 +2014,28 @@ class UIController {
         let pDir = COMPASS_FULL[pIndex];
         let pDirName = currentLang === 'hi' ? (t.dirs && t.dirs[pDir] ? t.dirs[pDir] : pDir) : pDir;
         let isPartner = (pIndex === partnerIdx && mySeat !== 99);
+        let isSelf = (pIndex === mySeat && mySeat !== 99);
+        let name = this.playerNames[pIndex] || pDirName;
 
-        if (!won) {
-            let text = val === 'Pass' ? t.passTurn : `${t.bidding} ${val}`;
-            this.showSpeechBubble(pIndex, text);
-            if (isPartner) {
-                if (val === 'Pass') {
-                    this.triggerPartnerBidSplash(t.partnerStatus.replace('{dir}', pDirName), t.partnerPassed);
-                } else {
-                    this.triggerPartnerBidSplash(t.partnerStatus.replace('{dir}', pDirName), t.partnerBid.replace('{val}', val));
-                }
-            }
+        let isPass = (val === 'Pass');
+        let type = won ? 'won' : (isSelf ? 'self' : (isPartner ? 'partner' : 'opponent'));
+
+        if (won) {
+            let winPrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
+            let displayVal = `🎯 ${t.partnerWonBid} (${val})`;
+            this.triggerBidSplash(pIndex, winPrefix, displayVal, 'won');
+        } else if (isPass) {
+            let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
+            let displayVal = `⏭️ ${t.passedSkipped || 'PASSED (SKIPPED)'}`;
+            this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
+            this.showSpeechBubble(pIndex, t.passTurn);
         } else {
-            if (isPartner) {
-                this.triggerPartnerBidSplash(t.partnerStatus.replace('{dir}', pDirName), `${t.partnerWonBid} (${val})`);
-            }
+            let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
+            let displayVal = `💰 ${t.bidding} ${val}`;
+            this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
+            this.showSpeechBubble(pIndex, `${t.bidding} ${val}`);
         }
+
         if (this.engine.phase === 'BIDDING') {
             this.renderStaticBoard();
         }
@@ -2007,12 +2069,22 @@ class UIController {
         document.getElementById('t2-header').innerText = t.opponents;
     }
 
-    triggerPartnerBidSplash(title, value) {
+    triggerBidSplash(pIndex, title, value, type = 'partner') {
         const splash = document.getElementById('partner-bid-splash');
-        document.getElementById('partner-splash-title').innerText = title;
-        document.getElementById('partner-splash-val').innerText = value;
+        if (!splash) return;
+        const titleEl = document.getElementById('partner-splash-title');
+        const valEl = document.getElementById('partner-splash-val');
+        
+        splash.className = `type-${type}`;
+        titleEl.innerHTML = title;
+        valEl.innerHTML = value;
         splash.classList.add('show');
-        setTimeout(() => splash.classList.remove('show'), 2000);
+        if (this.splashTimer) clearTimeout(this.splashTimer);
+        this.splashTimer = setTimeout(() => splash.classList.remove('show'), 2200);
+    }
+
+    triggerPartnerBidSplash(title, value) {
+        this.triggerBidSplash(2, title, value, 'partner');
     }
 
     renderLog(msg) {
@@ -2061,8 +2133,21 @@ class UIController {
         let t = I18N[currentLang];
 
         if (this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1') {
-            pill.innerHTML = t.auctionInProgress;
-            ptsPill.innerText = t.minBid;
+            let currentTurnName = this.playerNames[this.engine.currentTurn] || COMPASS_FULL[this.engine.currentTurn];
+            let partnerIdx = mySeat === 99 ? 2 : (mySeat + 2) % 4;
+            let isPartnerTurn = (this.engine.currentTurn === partnerIdx && mySeat !== 99);
+            let isMyTurn = (this.engine.currentTurn === mySeat && mySeat !== 99);
+            
+            if (isMyTurn) {
+                pill.innerHTML = `<span style="color:var(--gold-bright); font-weight:800;">👉 ${currentLang === 'hi' ? 'आपकी बारी (बोली लगाएं)' : 'YOUR TURN TO BID!'}</span>`;
+            } else if (isPartnerTurn) {
+                pill.innerHTML = `<span style="color:var(--team1-blue); font-weight:800;">🤝 Partner (${currentTurnName}) ${t.decidingBid || 'is deciding bid...'}</span>`;
+            } else {
+                pill.innerHTML = `<span>⏳ ${currentTurnName} ${t.decidingBid || 'is deciding bid...'}</span>`;
+            }
+            
+            let highStr = this.engine.highestBidder === -1 ? t.minBid : `High: ${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
+            ptsPill.innerText = highStr;
             return;
         }
 
@@ -2320,6 +2405,21 @@ class UIController {
 
         let isAITurn = !humanSeats.includes(this.engine.currentTurn);
         
+        // Safety timeout for remote human players during bidding: auto-pass after 32s to prevent match freezes
+        if (isHost && gameMode === 'multi' && !isAITurn && this.engine.phase === 'BIDDING') {
+            if (this.humanBidTimeout) { clearTimeout(this.humanBidTimeout); this.humanBidTimeout = null; }
+            this.humanBidTimeout = setTimeout(() => {
+                if (this.engine.phase === 'BIDDING' && !humanSeats.includes(this.engine.currentTurn)) return;
+                if (this.engine.phase === 'BIDDING' && this.engine.currentTurn !== mySeat) {
+                    this.renderLog(`⚠️ Turn timeout: Auto-passed for seat ${COMPASS_FULL[this.engine.currentTurn]}`);
+                    this.engine.submitBid(this.engine.currentTurn, 'Pass');
+                    this.gameLoop();
+                }
+            }, 32000);
+        } else if (this.humanBidTimeout) {
+            clearTimeout(this.humanBidTimeout); this.humanBidTimeout = null;
+        }
+
         if (isAITurn && (gameMode === 'ai' || (gameMode === 'multi' && isHost))) {
             if (this.engine.phase === 'BIDDING') {
                 this.aiTimer = setTimeout(() => {
@@ -2399,11 +2499,10 @@ class UIController {
     }
 
     onBidSubmit(val) {
-        if(uiLocked && val === 'Pass') return; 
         uiLocked = true;
         document.getElementById('bid-modal').style.display = 'none';
         if(gameMode === 'multi') sendNetMessage({type:'SUBMIT_BID', player: mySeat, val: val});
-        else { game.submitBid(mySeat, val); this.gameLoop(); }
+        else { this.engine.submitBid(mySeat, val); this.gameLoop(); }
     }
 
     showBidModal() {
@@ -2426,11 +2525,39 @@ class UIController {
         if (pText) {
             let pLabel = t.partnerLabel.replace('{dir}', pDirName);
             if (pBid === 'Pass') {
-                pText.innerHTML = `🤝 ${pLabel}: <span style="color:#94a3b8; font-weight:800;">${t.partnerPassed}</span>`;
+                pText.innerHTML = `🤝 ${pLabel}: <span style="color:#94a3b8; font-weight:800;">${t.passedSkipped || t.partnerPassed}</span>`;
             } else if (typeof pBid === 'number') {
                 pText.innerHTML = `🤝 ${pLabel}: <span style="color:var(--gold-bright); font-weight:900;">${t.partnerBid.replace('{val}', pBid)}</span>`;
             } else {
                 pText.innerHTML = `🤝 ${pLabel}: <span style="color:#cbd5e1;">${t.partnerWaiting}</span>`;
+            }
+        }
+
+        // Live 4-seat Auction Status Grid
+        const historyRow = document.getElementById('modal-bid-history-row');
+        if (historyRow) {
+            historyRow.innerHTML = '';
+            for (let i = 0; i < 4; i++) {
+                let badge = document.createElement('div');
+                let isP = (i === partnerIdx && mySeat !== 99);
+                let isMe = (i === mySeat && mySeat !== 99);
+                let sBid = this.engine.playerBids ? this.engine.playerBids[i] : null;
+                badge.className = `bid-seat-badge ${isP ? 'partner' : ''}`;
+                if (this.engine.currentTurn === i) badge.classList.add('active-turn');
+                
+                let sLabel = isMe ? 'YOU' : (isP ? 'PARTNER' : COMPASS_SHORT[i]);
+                let actionText = '...';
+                if (sBid === 'Pass') {
+                    badge.classList.add('passed');
+                    actionText = 'Pass';
+                } else if (typeof sBid === 'number') {
+                    badge.classList.add('bid-placed');
+                    actionText = `Bid ${sBid}`;
+                } else if (this.engine.currentTurn === i) {
+                    actionText = 'Turn';
+                }
+                badge.innerHTML = `<span>${sLabel}</span><span class="seat-action">${actionText}</span>`;
+                historyRow.appendChild(badge);
             }
         }
 
@@ -2439,6 +2566,7 @@ class UIController {
             const chip = document.createElement('div'); chip.className = 'bid-chip'; chip.innerText = b;
             chip.onclick = () => this.onBidSubmit(b); opts.appendChild(chip);
         }
+        uiLocked = false;
         document.getElementById('bid-modal').style.display = 'block';
     }
 
