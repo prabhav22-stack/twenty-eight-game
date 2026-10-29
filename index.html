@@ -373,6 +373,9 @@ body::before {
 .act-btn { display: none; padding: clamp(6px, 1.2vh, 9px) clamp(12px, 2.5vw, 18px); border-radius: 26px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: clamp(0.72rem, 1.3vh, 0.8rem); cursor: pointer; text-transform: uppercase; letter-spacing: 0.8px; transition: all 0.2s ease; }
 #reveal-btn { background: linear-gradient(135deg, #ef4444, #991b1b); color: #fff; border: 1.5px solid #fca5a5; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.55); }
 #pair-btn { background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary)); color: #0f172a; border: 1.5px solid #fff; box-shadow: 0 4px 14px var(--gold-glow); animation: pulseGlow 1.5s infinite; }
+#reshuffle-btn { background: linear-gradient(135deg, #d97706, #92400e); color: #fff; border: 1.5px solid var(--gold-bright); box-shadow: 0 4px 14px rgba(217, 119, 6, 0.6); animation: pulseGlow 1.6s infinite; }
+.modal-reshuffle-btn { width: 100%; padding: clamp(6px, 1.3vh, 9px); margin: 4px 0 8px 0; border-radius: 10px; background: linear-gradient(135deg, #b45309, #78350f); border: 1.5px solid var(--gold-bright); color: #fff; font-weight: 800; cursor: pointer; font-size: clamp(0.72rem, 1.4vh, 0.82rem); letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.5); transition: transform 0.18s ease; }
+.modal-reshuffle-btn:hover, .modal-reshuffle-btn:active { transform: scale(1.03); box-shadow: 0 0 16px var(--gold-glow); }
 
 /* MODALS */
 @keyframes modalPop { 0% { opacity: 0; transform: translate(-50%, -44%) scale(0.88); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
@@ -746,6 +749,7 @@ body::before {
 </div>
 
 <div class="action-btn-container">
+    <button id="reshuffle-btn" class="act-btn" onclick="ui.onReshuffleClick()">🔄 0 Pts Reshuffle</button>
     <button id="reveal-btn" class="act-btn" onclick="ui.onAskRevealClick()">🚨 Reveal Trump</button>
     <button id="pair-btn" class="act-btn" onclick="ui.onDeclarePairClick()">👑 Declare K-Q Pair</button>
 </div>
@@ -768,6 +772,7 @@ body::before {
     </div>
     <div id="modal-bid-history-row" class="modal-bid-history-row"></div>
     <div class="hand-eval-pill" id="bid-hand-eval">Your 4-Card Points: 0 pts</div>
+    <button id="modal-reshuffle-btn" class="modal-reshuffle-btn" style="display:none;" onclick="ui.onReshuffleClick()">🔄 Reshuffle Deck (0 Pts Hand)</button>
     <div id="bid-options" class="bid-options-grid"></div>
     <button class="modal-pass-btn" id="modal-pass-btn" onclick="ui.onBidSubmit('Pass')">Pass Turn</button>
 </div>
@@ -933,6 +938,9 @@ const I18N = {
         selectTrumpSub: "Choose your secret trump suit for this round:",
         revealTrump: "🚨 Reveal Trump",
         declarePair: "👑 Declare K-Q Pair",
+        reshuffleZeroPts: "🔄 Reshuffle Deck (0 Pts Hand)",
+        reshufflePrompt: "⚠️ 0 Points in hand! Reshuffle requested by {name}.",
+        reshuffleSuccess: "🔄 Redeal: Fresh 4-card hands dealt!",
         pairDeclared: "👑 K-Q PAIR DECLARED",
         roundComplete: "Round Complete",
         dealNextRound: "Deal Next Round",
@@ -1007,6 +1015,9 @@ const I18N = {
         selectTrumpSub: "इस राउंड के लिए गुप्त हुकुम चुनें:",
         revealTrump: "🚨 हुकुम खोलें",
         declarePair: "👑 रॉयल K-Q जोड़ी घोषणा",
+        reshuffleZeroPts: "🔄 पत्ते दोबारा बांटें (0 अंक हाथ)",
+        reshufflePrompt: "⚠️ हाथ में 0 अंक हैं! {name} ने री-शफल मांगा।",
+        reshuffleSuccess: "🔄 नए 4 पत्ते दोबारा बांटे गए!",
         pairDeclared: "👑 K-Q जोड़ी घोषित",
         roundComplete: "राउंड समाप्त",
         dealNextRound: "अगला राउंड खेलें",
@@ -1069,6 +1080,8 @@ function applyLanguage() {
     if (el('lang-pill-hi')) el('lang-pill-hi').className = `lang-pill ${currentLang === 'hi' ? 'active' : ''}`;
     if (el('reveal-btn')) el('reveal-btn').innerText = t.revealTrump;
     if (el('pair-btn')) el('pair-btn').innerText = t.declarePair;
+    if (el('reshuffle-btn')) el('reshuffle-btn').innerText = t.reshuffleZeroPts;
+    if (el('modal-reshuffle-btn')) el('modal-reshuffle-btn').innerText = t.reshuffleZeroPts;
     if (el('trump-modal-title')) el('trump-modal-title').innerText = t.selectTrump;
     if (el('trump-modal-sub')) el('trump-modal-sub').innerText = t.selectTrumpSub;
     if (el('pair-badge')) el('pair-badge').innerText = t.pairDeclared;
@@ -1542,6 +1555,7 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         else if (data.type === 'DECLARE_PAIR') { game.declarePair(data.player); ui.gameLoop(); }
         else if (data.type === 'PLAY_CARD') { game.playCard(data.player, data.cardIndex); ui.gameLoop(); }
         else if (data.type === 'REVEAL_TRUMP') { game.revealTrump(data.player); ui.gameLoop(); }
+        else if (data.type === 'RESHUFFLE_REQUEST') { game.reshuffleRound(data.player); ui.gameLoop(); }
     }
 }
 
@@ -1675,6 +1689,33 @@ class TwentyEightEngine {
         if (gameMode === 'multi' && isHost) {
             broadcastNetMessage({type: 'UI_EVENT', log: msg});
         }
+    }
+
+    reshuffleRound(pIndex = 0) {
+        let sameStarter = (this.roundStarter - 1 + 4) % 4;
+        this.roundStarter = sameStarter;
+        this.resetRound();
+        this.phase2Hands = null;
+        for (let suit of this.suits) {
+            for (let rank of this.ranks) {
+                this.deck.push({ suit, rank, value: this.values[rank], power: this.power[rank], isNew: false });
+            }
+        }
+        for (let i = this.deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+        }
+        for (let i = 0; i < 4; i++) {
+            for (let j = 0; j < 4; j++) {
+                let c = this.deck.pop();
+                c.isNew = true;
+                this.players[j].push(c);
+            }
+        }
+        this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
+        this.phase = 'DEALING_1';
+        playSound('deal');
+        this.log(`🔄 Redeal requested by Player ${pIndex} (0 points in hand). Fresh hands dealt!`);
     }
 
     startRound() {
@@ -2795,6 +2836,17 @@ class UIController {
             document.getElementById('pair-btn').style.display = 'none';
         }
 
+        // Check 0-point hand reshuffle availability for human player
+        let myHand = this.engine.players[mySeat] || [];
+        let myHandPts = myHand.reduce((s, c) => s + ((c && typeof c.value === 'number') ? c.value : 0), 0);
+        let canReshuffle = (mySeat !== 99 && myHand.length === 4 && myHandPts === 0 && this.engine.phase === 'BIDDING');
+        const reshuffleBtn = document.getElementById('reshuffle-btn');
+        if (reshuffleBtn) {
+            let t = I18N[currentLang] || I18N.en;
+            reshuffleBtn.innerText = t.reshuffleZeroPts || '🔄 0 Pts Reshuffle';
+            reshuffleBtn.style.display = canReshuffle ? 'block' : 'none';
+        }
+
         if (this.engine.phase === 'TRICK_OVER') {
             if(!this.animatingTrick) {
                 let winningPlay = this.engine._getCurrentTrickWinner();
@@ -2806,6 +2858,34 @@ class UIController {
         
         if (this.engine.phase === 'ROUND_OVER') {
             this.showEndModal();
+        }
+    }
+
+    onReshuffleClick() {
+        if (uiLocked) return;
+        let hand = this.engine.players[mySeat] || [];
+        let handPts = hand.reduce((s, c) => s + ((c && typeof c.value === 'number') ? c.value : 0), 0);
+        if (hand.length !== 4 || handPts > 0 || this.engine.phase !== 'BIDDING') return;
+
+        uiLocked = true;
+        if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+        document.getElementById('bid-modal').style.display = 'none';
+        const reshuffleBtn = document.getElementById('reshuffle-btn');
+        if (reshuffleBtn) reshuffleBtn.style.display = 'none';
+
+        let t = I18N[currentLang] || I18N.en;
+        let name = this.playerNames[mySeat] || (COMPASS_FULL[mySeat] || 'You');
+        let msg = (t.reshufflePrompt || '⚠️ 0 Points in hand! Reshuffle requested by {name}.').replace('{name}', name);
+        this.renderLog(msg);
+        this.showSpeechBubble(mySeat, currentLang === 'hi' ? '🔄 0 अंक! री-शफल' : '🔄 0 Points! Redeal');
+
+        if (gameMode === 'multi') {
+            sendNetMessage({ type: 'RESHUFFLE_REQUEST', player: mySeat });
+        } else {
+            setTimeout(() => {
+                this.engine.reshuffleRound(mySeat);
+                this.gameLoop();
+            }, 800);
         }
     }
 
@@ -2828,7 +2908,18 @@ class UIController {
         
         if (document.getElementById('bid-modal-title')) document.getElementById('bid-modal-title').innerText = t.placeBid || 'Place Your Bid';
         if (document.getElementById('bid-high-label')) document.getElementById('bid-high-label').innerText = t.currentHighBid || 'Current High Bid:';
-        document.getElementById('bid-hand-eval').innerText = evalTemplate.replace('{pts}', handPts);
+        if (hand.length === 4 && handPts === 0) {
+            let zeroNotice = currentLang === 'hi' ? ' (री-शफल उपलब्ध)' : ' (Reshuffle Available)';
+            document.getElementById('bid-hand-eval').innerHTML = `<span style="color:#fca5a5; font-weight:800;">⚠️ ${evalTemplate.replace('{pts}', 0)}${zeroNotice}</span>`;
+        } else {
+            document.getElementById('bid-hand-eval').innerText = evalTemplate.replace('{pts}', handPts);
+        }
+
+        const modalReshuffleBtn = document.getElementById('modal-reshuffle-btn');
+        if (modalReshuffleBtn) {
+            modalReshuffleBtn.innerText = t.reshuffleZeroPts || '🔄 Reshuffle Deck (0 Pts Hand)';
+            modalReshuffleBtn.style.display = (hand.length === 4 && handPts === 0) ? 'block' : 'none';
+        }
         document.getElementById('current-high-bid').innerText = this.engine.currentBid === 15 ? t.noneMin16 : this.engine.currentBid;
         if (document.getElementById('modal-pass-btn')) document.getElementById('modal-pass-btn').innerText = t.passTurn;
 
