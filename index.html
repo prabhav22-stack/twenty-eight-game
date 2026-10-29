@@ -1895,11 +1895,9 @@ class TwentyEightEngine {
         if (this.trumpRevealed || !this.trumpSuit) return false;
         if (this.phase !== 'PLAYING') return false;
         if (this.currentTurn !== pIndex) return false;
-        // 1. Trump can NEVER be used or revealed when opening a hand / leading:
+        // The player starting the hand can NEVER open the trump:
         if (this.trickCards.length === 0) return false;
-        // 2. Trump can NEVER be revealed on the very first trick:
-        if (this.playedCardsHistory.length < 4) return false;
-        // 3. Works ONLY if the player does NOT currently have the suit of the card being played:
+        // Allowed in ANY hand (first, second, or later) if the player does NOT have the suit of the card being played:
         let hand = this.players[pIndex] || [];
         let hasLeadSuit = hand.some(c => c.suit === this.leadSuit);
         if (hasLeadSuit) return false;

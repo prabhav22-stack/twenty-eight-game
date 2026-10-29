@@ -216,8 +216,9 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
     reveal_trump = False
 
     # Check if AI should reveal trump
-    # Rules: NEVER when leading, NEVER on trick 1, ONLY when void in lead suit, AND only if holding trumps and valuable trick
-    if trick_cards and not trump_revealed and not is_trick_one:
+    # Rules: The player starting the hand can NEVER open trump (trick_cards must not be empty).
+    # Can be opened in ANY hand (first, second, or later) ONLY if the player does not have the suit of the card being played:
+    if trick_cards and not trump_revealed:
         has_lead = any(c['suit'] == lead_suit for c in hand)
         if not has_lead:
             has_trumps = any(c['suit'] == trump_suit for c in hand)
