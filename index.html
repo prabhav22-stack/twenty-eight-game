@@ -1908,15 +1908,8 @@ class TwentyEightEngine {
         let hand = this.players[pIndex] || [];
         if (hand.length === 0) return [];
 
-        // 1. LEADING A TRICK (Opening a hand)
+        // 1. LEADING A TRICK: Player can lead any card from their hand (including the suit of trump)
         if (this.trickCards.length === 0) {
-            // Trump can NEVER be used to open a hand unless the player has ONLY trump cards!
-            if (!this.trumpRevealed && this.trumpSuit) {
-                let nonTrumpIndices = hand.map((c, i) => (c.suit !== this.trumpSuit ? i : -1)).filter(i => i !== -1);
-                if (nonTrumpIndices.length > 0) {
-                    return nonTrumpIndices;
-                }
-            }
             return hand.map((_, i) => i);
         }
 

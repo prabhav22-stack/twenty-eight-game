@@ -171,15 +171,8 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
 
     # 1. Determine valid legal plays
     if not trick_cards:
-        # Leading the trick: Trump can NEVER be used to open a hand if unrevealed!
-        if not trump_revealed and trump_suit:
-            non_trumps = [i for i, c in enumerate(hand) if c['suit'] != trump_suit]
-            if non_trumps:
-                valid_indices = non_trumps
-            else:
-                valid_indices = list(range(len(hand)))
-        else:
-            valid_indices = list(range(len(hand)))
+        # Leading the trick: Player can lead any card in hand (including the suit of trump)
+        valid_indices = list(range(len(hand)))
     else:
         has_lead = any(c['suit'] == lead_suit for c in hand)
         if has_lead:
