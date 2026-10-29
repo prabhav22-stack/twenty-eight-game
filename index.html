@@ -1595,6 +1595,11 @@ class TwentyEightEngine {
             this.highestBidder = pIndex;
             this.phase = 'SET_TRUMP';
             this.currentTurn = this.highestBidder;
+            if(this.callbacks.onBidWon) this.callbacks.onBidWon(this.highestBidder, 16);
+            if(gameMode === 'multi' && isHost) {
+                broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex:this.highestBidder, val:16, won:true}});
+                if (typeof ui !== 'undefined' && ui) ui.broadcastGameState();
+            }
             return;
         }
 
@@ -2539,7 +2544,7 @@ class UIController {
             historyRow.innerHTML = '';
             for (let i = 0; i < 4; i++) {
                 let badge = document.createElement('div');
-                let isP = (i === partnerIdx && mySeat !== 99);
+                let isP = (i === partnerIndex && mySeat !== 99);
                 let isMe = (i === mySeat && mySeat !== 99);
                 let sBid = this.engine.playerBids ? this.engine.playerBids[i] : null;
                 badge.className = `bid-seat-badge ${isP ? 'partner' : ''}`;
@@ -2588,6 +2593,7 @@ class UIController {
                 else { this.engine.setTrump(suit); this.gameLoop(); }
             }; container.appendChild(btn);
         });
+        uiLocked = false;
         document.getElementById('trump-modal').style.display = 'block';
     }
 
