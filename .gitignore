@@ -3,6 +3,9 @@ __pycache__/
 *$py.class
 .streamlit/secrets.toml
 .env
+.env*
+.env.local
+.env.production
 .venv/
 env/
 venv/

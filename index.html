@@ -798,6 +798,12 @@ body::before {
     <h2 id="end-title" style="font-size:clamp(1.15rem, 2.5vh, 1.45rem); margin-bottom:6px;">YOU & YOUR PARTNER WON!</h2>
     <div id="end-badge" style="display:inline-block; padding:4px 14px; border-radius:20px; font-weight:800; font-size:clamp(0.8rem, 1.8vh, 0.95rem); margin-bottom:8px;"></div>
     <div id="end-text" style="font-size:clamp(0.78rem, 1.6vh, 0.88rem); line-height:1.45; color:#e2e8f0; margin:8px 0 14px 0;"></div>
+    <div id="end-coach-box" style="display:none; background:rgba(15,23,42,0.85); border:1px solid var(--gold-border); border-radius:12px; padding:10px 14px; margin:0 auto 16px auto; max-width:92%; text-align:left;">
+        <div style="font-size:0.75rem; color:var(--gold-bright); font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+            <span>🧠</span> <span id="end-coach-title">AI Match Analysis</span>
+        </div>
+        <div id="end-coach-text" style="font-size:0.8rem; color:#cbd5e1; line-height:1.4; font-style:italic;"></div>
+    </div>
     <button id="next-round-btn" class="menu-btn primary-gold" style="justify-content:center; margin:0 auto;" onclick="ui.startNewRound()">Deal Next Round</button>
 </div>
 
@@ -1584,20 +1590,26 @@ function hostStartGame() {
 
 // ==================== BACKEND API CLIENT ====================
 const BackendAPI = {
-    async getBid(hand, currentBid, highestBidder, playerIdx, passCount) {
+    async getBid(hand, currentBid, highestBidder, playerIdx, passCount, language) {
         try {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 1500);
+            const timer = setTimeout(() => ctrl.abort(), 2000);
             const res = await fetch('/api/bid', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hand, current_bid: currentBid, highest_bidder: highestBidder, player_idx: playerIdx, pass_count: passCount }),
+                body: JSON.stringify({ 
+                    hand, 
+                    current_bid: currentBid, 
+                    highest_bidder: highestBidder, 
+                    player_idx: playerIdx, 
+                    pass_count: passCount,
+                    language: language || 'en'
+                }),
                 signal: ctrl.signal
             });
             clearTimeout(timer);
             if (!res.ok) return null;
-            const data = await res.json();
-            return data.bid;
+            return await res.json();
         } catch(e) {
             return null;
         }
@@ -1620,10 +1632,10 @@ const BackendAPI = {
             return null;
         }
     },
-    async getPlay(hand, trickCards, leadSuit, trumpSuit, trumpRevealed, playerIdx, playedHistory, voidSuits) {
+    async getPlay(hand, trickCards, leadSuit, trumpSuit, trumpRevealed, playerIdx, playedHistory, voidSuits, language) {
         try {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 1500);
+            const timer = setTimeout(() => ctrl.abort(), 2000);
             const res = await fetch('/api/play', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1631,13 +1643,42 @@ const BackendAPI = {
                     hand, trick_cards: trickCards, lead_suit: leadSuit,
                     trump_suit: trumpSuit, trump_revealed: trumpRevealed,
                     player_idx: playerIdx, played_history: playedHistory,
-                    void_suits: voidSuits
+                    void_suits: voidSuits,
+                    language: language || 'en'
                 }),
                 signal: ctrl.signal
             });
             clearTimeout(timer);
             if (!res.ok) return null;
             return await res.json();
+        } catch(e) {
+            return null;
+        }
+    },
+    async getRecap(biddingWinner, contract, biddingTeam, t1Pts, t2Pts, success, trumpSuit, pairDeclared, language) {
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 3500);
+            const res = await fetch('/api/recap', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bidding_winner: biddingWinner,
+                    contract: contract,
+                    bidding_team: biddingTeam,
+                    t1_pts: t1Pts,
+                    t2_pts: t2Pts,
+                    success: success,
+                    trump_suit: trumpSuit,
+                    pair_declared: pairDeclared,
+                    language: language || 'en'
+                }),
+                signal: ctrl.signal
+            });
+            clearTimeout(timer);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data.recap;
         } catch(e) {
             return null;
         }
@@ -1817,18 +1858,26 @@ class TwentyEightEngine {
 
 
     async getAIBidAsync() {
+        this.lastBidDialogue = null;
         try {
             if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getBid) {
                 let pIndex = this.currentTurn;
-                let remoteBid = await BackendAPI.getBid(
+                let lang = typeof currentLang !== 'undefined' ? currentLang : 'en';
+                let remoteRes = await BackendAPI.getBid(
                     this.players[pIndex],
                     this.currentBid,
                     this.highestBidder,
                     pIndex,
-                    this.passCount
+                    this.passCount,
+                    lang
                 );
-                if (remoteBid !== null && remoteBid !== undefined) {
-                    return remoteBid;
+                if (remoteRes !== null && remoteRes !== undefined) {
+                    if (typeof remoteRes === 'object') {
+                        if (remoteRes.dialogue) this.lastBidDialogue = remoteRes.dialogue;
+                        if (remoteRes.bid !== undefined) return remoteRes.bid;
+                    } else {
+                        return remoteRes;
+                    }
                 }
             }
         } catch (e) {
@@ -1853,9 +1902,11 @@ class TwentyEightEngine {
     }
 
     async getAIPlayAsync() {
+        this.lastPlayDialogue = null;
         try {
             if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getPlay) {
                 let pIndex = this.currentTurn;
+                let lang = typeof currentLang !== 'undefined' ? currentLang : 'en';
                 let remotePlay = await BackendAPI.getPlay(
                     this.players[pIndex],
                     this.trickCards,
@@ -1864,12 +1915,14 @@ class TwentyEightEngine {
                     this.trumpRevealed,
                     pIndex,
                     this.playedCardsHistory,
-                    this.voidInSuit[pIndex] || {}
+                    this.voidInSuit[pIndex] || {},
+                    lang
                 );
                 if (remotePlay && typeof remotePlay.card_index === 'number') {
                     let valids = this.getValidPlayIndices(pIndex);
                     if (valids.includes(remotePlay.card_index)) {
-                        return { reveal: !!remotePlay.reveal_trump, index: remotePlay.card_index };
+                        if (remotePlay.dialogue) this.lastPlayDialogue = remotePlay.dialogue;
+                        return { reveal: !!remotePlay.reveal_trump, index: remotePlay.card_index, dialogue: remotePlay.dialogue };
                     }
                 }
             }
@@ -2325,12 +2378,16 @@ class UIController {
             let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `⏭️ ${t.passedSkipped || 'PASSED (SKIPPED)'}`;
             this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
-            this.showSpeechBubble(pIndex, t.passTurn);
+            let speech = (!isSelf && this.engine.lastBidDialogue) ? this.engine.lastBidDialogue : t.passTurn;
+            this.showSpeechBubble(pIndex, speech);
+            this.engine.lastBidDialogue = null;
         } else {
             let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `💰 ${t.bidding} ${val}`;
             this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
-            this.showSpeechBubble(pIndex, `${t.bidding} ${val}`);
+            let speech = (!isSelf && this.engine.lastBidDialogue) ? this.engine.lastBidDialogue : `${t.bidding} ${val}`;
+            this.showSpeechBubble(pIndex, speech);
+            this.engine.lastBidDialogue = null;
         }
 
         if (this.engine.phase === 'BIDDING') {
@@ -2791,10 +2848,14 @@ class UIController {
                 this.aiTimer = setTimeout(async () => {
                     try {
                         let aiDecision = await this.engine.getAIPlayAsync();
+                        let turnPlayer = this.engine.currentTurn;
+                        if (aiDecision && aiDecision.dialogue) {
+                            this.showSpeechBubble(turnPlayer, aiDecision.dialogue);
+                        }
                         if (aiDecision.reveal) {
-                            this.engine.revealTrump(this.engine.currentTurn);
+                            this.engine.revealTrump(turnPlayer);
                         } else {
-                            this.engine.playCard(this.engine.currentTurn, aiDecision.index);
+                            this.engine.playCard(turnPlayer, aiDecision.index);
                         }
                     } catch (err) {
                         console.error('Error in AI play turn, using local fallback:', err);
@@ -3093,6 +3154,36 @@ class UIController {
         document.getElementById('end-text').innerHTML = msg;
         document.getElementById('next-round-btn').innerText = t.dealNextRound;
         document.getElementById('next-round-btn').style.display = isHost ? 'inline-flex' : 'none';
+
+        // Groq AI Post-Round Match Analysis / Coach
+        const coachBox = document.getElementById('end-coach-box');
+        const coachText = document.getElementById('end-coach-text');
+        const coachTitle = document.getElementById('end-coach-title');
+        if (coachBox && coachText) {
+            coachTitle.innerText = currentLang === 'hi' ? '🧠 AI मैच विश्लेषण (Match Analysis)' : '🧠 AI Match Analysis';
+            coachText.innerHTML = `<span style="opacity:0.7;">${currentLang === 'hi' ? 'विश्लेषण तैयार किया जा रहा है...' : 'Analyzing round performance...'}</span>`;
+            coachBox.style.display = 'block';
+
+            BackendAPI.getRecap(
+                this.engine.highestBidder,
+                this.engine.currentBid,
+                bidTeam,
+                this.engine.t1TrickPts,
+                this.engine.t2TrickPts,
+                this.engine.roundSuccess,
+                this.engine.trumpSuit,
+                this.engine.pairDeclared,
+                currentLang
+            ).then(recap => {
+                if (recap && coachText) {
+                    coachText.innerText = `"${recap}"`;
+                } else if (coachBox) {
+                    coachBox.style.display = 'none';
+                }
+            }).catch(() => {
+                if (coachBox) coachBox.style.display = 'none';
+            });
+        }
     }
 }
 
