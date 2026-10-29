@@ -4,9 +4,9 @@ A real-time multiplayer implementation of the classic South Asian trick-taking c
 
 Powered by **WebRTC DataChannels (PeerJS)** and procedural **Web Audio API** sound effects, this game connects up to 4 players and table displays worldwide with sub-50ms latency, zero port forwarding, and seamless NAT traversal.
 
-![Table Preview](https://img.shields.io/badge/Streamlit-Ready-FF4B4B?style=for-the-badge&logo=Streamlit)
+![Deployment](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=Vercel)
 ![Multiplayer](https://img.shields.io/badge/Multiplayer-WebRTC%20P2P-38BDF8?style=for-the-badge)
-![Deployment](https://img.shields.io/badge/Deploy-Streamlit%20Cloud-22C55E?style=for-the-badge)
+![Platform](https://img.shields.io/badge/Mobile-Native%20PWA%20Ready-22C55E?style=for-the-badge)
 
 ---
 
@@ -76,14 +76,15 @@ Total card points in deck = **28 PTS**
 
 ---
 
-## ☁️ 1-Click Deploy to Streamlit Community Cloud
+## ⚡ 1-Click Deploy to Vercel (Recommended for Mobile)
 
-1. Fork or push this repository to your GitHub account.
-2. Go to [share.streamlit.io](https://share.streamlit.io).
-3. Select your repository: `prabhav22-stack/twenty-eight-game`.
-4. Set Main file path: `app.py`.
-5. Click **Deploy**!
-   Your game is now accessible anywhere in the world at `https://<your-app-name>.streamlit.app`!
+1. Push or fork this repository to your GitHub.
+2. Go to [vercel.com](https://vercel.com) and log in.
+3. Click **Add New...** -> **Project**.
+4. Import `twenty-eight-game` (select branch `vercel`).
+5. Framework Preset: **Other** (Static Site). Root Directory: `./`.
+6. Click **Deploy**!
+   Your game is now live globally at `https://<your-project>.vercel.app` with instant <200ms load times and full-screen mobile PWA support.
 
 ---
 
