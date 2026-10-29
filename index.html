@@ -2373,7 +2373,7 @@ class UIController {
         bubble.style.top = '-24px';
         bubble.innerHTML = text; el.appendChild(bubble);
         void bubble.offsetWidth; bubble.classList.add('show');
-        setTimeout(() => { bubble.classList.remove('show'); setTimeout(() => bubble.remove(), 300); }, 1400);
+        setTimeout(() => { bubble.classList.remove('show'); setTimeout(() => bubble.remove(), 350); }, 2000);
     }
 
     generateGamePointsHTML(pts) {
@@ -2634,7 +2634,7 @@ class UIController {
         let visualPos = (mySeat === 99) ? winnerIndex : (winnerIndex - mySeat + 4) % 4;
         
         cards.forEach(c => {
-            c.style.transition = 'all 0.55s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            c.style.transition = 'all 0.65s cubic-bezier(0.34, 1.56, 0.64, 1)';
             if(visualPos === 0) { c.style.top = '145%'; c.style.left = '50%'; }
             else if(visualPos === 1) { c.style.top = '50%'; c.style.left = '145%'; }
             else if(visualPos === 2) { c.style.top = '-45%'; c.style.left = '50%'; }
@@ -2646,7 +2646,7 @@ class UIController {
         setTimeout(() => {
             this.animatingTrick = false; table.innerHTML = '';
             if (isHost) { this.engine.resolveTrick(); this.gameLoop(); }
-        }, 550);
+        }, 650);
     }
 
     broadcastGameState() {
@@ -2690,7 +2690,7 @@ class UIController {
             this.isDealingState = true;
             this.renderStaticBoard();
             this.isDealingState = false;
-            if (isHost) { this.aiTimer = setTimeout(() => { this.engine.finishDealAnimation(); this.gameLoop(); }, 1200); }
+            if (isHost) { this.aiTimer = setTimeout(() => { this.engine.finishDealAnimation(); this.gameLoop(); }, 1400); }
             return; 
         }
 
@@ -2725,7 +2725,7 @@ class UIController {
                     } finally {
                         this.gameLoop();
                     }
-                }, 900); 
+                }, 1750); 
             } 
             else if (this.engine.phase === 'SET_TRUMP') {
                 this.aiTimer = setTimeout(async () => {
@@ -2739,7 +2739,7 @@ class UIController {
                     } finally {
                         this.gameLoop();
                     }
-                }, 900); 
+                }, 1700); 
             }
             else if (this.engine.phase === 'PLAYING') {
                 let team = (this.engine.currentTurn === 0 || this.engine.currentTurn === 2) ? 0 : 1;
@@ -2766,7 +2766,7 @@ class UIController {
                     } finally {
                         this.gameLoop();
                     }
-                }, 1000); 
+                }, 1750); 
             }
         }
 
@@ -2799,7 +2799,7 @@ class UIController {
             if(!this.animatingTrick) {
                 let winningPlay = this.engine._getCurrentTrickWinner();
                 if (winningPlay) {
-                    this.aiTimer = setTimeout(() => { this.animateTrickWinnerAndResolve(winningPlay.player); }, 1600);
+                    this.aiTimer = setTimeout(() => { this.animateTrickWinnerAndResolve(winningPlay.player); }, 2200);
                 }
             }
         }
@@ -2925,7 +2925,7 @@ class UIController {
         if (this.bidWonTimer) clearTimeout(this.bidWonTimer);
         this.bidWonTimer = setTimeout(() => {
             this.dismissBidWonModal();
-        }, 2200);
+        }, 2500);
     }
 
     dismissBidWonModal() {
