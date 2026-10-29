@@ -228,9 +228,90 @@ body::before {
     align-items: center; justify-content: space-between; padding: 8px;
 }
 #trick-hud-pill {
-    background: rgba(5, 14, 9, 0.85); border: 1px solid rgba(229, 193, 88, 0.35);
-    padding: 2px 10px; border-radius: 16px; font-size: clamp(0.6rem, 1.2vh, 0.66rem); font-weight: 700;
-    color: #e2e8f0; backdrop-filter: blur(6px); white-space: nowrap;
+    position: absolute;
+    top: calc(41% - clamp(64px, 16vh, 98px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 95;
+    pointer-events: none;
+    background: rgba(5, 14, 9, 0.92);
+    border: 1.5px solid rgba(229, 193, 88, 0.4);
+    padding: 3px 12px;
+    border-radius: 18px;
+    font-size: clamp(0.66rem, 1.4vh, 0.76rem);
+    font-weight: 800;
+    color: #e2e8f0;
+    backdrop-filter: blur(8px);
+    white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+    transition: all 0.25s ease;
+}
+#trick-hud-pill.hud-winning-friend {
+    border: 1.5px solid #22c55e !important;
+    background: rgba(6, 78, 59, 0.94) !important;
+    color: #86efac !important;
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.6) !important;
+}
+#trick-hud-pill.hud-winning-enemy {
+    border: 1.5px solid #ef4444 !important;
+    background: rgba(127, 29, 29, 0.94) !important;
+    color: #fca5a5 !important;
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.6) !important;
+}
+#trick-pts-pill {
+    position: absolute;
+    bottom: calc(59% - clamp(64px, 16vh, 98px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 95;
+    pointer-events: none;
+    padding: 2px 10px;
+    border-radius: 12px;
+    background: rgba(5, 14, 9, 0.88);
+    border: 1px solid rgba(229, 193, 88, 0.35);
+    font-size: clamp(0.62rem, 1.2vh, 0.7rem);
+    color: var(--gold-primary);
+    font-weight: 700;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.trick-card.winning-friend {
+    outline: 3.5px solid #22c55e !important;
+    box-shadow: 0 0 22px rgba(34, 197, 94, 0.9), 0 0 8px #22c55e !important;
+    transform: scale(1.06) !important;
+    z-index: 60 !important;
+}
+.trick-card.winning-enemy {
+    outline: 3.5px solid #ef4444 !important;
+    box-shadow: 0 0 22px rgba(239, 68, 68, 0.9), 0 0 8px #ef4444 !important;
+    transform: scale(1.06) !important;
+    z-index: 60 !important;
+}
+.winner-crown-badge {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.62rem;
+    font-weight: 800;
+    padding: 1px 7px;
+    border-radius: 8px;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    z-index: 70;
+    pointer-events: none;
+}
+.trick-card.winning-friend .winner-crown-badge {
+    background: #15803d;
+    color: #bbf7d0;
+    border: 1px solid #4ade80;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+}
+.trick-card.winning-enemy .winner-crown-badge {
+    background: #991b1b;
+    color: #fecaca;
+    border: 1px solid #f87171;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
 }
 #center-table {
     position: absolute; top: 41%; left: 50%; transform: translate(-50%, -50%);
@@ -679,11 +760,11 @@ body::before {
 </div>
 
 <div id="board">
+    <div id="trick-hud-pill">Waiting for lead...</div>
     <div id="casino-ring">
-        <div id="trick-hud-pill">Waiting for lead...</div>
         <div style="font-family:'Cinzel',serif; font-size:1.3rem; color:rgba(229,193,88,0.15); font-weight:900;">♠ ♥ ♣ ♦</div>
-        <div id="trick-pts-pill" style="font-size:0.64rem; color:var(--gold-primary); font-weight:700;">Trick: 0 pts</div>
     </div>
+    <div id="trick-pts-pill">Trick: 0 pts</div>
 
     <div id="player-top" class="hand"></div>
     <div id="player-left" class="hand"></div>
@@ -725,10 +806,22 @@ body::before {
     <div id="trump-suit-options" style="display:flex; justify-content:center; gap:8px; margin-top:8px;"></div>
 </div>
 
-<div id="end-modal" class="modal" style="top:42%;">
-    <h2 id="end-title">Round Complete</h2>
-    <p id="end-text" style="font-size:0.85rem; line-height:1.4; color:#cbd5e1; margin:10px 0;"></p>
-    <button id="next-round-btn" class="menu-btn primary-gold" style="justify-content:center;" onclick="ui.startNewRound()">Deal Next Round</button>
+<div id="bid-won-modal" class="modal" style="top:40%; z-index:1600; text-align:center;">
+    <div id="bid-won-icon" style="font-size:clamp(2.5rem, 5.5vh, 3.4rem); margin-bottom:4px;">👑</div>
+    <h2 id="bid-won-title" style="font-size:clamp(1.1rem, 2.4vh, 1.4rem); margin-bottom:6px; color:var(--gold-bright);">YOU WON THE BID!</h2>
+    <div id="bid-won-badge" style="display:inline-block; padding:4px 14px; border-radius:20px; font-weight:800; font-size:clamp(0.85rem, 1.8vh, 1rem); margin-bottom:8px; background:rgba(229,193,88,0.2); border:1.5px solid var(--gold-primary); color:var(--gold-bright);">
+        🎯 Target: 16 pts
+    </div>
+    <p id="bid-won-desc" style="font-size:clamp(0.75rem, 1.5vh, 0.85rem); color:#e2e8f0; margin:4px 0 12px 0;">Setting Secret Trump...</p>
+    <button id="bid-won-ok-btn" class="menu-btn primary-gold" style="justify-content:center; padding:6px 20px; margin:0 auto; font-size:0.8rem;" onclick="ui.dismissBidWonModal()">OK</button>
+</div>
+
+<div id="end-modal" class="modal" style="top:40%; z-index:1600; text-align:center;">
+    <div id="end-icon" style="font-size:clamp(2.5rem, 5.5vh, 3.4rem); margin-bottom:4px;">🎉</div>
+    <h2 id="end-title" style="font-size:clamp(1.15rem, 2.5vh, 1.45rem); margin-bottom:6px;">YOU & YOUR PARTNER WON!</h2>
+    <div id="end-badge" style="display:inline-block; padding:4px 14px; border-radius:20px; font-weight:800; font-size:clamp(0.8rem, 1.8vh, 0.95rem); margin-bottom:8px;"></div>
+    <div id="end-text" style="font-size:clamp(0.78rem, 1.6vh, 0.88rem); line-height:1.45; color:#e2e8f0; margin:8px 0 14px 0;"></div>
+    <button id="next-round-btn" class="menu-btn primary-gold" style="justify-content:center; margin:0 auto;" onclick="ui.startNewRound()">Deal Next Round</button>
 </div>
 
 <div id="dramatic-reveal"></div>
@@ -2190,7 +2283,10 @@ class UIController {
         this.engine = engine;
         this.engine.callbacks.onLog = (msg) => this.renderLog(msg);
         this.engine.callbacks.onBid = (pIndex, val) => this.handleRemoteBidUI(pIndex, val, false);
-        this.engine.callbacks.onBidWon = (pIndex, val) => this.handleRemoteBidUI(pIndex, val, true);
+        this.engine.callbacks.onBidWon = (pIndex, val) => {
+            this.handleRemoteBidUI(pIndex, val, true);
+            this.showBidWonModal(pIndex, val);
+        };
         this.playerNames = ["SOUTH", "EAST", "NORTH", "WEST"];
         this.isDealingState = false; this.uiTrumpRevealed = false; 
         this.aiTimer = null; this.animatingTrick = false;
@@ -2354,13 +2450,33 @@ class UIController {
 
         if (this.engine.trickCards.length === 0) {
             let leaderName = this.playerNames[this.engine.currentTurn];
+            pill.className = '';
             pill.innerHTML = (t.waitingToLead || 'Waiting for {name} to lead').replace('{name}', `<b>${leaderName}</b>`);
             ptsPill.innerText = `${potLabel}: 0 ${ptsWord}`;
         } else {
             let winner = this.engine._getCurrentTrickWinner();
             let pts = this.engine._countPointsInTrick();
+            let myTeam = (mySeat === 0 || mySeat === 2) ? 1 : 2;
+            if (mySeat === 99) myTeam = 1;
+            let winTeam = (winner.player === 0 || winner.player === 2) ? 1 : 2;
+            let isFriend = (winTeam === myTeam);
+
+            pill.className = isFriend ? 'hud-winning-friend' : 'hud-winning-enemy';
+
+            let winWho = '';
+            if (winner.player === mySeat) {
+                winWho = currentLang === 'hi' ? 'आप जीत रहे हैं' : 'YOU ARE WINNING';
+            } else if (winner.player === (mySeat + 2) % 4) {
+                winWho = currentLang === 'hi' ? 'साथी जीत रहे हैं' : 'PARTNER IS WINNING';
+            } else {
+                let oppDir = COMPASS_SHORT[winner.player];
+                winWho = currentLang === 'hi' ? `विरोधी (${oppDir})` : `OPPONENT (${oppDir})`;
+            }
+
             let leadColor = (this.engine.leadSuit === '♥' || this.engine.leadSuit === '♦') ? '#f87171' : '#f8fafc';
-            pill.innerHTML = `${t.lead || 'Lead'}: <span style="color:${leadColor}">${this.engine.leadSuit}</span> &bull; ${t.high || 'High'}: <b>${winner.card.rank}${winner.card.suit}</b> (${COMPASS_SHORT[winner.player]})`;
+            let winColor = isFriend ? '#86efac' : '#fca5a5';
+
+            pill.innerHTML = `<span style="color:${leadColor}; font-weight:800;">${this.engine.leadSuit}</span> &bull; <b style="color:${winColor};">${winWho}</b> (${winner.card.rank}${winner.card.suit})`;
             ptsPill.innerText = `${potLabel}: ${pts} ${ptsWord}`;
         }
     }
@@ -2527,6 +2643,29 @@ class UIController {
             let play = this.engine.trickCards[indexToRender];
             if (play) this.renderPlayedCard(play.card, play.player);
         }
+
+        // Highlight currently winning card with Green (Friend) or Red (Enemy)
+        let winningPlay = this.engine._getCurrentTrickWinner();
+        let myTeam = (mySeat === 0 || mySeat === 2) ? 1 : 2;
+        if (mySeat === 99) myTeam = 1;
+
+        Array.from(table.children).forEach((cardEl, idx) => {
+            let play = this.engine.trickCards[idx];
+            cardEl.classList.remove('winning-friend', 'winning-enemy');
+            let oldCrown = cardEl.querySelector('.winner-crown-badge');
+            if (oldCrown) oldCrown.remove();
+
+            if (play && winningPlay && play === winningPlay) {
+                let winTeam = (play.player === 0 || play.player === 2) ? 1 : 2;
+                let isFriend = (winTeam === myTeam);
+                cardEl.classList.add(isFriend ? 'winning-friend' : 'winning-enemy');
+
+                let crown = document.createElement('div');
+                crown.className = 'winner-crown-badge';
+                crown.innerText = isFriend ? (currentLang === 'hi' ? '👑 जीत रहे हैं' : '👑 WINNING') : (currentLang === 'hi' ? '⚔️ विरोधी' : '⚔️ OPPONENT');
+                cardEl.appendChild(crown);
+            }
+        });
     }
 
     playTrumpRevealAnimation(suit) {
@@ -2794,6 +2933,56 @@ class UIController {
         }
         uiLocked = false;
         document.getElementById('bid-modal').style.display = 'block';
+    }
+
+    showBidWonModal(winnerIndex, bidValue) {
+        const modal = document.getElementById('bid-won-modal');
+        if (!modal) return;
+        let t = I18N[currentLang] || I18N.en;
+        let partnerIdx = mySeat === 99 ? 2 : (mySeat + 2) % 4;
+        let pDir = COMPASS_FULL[winnerIndex];
+        let pDirName = currentLang === 'hi' ? (t.dirs && t.dirs[pDir] ? t.dirs[pDir] : pDir) : pDir;
+        let isPartner = (winnerIndex === partnerIdx && mySeat !== 99);
+        let isSelf = (winnerIndex === mySeat && mySeat !== 99);
+
+        const iconEl = document.getElementById('bid-won-icon');
+        const titleEl = document.getElementById('bid-won-title');
+        const badgeEl = document.getElementById('bid-won-badge');
+        const descEl = document.getElementById('bid-won-desc');
+
+        if (isSelf) {
+            iconEl.innerText = '👑';
+            titleEl.innerHTML = currentLang === 'hi' ? '👑 आपने बोली जीती!' : '👑 YOU WON THE BID!';
+            titleEl.style.color = 'var(--gold-bright)';
+            badgeEl.innerText = `🎯 ${currentLang === 'hi' ? 'लक्ष्य' : 'Contract'}: ${bidValue} ${currentLang === 'hi' ? 'अंक' : 'pts'}`;
+            descEl.innerHTML = currentLang === 'hi' ? 'अब इस राउंड के लिए अपना गुप्त हुकुम (Trump) चुनें।' : 'Now choose your Secret Trump suit for this round.';
+        } else if (isPartner) {
+            iconEl.innerText = '🤝';
+            titleEl.innerHTML = currentLang === 'hi' ? `🤝 आपके साथी (${pDirName}) ने बोली जीती!` : `🤝 PARTNER (${pDirName}) WON THE BID!`;
+            titleEl.style.color = '#38bdf8';
+            badgeEl.innerText = `🎯 ${currentLang === 'hi' ? 'लक्ष्य' : 'Contract'}: ${bidValue} ${currentLang === 'hi' ? 'अंक' : 'pts'}`;
+            descEl.innerHTML = currentLang === 'hi' ? 'आपका साथी गुप्त हुकुम चुन रहा है...' : 'Your partner is selecting Secret Trump...';
+        } else {
+            iconEl.innerText = '⚔️';
+            titleEl.innerHTML = currentLang === 'hi' ? `⚔️ विरोधी (${pDirName}) ने बोली जीती!` : `⚔️ OPPONENT (${pDirName}) WON THE BID!`;
+            titleEl.style.color = '#f87171';
+            badgeEl.innerText = `🎯 ${currentLang === 'hi' ? 'लक्ष्य' : 'Contract'}: ${bidValue} ${currentLang === 'hi' ? 'अंक' : 'pts'}`;
+            descEl.innerHTML = currentLang === 'hi' ? 'विरोधी खिलाड़ी गुप्त हुकुम चुन रहा है...' : 'Opponent is selecting Secret Trump...';
+        }
+
+        modal.style.display = 'block';
+        if (this.bidWonTimer) clearTimeout(this.bidWonTimer);
+        this.bidWonTimer = setTimeout(() => {
+            this.dismissBidWonModal();
+        }, 2200);
+    }
+
+    dismissBidWonModal() {
+        const modal = document.getElementById('bid-won-modal');
+        if (modal) modal.style.display = 'none';
+        if (this.engine.phase === 'SET_TRUMP' && this.engine.currentTurn === mySeat && mySeat !== 99) {
+            this.showTrumpModal();
+        }
     }
 
     showTrumpModal() {
