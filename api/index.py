@@ -171,8 +171,15 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
 
     # 1. Determine valid legal plays
     if not trick_cards:
-        # Leading the trick
-        valid_indices = list(range(len(hand)))
+        # Leading the trick: Trump can NEVER be used to open a hand if unrevealed!
+        if not trump_revealed and trump_suit:
+            non_trumps = [i for i, c in enumerate(hand) if c['suit'] != trump_suit]
+            if non_trumps:
+                valid_indices = non_trumps
+            else:
+                valid_indices = list(range(len(hand)))
+        else:
+            valid_indices = list(range(len(hand)))
     else:
         has_lead = any(c['suit'] == lead_suit for c in hand)
         if has_lead:
@@ -209,17 +216,13 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
     reveal_trump = False
 
     # Check if AI should reveal trump
-    if (trick_cards and not trump_revealed and not is_trick_one):
+    # Rules: NEVER when leading, NEVER on trick 1, ONLY when void in lead suit, AND only if holding trumps and valuable trick
+    if trick_cards and not trump_revealed and not is_trick_one:
         has_lead = any(c['suit'] == lead_suit for c in hand)
         if not has_lead:
-            # Void in lead suit!
-            # Should we reveal trump?
-            # Yes if:
-            # 1. We have trump cards
-            # 2. Trick has high points (>= 2 pts) OR opponent is winning with a high honour (J/9) OR we have strong trumps to win
             has_trumps = any(c['suit'] == trump_suit for c in hand)
             if has_trumps and not partner_is_winning:
-                if trick_points >= 2 or (winning_card and winning_card['rank'] in ['J', '9', 'A']):
+                if trick_points >= 2 or (winning_card and winning_card['rank'] in ['J', '9']):
                     reveal_trump = True
 
     # Choose best card among valid indices
@@ -364,10 +367,10 @@ class handler(BaseHTTPRequestHandler):
                 return
 
         # Route matching
-        if path.endswith('/deal'):
+        if 'deal' in path:
             res = deal_cards()
             self._send_json(200, res)
-        elif path.endswith('/bid'):
+        elif 'bid' in path:
             hand = data.get('hand', [])
             current_bid = data.get('current_bid', 15)
             highest_bidder = data.get('highest_bidder', -1)
@@ -375,11 +378,11 @@ class handler(BaseHTTPRequestHandler):
             pass_count = data.get('pass_count', 0)
             res = evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count)
             self._send_json(200, res)
-        elif path.endswith('/trump'):
+        elif 'trump' in path:
             hand = data.get('hand', [])
             res = select_ai_trump(hand)
             self._send_json(200, res)
-        elif path.endswith('/play'):
+        elif 'play' in path:
             hand = data.get('hand', [])
             trick_cards = data.get('trick_cards', [])
             lead_suit = data.get('lead_suit', None)

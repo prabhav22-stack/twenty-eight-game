@@ -1549,36 +1549,29 @@ class TwentyEightEngine {
         }
     }
 
-    async startRound() {
+    startRound() {
         this.resetRound();
-        let apiDealt = await BackendAPI.deal();
-        if (apiDealt && apiDealt.phase1 && apiDealt.phase2) {
-            this.players = apiDealt.phase1;
-            this.phase2Hands = apiDealt.phase2;
-        } else {
-            this.phase2Hands = null;
-            for (let suit of this.suits) {
-                for (let rank of this.ranks) {
-                    this.deck.push({ suit, rank, value: this.values[rank], power: this.power[rank], isNew: false });
-                }
+        this.phase2Hands = null;
+        for (let suit of this.suits) {
+            for (let rank of this.ranks) {
+                this.deck.push({ suit, rank, value: this.values[rank], power: this.power[rank], isNew: false });
             }
-            for (let i = this.deck.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
-            }
-            for (let i = 0; i < 4; i++) {
-                for (let j = 0; j < 4; j++) {
-                    let c = this.deck.pop();
-                    c.isNew = true;
-                    this.players[j].push(c);
-                }
+        }
+        for (let i = this.deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+        }
+        for (let i = 0; i < 4; i++) {
+            for (let j = 0; j < 4; j++) {
+                let c = this.deck.pop();
+                c.isNew = true;
+                this.players[j].push(c);
             }
         }
         this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
         this.phase = 'DEALING_1';
         playSound('deal');
         this.log("♣ Dealing first 4 cards — Bidding begins!");
-        if (typeof ui !== 'undefined' && ui) ui.gameLoop();
     }
 
     finishDealAnimation() {
@@ -1803,17 +1796,45 @@ class TwentyEightEngine {
         }
     }
 
+    canRevealTrump(pIndex) {
+        if (this.trumpRevealed || !this.trumpSuit) return false;
+        if (this.phase !== 'PLAYING') return false;
+        if (this.currentTurn !== pIndex) return false;
+        // 1. Trump can NEVER be used or revealed when opening a hand / leading:
+        if (this.trickCards.length === 0) return false;
+        // 2. Trump can NEVER be revealed on the very first trick:
+        if (this.playedCardsHistory.length < 4) return false;
+        // 3. Works ONLY if the player does NOT currently have the suit of the card being played:
+        let hand = this.players[pIndex] || [];
+        let hasLeadSuit = hand.some(c => c.suit === this.leadSuit);
+        if (hasLeadSuit) return false;
+        return true;
+    }
+
     getValidPlayIndices(pIndex) {
-        let hand = this.players[pIndex];
+        let hand = this.players[pIndex] || [];
+        if (hand.length === 0) return [];
+
+        // 1. LEADING A TRICK (Opening a hand)
         if (this.trickCards.length === 0) {
+            // Trump can NEVER be used to open a hand unless the player has ONLY trump cards!
+            if (!this.trumpRevealed && this.trumpSuit) {
+                let nonTrumpIndices = hand.map((c, i) => (c.suit !== this.trumpSuit ? i : -1)).filter(i => i !== -1);
+                if (nonTrumpIndices.length > 0) {
+                    return nonTrumpIndices;
+                }
+            }
             return hand.map((_, i) => i);
         }
 
+        // 2. FOLLOWING THE SUIT LED
         let hasLeadSuit = hand.some(c => c.suit === this.leadSuit);
         if (hasLeadSuit) {
             return hand.map((c, i) => c.suit === this.leadSuit ? i : -1).filter(i => i !== -1);
         }
 
+        // 3. VOID IN SUIT LED
+        // If this player just explicitly revealed trump on this turn, they must play trump if they have one
         if (this.justRevealedBy === pIndex && this.trumpRevealed) {
             let trumps = hand.map((c, i) => c.suit === this.trumpSuit ? i : -1).filter(i => i !== -1);
             if (trumps.length > 0) return trumps;
@@ -1881,15 +1902,14 @@ class TwentyEightEngine {
             hand.some(c => c.suit === knownTrumpSuit && c.rank === 'K') &&
             hand.some(c => c.suit === knownTrumpSuit && c.rank === 'Q');
 
-        if (this.trickCards.length > 0 && !this.trumpRevealed && this.playedCardsHistory.length >= 4) {
-            let hasLead = hand.some(c => c.suit === this.leadSuit);
-            if (!hasLead) {
-                let currentWinner = this._getCurrentTrickWinner();
-                let partnerWinning = (currentWinner.player === partnerIndex);
-                let trickPts = this._countPointsInTrick();
-                if (!partnerWinning && (trickPts >= 2 || hand.length <= 3)) {
-                    return { reveal: true, index: 0 };
-                }
+        if (this.canRevealTrump(pIndex)) {
+            let currentWinner = this._getCurrentTrickWinner();
+            let partnerWinning = (currentWinner.player === partnerIndex);
+            let trickPts = this._countPointsInTrick();
+            let hasTrump = hand.some(c => c.suit === this.trumpSuit);
+            let highWinningCard = currentWinner.card && ['J', '9', 'A'].includes(currentWinner.card.rank);
+            if (hasTrump && !partnerWinning && (trickPts >= 2 || highWinningCard)) {
+                return { reveal: true, index: 0 };
             }
         }
 
@@ -2005,14 +2025,17 @@ class TwentyEightEngine {
     }
 
     revealTrump(requesterIndex, autoEndReveal = false) {
-        if (!this.trumpRevealed) {
-            this.trumpRevealed = true;
-            this.justRevealedBy = autoEndReveal ? -1 : requesterIndex;
-            playSound('reveal');
-            this.log(`🚨 Player ${requesterIndex} revealed Trump: ${this.trumpSuit}!`);
-            this.hiddenTrumpCard = null;
-            this.hasHiddenTrump = false;
+        if (this.trumpRevealed) return;
+        if (!autoEndReveal && !this.canRevealTrump(requesterIndex)) {
+            console.warn(`Illegal trump reveal rejected for player ${requesterIndex}`);
+            return;
         }
+        this.trumpRevealed = true;
+        this.justRevealedBy = autoEndReveal ? -1 : requesterIndex;
+        playSound('reveal');
+        this.log(`🚨 Player ${requesterIndex} revealed Trump: ${this.trumpSuit}!`);
+        this.hiddenTrumpCard = null;
+        this.hasHiddenTrump = false;
     }
 
     exportStateForClient(clientSeat) {
@@ -2240,16 +2263,19 @@ class UIController {
             return;
         }
 
+        let ptsWord = (t && t.pts) ? t.pts : (currentLang === 'hi' ? 'अंक' : 'pts');
+        let potLabel = (t && t.trickPot) ? t.trickPot : (currentLang === 'hi' ? 'चाल के अंक' : 'Trick Pot');
+
         if (this.engine.trickCards.length === 0) {
             let leaderName = this.playerNames[this.engine.currentTurn];
-            pill.innerHTML = t.waitingToLead.replace('{name}', `<b>${leaderName}</b>`);
-            ptsPill.innerText = `${t.trickPot}: 0 ${t.pts}`;
+            pill.innerHTML = (t.waitingToLead || 'Waiting for {name} to lead').replace('{name}', `<b>${leaderName}</b>`);
+            ptsPill.innerText = `${potLabel}: 0 ${ptsWord}`;
         } else {
             let winner = this.engine._getCurrentTrickWinner();
             let pts = this.engine._countPointsInTrick();
             let leadColor = (this.engine.leadSuit === '♥' || this.engine.leadSuit === '♦') ? '#f87171' : '#f8fafc';
-            pill.innerHTML = `${t.lead}: <span style="color:${leadColor}">${this.engine.leadSuit}</span> &bull; ${t.high}: <b>${winner.card.rank}${winner.card.suit}</b> (${COMPASS_SHORT[winner.player]})`;
-            ptsPill.innerText = `${t.trickPot}: ${pts} ${t.pts}`;
+            pill.innerHTML = `${t.lead || 'Lead'}: <span style="color:${leadColor}">${this.engine.leadSuit}</span> &bull; ${t.high || 'High'}: <b>${winner.card.rank}${winner.card.suit}</b> (${COMPASS_SHORT[winner.player]})`;
+            ptsPill.innerText = `${potLabel}: ${pts} ${ptsWord}`;
         }
     }
 
@@ -2551,16 +2577,8 @@ class UIController {
 
             if (this.engine.phase === 'PLAYING') {
                 const btn = document.getElementById('reveal-btn');
-                let hasLead = (this.engine.players[mySeat] || []).some(c => c.suit === this.engine.leadSuit);
-                let canReveal = !this.engine.trumpRevealed && 
-                                this.engine.trickCards.length > 0 && 
-                                !hasLead && 
-                                this.engine.playedCardsHistory.length >= 4;
-                if (canReveal) {
-                    btn.style.display = 'block';
-                } else {
-                    btn.style.display = 'none';
-                }
+                let canReveal = this.engine.canRevealTrump(mySeat);
+                btn.style.display = canReveal ? 'block' : 'none';
 
                 const pairBtn = document.getElementById('pair-btn');
                 let myTeam = (mySeat === 0 || mySeat === 2) ? 0 : 1;
@@ -2600,12 +2618,13 @@ class UIController {
 
     showBidModal() {
         let hand = this.engine.players[mySeat] || [];
-        let handPts = hand.reduce((s, c) => s + (c.value || 0), 0);
-        let t = I18N[currentLang];
+        let handPts = hand.reduce((s, c) => s + ((c && typeof c.value === 'number') ? c.value : 0), 0);
+        let t = I18N[currentLang] || I18N.en;
+        let evalTemplate = (t && t.handPoints) ? t.handPoints : (currentLang === 'hi' ? 'आपके 4 पत्तों के अंक: {pts} अंक' : 'Your 4-Card Hand Points: {pts} pts');
         
-        if (document.getElementById('bid-modal-title')) document.getElementById('bid-modal-title').innerText = t.placeBid;
-        if (document.getElementById('bid-high-label')) document.getElementById('bid-high-label').innerText = t.currentHighBid;
-        document.getElementById('bid-hand-eval').innerText = t.handPoints.replace('{pts}', handPts);
+        if (document.getElementById('bid-modal-title')) document.getElementById('bid-modal-title').innerText = t.placeBid || 'Place Your Bid';
+        if (document.getElementById('bid-high-label')) document.getElementById('bid-high-label').innerText = t.currentHighBid || 'Current High Bid:';
+        document.getElementById('bid-hand-eval').innerText = evalTemplate.replace('{pts}', handPts);
         document.getElementById('current-high-bid').innerText = this.engine.currentBid === 15 ? t.noneMin16 : this.engine.currentBid;
         if (document.getElementById('modal-pass-btn')) document.getElementById('modal-pass-btn').innerText = t.passTurn;
 
