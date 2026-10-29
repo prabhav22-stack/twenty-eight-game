@@ -1586,6 +1586,7 @@ class TwentyEightEngine {
         this.deck = []; this.players = [[], [], [], []]; 
         this.currentBid = 15; this.highestBidder = -1;
         this.trumpSuit = null; this.trumpRevealed = false; this.phase2Hands = null;
+        this.hasPassed = [false, false, false, false];
         this.playerBids = [null, null, null, null];
         this.hiddenTrumpCard = null; this.hasHiddenTrump = false;
         this.justRevealedBy = -1;
@@ -1649,7 +1650,9 @@ class TwentyEightEngine {
     submitBid(pIndex, val) {
         if (this.currentTurn !== pIndex || this.phase !== 'BIDDING') return; 
         this.playerBids[pIndex] = val;
+
         if (val === 'Pass') { 
+            this.hasPassed[pIndex] = true;
             this.passCount++;
             this.log(`Player ${pIndex} passed.`);
             if(this.callbacks.onBid) this.callbacks.onBid(pIndex, 'Pass');
@@ -1657,13 +1660,15 @@ class TwentyEightEngine {
         } else { 
             this.currentBid = parseInt(val);
             this.highestBidder = pIndex;
-            this.passCount = 0; 
             this.log(`Player ${pIndex} bids ${this.currentBid}`);
             if(this.callbacks.onBid) this.callbacks.onBid(pIndex, this.currentBid);
             if(gameMode === 'multi' && isHost) broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex, val:this.currentBid, won:false}});
         }
 
-        if (this.passCount >= 4 && this.highestBidder === -1) {
+        let passedCount = this.hasPassed.filter(p => p).length;
+
+        // 1. All 4 players passed without any bid -> Forced dealer bid at 16
+        if (passedCount >= 4 && this.highestBidder === -1) {
             this.log("🔄 All passed — Dealer forced to 16.");
             this.currentBid = 16;
             this.highestBidder = pIndex;
@@ -1677,7 +1682,8 @@ class TwentyEightEngine {
             return;
         }
 
-        if (this.passCount >= 3 && this.highestBidder !== -1) { 
+        // 2. Three players passed and contract was bid -> Auction won!
+        if (passedCount >= 3 && this.highestBidder !== -1) { 
             this.phase = 'SET_TRUMP'; 
             this.currentTurn = this.highestBidder;
             this.log(`🎯 Player ${this.highestBidder} wins contract at ${this.currentBid}`); 
@@ -1686,11 +1692,20 @@ class TwentyEightEngine {
                 broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex:this.highestBidder, val:this.currentBid, won:true}});
                 if (typeof ui !== 'undefined' && ui) ui.broadcastGameState();
             }
-        } else { 
-            this.currentTurn = (this.currentTurn + 1) % 4; 
-            if(gameMode === 'multi' && isHost) {
-                if (typeof ui !== 'undefined' && ui) ui.broadcastGameState();
-            }
+            return;
+        }
+
+        // 3. Advance to the next active player who has NOT passed
+        let nextTurn = (this.currentTurn + 1) % 4;
+        let loopGuard = 0;
+        while (this.hasPassed[nextTurn] && loopGuard < 4) {
+            nextTurn = (nextTurn + 1) % 4;
+            loopGuard++;
+        }
+        this.currentTurn = nextTurn;
+
+        if(gameMode === 'multi' && isHost) {
+            if (typeof ui !== 'undefined' && ui) ui.broadcastGameState();
         }
     }
 
@@ -2137,7 +2152,7 @@ class TwentyEightEngine {
             trumpSuit: (this.trumpRevealed || clientSeat === this.highestBidder) ? this.trumpSuit : null,
             highestBidder: this.highestBidder,
             hasHiddenTrump: false,
-            playerBids: this.playerBids || [null, null, null, null],
+            hasPassed: this.hasPassed || [false, false, false, false], playerBids: this.playerBids || [null, null, null, null],
             tricksWonByTeam: this.tricksWonByTeam,
             roundSuccess: this.roundSuccess, gamePointsWon: this.gamePointsWon,
             pairDeclared: this.pairDeclared, pairDeclaringTeam: this.pairDeclaringTeam
@@ -2154,7 +2169,7 @@ class TwentyEightEngine {
         this.trumpRevealed = !!state.trumpRevealed; this.trumpSuit = state.trumpSuit;
         this.highestBidder = state.highestBidder !== undefined ? state.highestBidder : -1;
         this.hasHiddenTrump = false;
-        this.playerBids = state.playerBids || [null, null, null, null];
+        this.hasPassed = state.hasPassed || [false, false, false, false]; this.playerBids = state.playerBids || [null, null, null, null];
         this.tricksWonByTeam = state.tricksWonByTeam || [0, 0];
         this.roundSuccess = state.roundSuccess; this.gamePointsWon = state.gamePointsWon;
         this.pairDeclared = !!state.pairDeclared; this.pairDeclaringTeam = state.pairDeclaringTeam;
@@ -2618,18 +2633,32 @@ class UIController {
         if (isAITurn && (gameMode === 'ai' || (gameMode === 'multi' && isHost))) {
             if (this.engine.phase === 'BIDDING') {
                 this.aiTimer = setTimeout(async () => {
-                    let val = await this.engine.getAIBidAsync();
-                    if(gameMode === 'multi') broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex:this.engine.currentTurn, val:val, won:false}});
-                    this.engine.submitBid(this.engine.currentTurn, val);
-                    this.gameLoop();
-                }, 1500); 
+                    try {
+                        let val = await this.engine.getAIBidAsync();
+                        if(gameMode === 'multi') broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex:this.engine.currentTurn, val:val, won:false}});
+                        this.engine.submitBid(this.engine.currentTurn, val);
+                    } catch (err) {
+                        console.error('Error in AI bid turn, using local fallback:', err);
+                        let fallbackVal = this.engine.getAIBid();
+                        this.engine.submitBid(this.engine.currentTurn, fallbackVal);
+                    } finally {
+                        this.gameLoop();
+                    }
+                }, 900); 
             } 
             else if (this.engine.phase === 'SET_TRUMP') {
                 this.aiTimer = setTimeout(async () => {
-                    let suit = await this.engine.getAITrumpAsync();
-                    this.engine.setTrump(suit);
-                    this.gameLoop();
-                }, 1400); 
+                    try {
+                        let suit = await this.engine.getAITrumpAsync();
+                        this.engine.setTrump(suit);
+                    } catch (err) {
+                        console.error('Error in AI trump turn, using local fallback:', err);
+                        let fallbackSuit = this.engine.getAITrump();
+                        this.engine.setTrump(fallbackSuit);
+                    } finally {
+                        this.gameLoop();
+                    }
+                }, 900); 
             }
             else if (this.engine.phase === 'PLAYING') {
                 let team = (this.engine.currentTurn === 0 || this.engine.currentTurn === 2) ? 0 : 1;
@@ -2638,15 +2667,25 @@ class UIController {
                 }
 
                 this.aiTimer = setTimeout(async () => {
-                    let aiDecision = await this.engine.getAIPlayAsync();
-                    if (aiDecision.reveal) {
-                        this.engine.revealTrump(this.engine.currentTurn);
-                        this.gameLoop();
-                    } else {
-                        this.engine.playCard(this.engine.currentTurn, aiDecision.index);
+                    try {
+                        let aiDecision = await this.engine.getAIPlayAsync();
+                        if (aiDecision.reveal) {
+                            this.engine.revealTrump(this.engine.currentTurn);
+                        } else {
+                            this.engine.playCard(this.engine.currentTurn, aiDecision.index);
+                        }
+                    } catch (err) {
+                        console.error('Error in AI play turn, using local fallback:', err);
+                        let fallback = this.engine.getAIPlay();
+                        if (fallback.reveal) {
+                            this.engine.revealTrump(this.engine.currentTurn);
+                        } else {
+                            this.engine.playCard(this.engine.currentTurn, fallback.index);
+                        }
+                    } finally {
                         this.gameLoop();
                     }
-                }, 1500); 
+                }, 1000); 
             }
         }
 
@@ -2697,6 +2736,10 @@ class UIController {
     }
 
     showBidModal() {
+        if (this.engine.hasPassed && this.engine.hasPassed[mySeat]) {
+            document.getElementById('bid-modal').style.display = 'none';
+            return;
+        }
         let hand = this.engine.players[mySeat] || [];
         let handPts = hand.reduce((s, c) => s + ((c && typeof c.value === 'number') ? c.value : 0), 0);
         let t = I18N[currentLang] || I18N.en;
