@@ -276,44 +276,6 @@ body::before {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     white-space: nowrap;
 }
-.trick-card.winning-friend {
-    outline: 3.5px solid #22c55e !important;
-    box-shadow: 0 0 22px rgba(34, 197, 94, 0.9), 0 0 8px #22c55e !important;
-    transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) scale(1.08) !important;
-    z-index: 60 !important;
-}
-.trick-card.winning-enemy {
-    outline: 3.5px solid #ef4444 !important;
-    box-shadow: 0 0 22px rgba(239, 68, 68, 0.9), 0 0 8px #ef4444 !important;
-    transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) scale(1.08) !important;
-    z-index: 60 !important;
-}
-.winner-crown-badge {
-    position: absolute;
-    top: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.62rem;
-    font-weight: 800;
-    padding: 1px 7px;
-    border-radius: 8px;
-    white-space: nowrap;
-    letter-spacing: 0.5px;
-    z-index: 70;
-    pointer-events: none;
-}
-.trick-card.winning-friend .winner-crown-badge {
-    background: #15803d;
-    color: #bbf7d0;
-    border: 1px solid #4ade80;
-    box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
-}
-.trick-card.winning-enemy .winner-crown-badge {
-    background: #991b1b;
-    color: #fecaca;
-    border: 1px solid #f87171;
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
-}
 #center-table {
     position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
     width: calc(var(--card-w) * 2.2); height: calc(var(--card-h) * 1.5); z-index: 15; pointer-events: none;
@@ -2655,28 +2617,6 @@ class UIController {
             if (play) this.renderPlayedCard(play.card, play.player);
         }
 
-        // Highlight currently winning card with Green (Friend) or Red (Enemy)
-        let winningPlay = this.engine._getCurrentTrickWinner();
-        let myTeam = (mySeat === 0 || mySeat === 2) ? 1 : 2;
-        if (mySeat === 99) myTeam = 1;
-
-        Array.from(table.children).forEach((cardEl, idx) => {
-            let play = this.engine.trickCards[idx];
-            cardEl.classList.remove('winning-friend', 'winning-enemy');
-            let oldCrown = cardEl.querySelector('.winner-crown-badge');
-            if (oldCrown) oldCrown.remove();
-
-            if (play && winningPlay && play === winningPlay) {
-                let winTeam = (play.player === 0 || play.player === 2) ? 1 : 2;
-                let isFriend = (winTeam === myTeam);
-                cardEl.classList.add(isFriend ? 'winning-friend' : 'winning-enemy');
-
-                let crown = document.createElement('div');
-                crown.className = 'winner-crown-badge';
-                crown.innerText = isFriend ? (currentLang === 'hi' ? '👑 जीत रहे हैं' : '👑 WINNING') : (currentLang === 'hi' ? '⚔️ विरोधी' : '⚔️ OPPONENT');
-                cardEl.appendChild(crown);
-            }
-        });
     }
 
     playTrumpRevealAnimation(suit) {
