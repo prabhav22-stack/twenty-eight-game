@@ -1503,6 +1503,68 @@ function hostStartGame() {
     }
 }
 
+// ==================== BACKEND API CLIENT ====================
+const BackendAPI = {
+    async getBid(hand, currentBid, highestBidder, playerIdx, passCount) {
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 600);
+            const res = await fetch('/api/bid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hand, current_bid: currentBid, highest_bidder: highestBidder, player_idx: playerIdx, pass_count: passCount }),
+                signal: ctrl.signal
+            });
+            clearTimeout(timer);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data.bid;
+        } catch(e) {
+            return null;
+        }
+    },
+    async getTrump(hand, playerIdx) {
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 600);
+            const res = await fetch('/api/trump', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hand, player_idx: playerIdx }),
+                signal: ctrl.signal
+            });
+            clearTimeout(timer);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data.trump_suit;
+        } catch(e) {
+            return null;
+        }
+    },
+    async getPlay(hand, trickCards, leadSuit, trumpSuit, trumpRevealed, playerIdx, playedHistory, voidSuits) {
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 600);
+            const res = await fetch('/api/play', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    hand, trick_cards: trickCards, lead_suit: leadSuit,
+                    trump_suit: trumpSuit, trump_revealed: trumpRevealed,
+                    player_idx: playerIdx, played_history: playedHistory,
+                    void_suits: voidSuits
+                }),
+                signal: ctrl.signal
+            });
+            clearTimeout(timer);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch(e) {
+            return null;
+        }
+    }
+};
+
 // ==================== 28 GAME ENGINE ====================
 class TwentyEightEngine {
     constructor() {
@@ -1634,46 +1696,64 @@ class TwentyEightEngine {
 
 
     async getAIBidAsync() {
-        let pIndex = this.currentTurn;
-        let remoteBid = await BackendAPI.getBid(
-            this.players[pIndex],
-            this.currentBid,
-            this.highestBidder,
-            pIndex,
-            this.passCount
-        );
-        if (remoteBid !== null && remoteBid !== undefined) {
-            return remoteBid;
+        try {
+            if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getBid) {
+                let pIndex = this.currentTurn;
+                let remoteBid = await BackendAPI.getBid(
+                    this.players[pIndex],
+                    this.currentBid,
+                    this.highestBidder,
+                    pIndex,
+                    this.passCount
+                );
+                if (remoteBid !== null && remoteBid !== undefined) {
+                    return remoteBid;
+                }
+            }
+        } catch (e) {
+            console.warn('Backend bid fetch error, using local AI:', e);
         }
         return this.getAIBid();
     }
 
     async getAITrumpAsync() {
-        let pIndex = this.highestBidder;
-        let remoteTrump = await BackendAPI.getTrump(this.players[pIndex], pIndex);
-        if (remoteTrump && this.suits.includes(remoteTrump)) {
-            return remoteTrump;
+        try {
+            if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getTrump) {
+                let pIndex = this.highestBidder;
+                let remoteTrump = await BackendAPI.getTrump(this.players[pIndex], pIndex);
+                if (remoteTrump && this.suits.includes(remoteTrump)) {
+                    return remoteTrump;
+                }
+            }
+        } catch (e) {
+            console.warn('Backend trump fetch error, using local AI:', e);
         }
         return this.getAITrump();
     }
 
     async getAIPlayAsync() {
-        let pIndex = this.currentTurn;
-        let remotePlay = await BackendAPI.getPlay(
-            this.players[pIndex],
-            this.trickCards,
-            this.leadSuit,
-            this.trumpSuit,
-            this.trumpRevealed,
-            pIndex,
-            this.playedCardsHistory,
-            this.voidInSuit[pIndex] || {}
-        );
-        if (remotePlay && typeof remotePlay.card_index === 'number') {
-            let valids = this.getValidPlayIndices(pIndex);
-            if (valids.includes(remotePlay.card_index)) {
-                return { reveal: !!remotePlay.reveal_trump, index: remotePlay.card_index };
+        try {
+            if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getPlay) {
+                let pIndex = this.currentTurn;
+                let remotePlay = await BackendAPI.getPlay(
+                    this.players[pIndex],
+                    this.trickCards,
+                    this.leadSuit,
+                    this.trumpSuit,
+                    this.trumpRevealed,
+                    pIndex,
+                    this.playedCardsHistory,
+                    this.voidInSuit[pIndex] || {}
+                );
+                if (remotePlay && typeof remotePlay.card_index === 'number') {
+                    let valids = this.getValidPlayIndices(pIndex);
+                    if (valids.includes(remotePlay.card_index)) {
+                        return { reveal: !!remotePlay.reveal_trump, index: remotePlay.card_index };
+                    }
+                }
             }
+        } catch (e) {
+            console.warn('Backend play fetch error, using local AI:', e);
         }
         return this.getAIPlay();
     }
