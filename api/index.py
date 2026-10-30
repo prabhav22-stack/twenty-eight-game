@@ -496,23 +496,18 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        path = urlparse(self.path).path
-        if path.endswith('/health') or path.endswith('/status'):
-            self._send_json(200, {
-                'status': 'healthy',
-                'service': '28-game-groq-ai-backend',
-                'version': '2.2.0',
-                'groq_active': bool(get_groq_api_key())
-            })
-        else:
-            self._send_json(200, {
-                'message': '28 Game High-Intelligence Groq-Powered Python Engine Active',
-                'version': '2.2.0',
-                'endpoints': ['/api/deal', '/api/bid', '/api/trump', '/api/play', '/api/recap', '/api/health']
-            })
+        raw_path = self.headers.get('x-matched-path') or self.path or ''
+        self._send_json(200, {
+            'status': 'healthy',
+            'service': '28-game-groq-ai-backend',
+            'version': '2.2.0',
+            'groq_active': bool(get_groq_api_key()),
+            'received_path': raw_path,
+            'endpoints': ['/api/deal', '/api/bid', '/api/trump', '/api/play', '/api/recap', '/api/health']
+        })
 
     def do_POST(self):
-        path = urlparse(self.path).path
+        raw_path = self.headers.get('x-matched-path') or self.path or ''
         content_length = int(self.headers.get('Content-Length', 0))
         data = {}
         if content_length > 0:
@@ -523,12 +518,14 @@ class handler(BaseHTTPRequestHandler):
                 self._send_json(400, {'error': f'Invalid JSON payload: {str(e)}'})
                 return
 
-        # Route matching
-        if 'deal' in path:
+        # Flexible route matching: checks x-matched-path, query string (?route=...), or body action
+        route_str = f"{raw_path} {data.get('action', '')}".lower()
+
+        if 'deal' in route_str:
             res = deal_cards()
             self._send_json(200, res)
 
-        elif 'bid' in path:
+        elif 'bid' in route_str:
             hand = data.get('hand', [])
             current_bid = data.get('current_bid', 15)
             highest_bidder = data.get('highest_bidder', -1)
@@ -540,12 +537,12 @@ class handler(BaseHTTPRequestHandler):
             res['dialogue'] = dialogue
             self._send_json(200, res)
 
-        elif 'trump' in path:
+        elif 'trump' in route_str:
             hand = data.get('hand', [])
             res = select_ai_trump(hand)
             self._send_json(200, res)
 
-        elif 'play' in path:
+        elif 'play' in route_str:
             hand = data.get('hand', [])
             trick_cards = data.get('trick_cards', [])
             lead_suit = data.get('lead_suit', None)
@@ -561,7 +558,7 @@ class handler(BaseHTTPRequestHandler):
             res['dialogue'] = dialogue
             self._send_json(200, res)
 
-        elif 'recap' in path:
+        elif 'recap' in route_str:
             bidding_winner = data.get('bidding_winner', 0)
             contract = data.get('contract', 16)
             bidding_team = data.get('bidding_team', 1)
@@ -575,4 +572,4 @@ class handler(BaseHTTPRequestHandler):
             self._send_json(200, {'recap': recap_text})
 
         else:
-            self._send_json(404, {'error': f'Route not found: {path}'})
+            self._send_json(404, {'error': f'Route not found: {raw_path}'})
