@@ -1611,7 +1611,7 @@ function hostStartGame() {
 
 // ==================== BACKEND API CLIENT ====================
 const BackendAPI = {
-    async getBid(hand, currentBid, highestBidder, playerIdx, passCount, language) {
+    async getBid(hand, currentBid, highestBidder, playerIdx, passCount) {
         try {
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 2000);
@@ -1623,8 +1623,7 @@ const BackendAPI = {
                     current_bid: currentBid, 
                     highest_bidder: highestBidder, 
                     player_idx: playerIdx, 
-                    pass_count: passCount,
-                    language: language || 'en'
+                    pass_count: passCount
                 }),
                 signal: ctrl.signal
             });
@@ -1653,7 +1652,7 @@ const BackendAPI = {
             return null;
         }
     },
-    async getPlay(hand, trickCards, leadSuit, trumpSuit, trumpRevealed, playerIdx, playedHistory, voidSuits, language) {
+    async getPlay(hand, trickCards, leadSuit, trumpSuit, trumpRevealed, playerIdx, playedHistory, voidSuits) {
         try {
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 2000);
@@ -1664,8 +1663,7 @@ const BackendAPI = {
                     hand, trick_cards: trickCards, lead_suit: leadSuit,
                     trump_suit: trumpSuit, trump_revealed: trumpRevealed,
                     player_idx: playerIdx, played_history: playedHistory,
-                    void_suits: voidSuits,
-                    language: language || 'en'
+                    void_suits: voidSuits
                 }),
                 signal: ctrl.signal
             });
@@ -1879,22 +1877,18 @@ class TwentyEightEngine {
 
 
     async getAIBidAsync() {
-        this.lastBidDialogue = null;
         try {
             if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getBid) {
                 let pIndex = this.currentTurn;
-                let lang = typeof currentLang !== 'undefined' ? currentLang : 'en';
                 let remoteRes = await BackendAPI.getBid(
                     this.players[pIndex],
                     this.currentBid,
                     this.highestBidder,
                     pIndex,
-                    this.passCount,
-                    lang
+                    this.passCount
                 );
                 if (remoteRes !== null && remoteRes !== undefined) {
                     if (typeof remoteRes === 'object') {
-                        if (remoteRes.dialogue) this.lastBidDialogue = remoteRes.dialogue;
                         if (remoteRes.bid !== undefined) return remoteRes.bid;
                     } else {
                         return remoteRes;
@@ -1923,27 +1917,25 @@ class TwentyEightEngine {
     }
 
     async getAIPlayAsync() {
-        this.lastPlayDialogue = null;
         try {
             if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getPlay) {
                 let pIndex = this.currentTurn;
-                let lang = typeof currentLang !== 'undefined' ? currentLang : 'en';
+                // Strict imperfect information: only bidder knows secret trump until revealed!
+                let knownTrumpSuit = (this.trumpRevealed || pIndex === this.highestBidder) ? this.trumpSuit : null;
                 let remotePlay = await BackendAPI.getPlay(
                     this.players[pIndex],
                     this.trickCards,
                     this.leadSuit,
-                    this.trumpSuit,
+                    knownTrumpSuit,
                     this.trumpRevealed,
                     pIndex,
                     this.playedCardsHistory,
-                    this.voidInSuit[pIndex] || {},
-                    lang
+                    this.voidInSuit[pIndex] || {}
                 );
                 if (remotePlay && typeof remotePlay.card_index === 'number') {
                     let valids = this.getValidPlayIndices(pIndex);
                     if (valids.includes(remotePlay.card_index)) {
-                        if (remotePlay.dialogue) this.lastPlayDialogue = remotePlay.dialogue;
-                        return { reveal: !!remotePlay.reveal_trump, index: remotePlay.card_index, dialogue: remotePlay.dialogue };
+                        return { reveal: !!remotePlay.reveal_trump, index: remotePlay.card_index };
                     }
                 }
             }
@@ -1984,7 +1976,7 @@ class TwentyEightEngine {
         if (suitCounts[bestSuit] === 4) maxWilling += 4;
 
         if (this.highestBidder === partnerIndex) {
-            if (maxWilling < 20 || this.currentBid >= 19) return 'Pass';
+            return 'Pass';
         }
 
         if (maxWilling > 24) maxWilling = 24;
@@ -2399,16 +2391,10 @@ class UIController {
             let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `⏭️ ${t.passedSkipped || 'PASSED (SKIPPED)'}`;
             this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
-            let speech = (!isSelf && this.engine.lastBidDialogue) ? this.engine.lastBidDialogue : t.passTurn;
-            this.showSpeechBubble(pIndex, speech);
-            this.engine.lastBidDialogue = null;
         } else {
             let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `💰 ${t.bidding} ${val}`;
             this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
-            let speech = (!isSelf && this.engine.lastBidDialogue) ? this.engine.lastBidDialogue : `${t.bidding} ${val}`;
-            this.showSpeechBubble(pIndex, speech);
-            this.engine.lastBidDialogue = null;
         }
 
         if (this.engine.phase === 'BIDDING') {
@@ -2483,30 +2469,8 @@ class UIController {
     }
 
     showSpeechBubble(pIndex, text) {
-        if (!text) return;
-        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
-        const positions = ['bottom', 'right', 'top', 'left'];
-        const pos = positions[visualPos];
-        const el = document.getElementById(`player-${pos}`);
-        if (!el) return;
-
-        let pName = this.playerNames[pIndex] || COMPASS_FULL[pIndex];
-        this.renderLog(`💬 <b>${pName}:</b> "${text}"`);
-
-        let existing = el.querySelector('.speech-bubble');
-        if (existing) existing.remove();
-
-        const bubble = document.createElement('div');
-        bubble.className = `speech-bubble bubble-${pos}`;
-        bubble.innerHTML = text;
-        el.appendChild(bubble);
-        void bubble.offsetWidth;
-        bubble.classList.add('show');
-
-        setTimeout(() => {
-            bubble.classList.remove('show');
-            setTimeout(() => bubble.remove(), 350);
-        }, 2800);
+        // In-game dialogue disabled for focused, grandmaster gameplay
+        return;
     }
 
     generateGamePointsHTML(pts) {
@@ -2886,9 +2850,6 @@ class UIController {
                     try {
                         let aiDecision = await this.engine.getAIPlayAsync();
                         let turnPlayer = this.engine.currentTurn;
-                        if (aiDecision && aiDecision.dialogue) {
-                            this.showSpeechBubble(turnPlayer, aiDecision.dialogue);
-                        }
                         if (aiDecision.reveal) {
                             this.engine.revealTrump(turnPlayer);
                         } else {
