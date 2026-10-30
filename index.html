@@ -2744,7 +2744,11 @@ class UIController {
 
         setTimeout(() => {
             this.animatingTrick = false; table.innerHTML = '';
-            if (isHost) { this.engine.resolveTrick(); this.gameLoop(); }
+            if (isHost) {
+                this.engine.resolveTrick();
+                // 750ms natural pause after cards clear before next trick begins
+                setTimeout(() => { this.gameLoop(); }, 750);
+            }
         }, 650);
     }
 
@@ -2789,7 +2793,7 @@ class UIController {
             this.isDealingState = true;
             this.renderStaticBoard();
             this.isDealingState = false;
-            if (isHost) { this.aiTimer = setTimeout(() => { this.engine.finishDealAnimation(); this.gameLoop(); }, 1400); }
+            if (isHost) { this.aiTimer = setTimeout(() => { this.engine.finishDealAnimation(); this.gameLoop(); }, 1800); }
             return; 
         }
 
@@ -2812,6 +2816,8 @@ class UIController {
 
         if (isAITurn && (gameMode === 'ai' || (gameMode === 'multi' && isHost))) {
             if (this.engine.phase === 'BIDDING') {
+                // Natural human thinking pause for bidding: 2.1s - 2.8s
+                let bidDelay = 2100 + Math.floor(Math.random() * 700);
                 this.aiTimer = setTimeout(async () => {
                     try {
                         let val = await this.engine.getAIBidAsync();
@@ -2824,9 +2830,11 @@ class UIController {
                     } finally {
                         this.gameLoop();
                     }
-                }, 1750); 
+                }, bidDelay); 
             } 
             else if (this.engine.phase === 'SET_TRUMP') {
+                // Thoughtful deliberation for secret trump selection: 2.4s - 3.0s
+                let trumpDelay = 2400 + Math.floor(Math.random() * 600);
                 this.aiTimer = setTimeout(async () => {
                     try {
                         let suit = await this.engine.getAITrumpAsync();
@@ -2838,12 +2846,27 @@ class UIController {
                     } finally {
                         this.gameLoop();
                     }
-                }, 1700); 
+                }, trumpDelay); 
             }
             else if (this.engine.phase === 'PLAYING') {
                 let team = (this.engine.currentTurn === 0 || this.engine.currentTurn === 2) ? 0 : 1;
                 if (!this.engine.pairDeclared && this.engine.hasPair(this.engine.currentTurn) && this.engine.tricksWonByTeam[team] > 0) {
                     this.engine.declarePair(this.engine.currentTurn);
+                }
+
+                // Authentic human play pacing:
+                // - Forced plays (1 legal card): 1.5s - 1.8s
+                // - Leading a trick (opening decision): 2.3s - 2.9s
+                // - Normal follow/smear decisions: 2.0s - 2.6s
+                let valids = this.engine.getValidPlayIndices(this.engine.currentTurn);
+                let isLeading = (this.engine.trickCards.length === 0);
+                let playDelay;
+                if (valids.length <= 1) {
+                    playDelay = 1500 + Math.floor(Math.random() * 350);
+                } else if (isLeading) {
+                    playDelay = 2300 + Math.floor(Math.random() * 600);
+                } else {
+                    playDelay = 2000 + Math.floor(Math.random() * 600);
                 }
 
                 this.aiTimer = setTimeout(async () => {
@@ -2866,7 +2889,7 @@ class UIController {
                     } finally {
                         this.gameLoop();
                     }
-                }, 1750); 
+                }, playDelay); 
             }
         }
 
@@ -2910,7 +2933,8 @@ class UIController {
             if(!this.animatingTrick) {
                 let winningPlay = this.engine._getCurrentTrickWinner();
                 if (winningPlay) {
-                    this.aiTimer = setTimeout(() => { this.animateTrickWinnerAndResolve(winningPlay.player); }, 2200);
+                    // 2600ms generous pause so players can clearly observe who won and what was smeared
+                    this.aiTimer = setTimeout(() => { this.animateTrickWinnerAndResolve(winningPlay.player); }, 2600);
                 }
             }
         }
