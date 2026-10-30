@@ -149,6 +149,26 @@ body::before {
 }
 .config-input:focus { outline: none; border-color: var(--gold-primary); box-shadow: 0 0 10px var(--gold-glow); }
 
+.diff-btn-group {
+    display: flex; gap: 6px; width: 100%; margin-top: 3px;
+}
+.diff-pill {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 7px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(0, 0, 0, 0.45); color: #94a3b8; font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: all 0.2s ease;
+}
+.diff-pill:hover {
+    border-color: rgba(229, 193, 88, 0.5); color: #e2e8f0;
+}
+.diff-pill.active {
+    background: rgba(229, 193, 88, 0.16); border-color: var(--gold-bright);
+    color: #fff; box-shadow: 0 0 10px rgba(229, 193, 88, 0.3);
+}
+.diff-dot {
+    width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+}
+
 .menu-grid { display: flex; flex-direction: column; gap: 8px; width: clamp(270px, 88vw, 370px); }
 .menu-card {
     background: rgba(8, 20, 13, 0.82); border: 1px solid rgba(229, 193, 88, 0.25);
@@ -640,6 +660,7 @@ body::before {
         <span class="c-seat" id="c-seat-3">W: 🤖</span>
     </div>
     <div class="bar-quick-actions">
+        <button class="bar-icon-btn" id="top-diff-btn" onclick="cycleDifficulty()" title="AI Difficulty: Click to change" style="font-weight:700; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5);"><span id="top-diff-dot" style="width:7px; height:7px; border-radius:50%; background:#eab308;"></span><span id="top-diff-label">Medium</span></button>
         <div id="ai-status-pill" style="display:inline-flex; align-items:center; gap:5px; font-size:0.68rem; font-weight:800; color:#86efac; background:rgba(34,197,94,0.18); border:1px solid rgba(74,222,128,0.4); padding:3px 9px; border-radius:14px; white-space:nowrap;"><span style="width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span> 🧠 Groq AI</div>
         <button class="bar-icon-btn" onclick="toggleLanguage()" id="lang-toggle-btn" title="Language / भाषा">🌐 हिन्दी</button>
         <button class="bar-icon-btn" onclick="toggleLogModal()" id="log-icon-btn" title="Game History / Log">📜 <span id="log-btn-text">Log</span></button>
@@ -684,6 +705,23 @@ body::before {
         <div>
             <div class="config-label" id="cfg-room-label">Room Code</div>
             <input type="text" id="room-code-input" class="config-input" placeholder="e.g. ROYAL28" style="text-transform:uppercase;">
+        </div>
+        <div style="margin-top:2px;">
+            <div class="config-label" id="cfg-diff-label">AI Difficulty</div>
+            <div class="diff-btn-group">
+                <button type="button" class="diff-pill" id="diff-pill-easy" onclick="setDifficulty('easy')">
+                    <span class="diff-dot" style="background:#22c55e;"></span> <span id="diff-text-easy">Easy</span>
+                </button>
+                <button type="button" class="diff-pill active" id="diff-pill-medium" onclick="setDifficulty('medium')">
+                    <span class="diff-dot" style="background:#eab308;"></span> <span id="diff-text-medium">Medium</span>
+                </button>
+                <button type="button" class="diff-pill" id="diff-pill-hard" onclick="setDifficulty('hard')">
+                    <span class="diff-dot" style="background:#ef4444;"></span> <span id="diff-text-hard">Hard</span>
+                </button>
+            </div>
+            <div id="diff-desc-text" style="font-size:0.64rem; color:#94a3b8; margin-top:4px; font-style:italic;">
+                Medium: Moderate AI involvement. Balanced strategic challenge.
+            </div>
         </div>
     </div>
 
@@ -984,6 +1022,13 @@ const I18N = {
         gamePtsWon: "Game Point(s) Won!",
         gamePtsPenalty: "Game Point(s) Penalty!",
         pts: "pts",
+        diffLabel: "AI Difficulty",
+        diffEasy: "Easy",
+        diffMedium: "Medium",
+        diffHard: "Hard",
+        diffDescEasy: "Easy: No AI involvement in enemy bots. Relaxed match.",
+        diffDescMedium: "Medium: Moderate AI involvement. Balanced strategic challenge.",
+        diffDescHard: "Hard: Grandmaster AI with card counting and aggressive tactics.",
         suits: { '♠': '♠ Spades', '♥': '♥ Hearts', '♣': '♣ Clubs', '♦': '♦ Diamonds' },
         dirs: { SOUTH: 'SOUTH', NORTH: 'NORTH', EAST: 'EAST', WEST: 'WEST' }
     },
@@ -1061,6 +1106,13 @@ const I18N = {
         gamePtsWon: "गेम पॉइंट मिला!",
         gamePtsPenalty: "गेम पॉइंट पेनल्टी!",
         pts: "अंक",
+        diffLabel: "AI कठिनाई (Difficulty)",
+        diffEasy: "सरल",
+        diffMedium: "मध्यम",
+        diffHard: "कठिन",
+        diffDescEasy: "सरल: विरोधी AI की कोई चालबाज़ी नहीं। आसान मैच।",
+        diffDescMedium: "मध्यम: संतुलित AI रणनीति और मध्यम चुनौती।",
+        diffDescHard: "कठिन: ग्रैंडमास्टर AI, पत्तों की गिनती और आक्रामक रणनीति।",
         suits: { '♠': '♠ हुकुम', '♥': '♥ पान', '♣': '♣ चिड़ी', '♦': '♦ ईंट' },
         dirs: { SOUTH: 'दक्षिण (S)', NORTH: 'उत्तर (N)', EAST: 'पूर्व (E)', WEST: 'पश्चिम (W)' }
     }
@@ -1115,6 +1167,64 @@ function applyLanguage() {
     if (el('copy-invite-btn')) el('copy-invite-btn').innerText = t.copyInvite;
     if (el('close-share-btn')) el('close-share-btn').innerText = t.close;
     if (el('next-round-btn')) el('next-round-btn').innerText = t.dealNextRound;
+    if (el('cfg-diff-label')) el('cfg-diff-label').innerText = t.diffLabel;
+    if (el('diff-text-easy')) el('diff-text-easy').innerText = t.diffEasy;
+    if (el('diff-text-medium')) el('diff-text-medium').innerText = t.diffMedium;
+    if (el('diff-text-hard')) el('diff-text-hard').innerText = t.diffHard;
+    updateDifficultyUI();
+}
+
+// ==================== DIFFICULTY MANAGEMENT ====================
+let currentDifficulty = 'medium';
+try {
+    const savedDiff = localStorage.getItem('twenty_eight_difficulty');
+    if (savedDiff && ['easy', 'medium', 'hard'].includes(savedDiff)) {
+        currentDifficulty = savedDiff;
+    }
+} catch(e) {}
+
+function setDifficulty(diff) {
+    if (!['easy', 'medium', 'hard'].includes(diff)) diff = 'medium';
+    currentDifficulty = diff;
+    try { localStorage.setItem('twenty_eight_difficulty', diff); } catch(e) {}
+    updateDifficultyUI();
+}
+
+function cycleDifficulty() {
+    const order = ['easy', 'medium', 'hard'];
+    const nextIdx = (order.indexOf(currentDifficulty) + 1) % order.length;
+    setDifficulty(order[nextIdx]);
+}
+
+function updateDifficultyUI() {
+    const t = I18N[currentLang] || I18N.en;
+    ['easy', 'medium', 'hard'].forEach(d => {
+        const pill = document.getElementById(`diff-pill-${d}`);
+        if (pill) {
+            if (d === currentDifficulty) pill.classList.add('active');
+            else pill.classList.remove('active');
+        }
+    });
+
+    const descEl = document.getElementById('diff-desc-text');
+    if (descEl) {
+        if (currentDifficulty === 'easy') descEl.innerText = t.diffDescEasy || "Easy: No AI involvement in enemy bots.";
+        else if (currentDifficulty === 'hard') descEl.innerText = t.diffDescHard || "Hard: Grandmaster AI with card counting.";
+        else descEl.innerText = t.diffDescMedium || "Medium: Moderate AI involvement.";
+    }
+
+    const topDot = document.getElementById('top-diff-dot');
+    const topLabel = document.getElementById('top-diff-label');
+    if (topLabel && topDot) {
+        const colors = { easy: '#22c55e', medium: '#eab308', hard: '#ef4444' };
+        const names = {
+            easy: currentLang === 'hi' ? 'सरल' : 'Easy',
+            medium: currentLang === 'hi' ? 'मध्यम' : 'Medium',
+            hard: currentLang === 'hi' ? 'कठिन' : 'Hard'
+        };
+        topDot.style.background = colors[currentDifficulty] || '#eab308';
+        topLabel.innerText = names[currentDifficulty] || 'Medium';
+    }
 }
 
 // ==================== CONSTANTS & NETWORKING ====================
@@ -1623,7 +1733,8 @@ const BackendAPI = {
                     current_bid: currentBid, 
                     highest_bidder: highestBidder, 
                     player_idx: playerIdx, 
-                    pass_count: passCount
+                    pass_count: passCount,
+                    difficulty: currentDifficulty
                 }),
                 signal: ctrl.signal
             });
@@ -1663,7 +1774,8 @@ const BackendAPI = {
                     hand, trick_cards: trickCards, lead_suit: leadSuit,
                     trump_suit: trumpSuit, trump_revealed: trumpRevealed,
                     player_idx: playerIdx, played_history: playedHistory,
-                    void_suits: voidSuits
+                    void_suits: voidSuits,
+                    difficulty: currentDifficulty
                 }),
                 signal: ctrl.signal
             });
@@ -1969,14 +2081,26 @@ class TwentyEightEngine {
             if (ev > bestEval) { bestEval = ev; bestSuit = s; }
         }
 
+        if (this.highestBidder === partnerIndex) {
+            return 'Pass';
+        }
+
+        // Difficulty adjustment for offline/local AI fallback
+        let isEnemy = (pIndex === 1 || pIndex === 3);
+        if (currentDifficulty === 'easy' && isEnemy) {
+            if (this.highestBidder === -1 && this.passCount === 3) return 16;
+            return 'Pass';
+        }
+
         let maxWilling = 14 + Math.floor(points * 0.8);
         if (honorCount[bestSuit] >= 3) maxWilling += 3;
         if (honorCount[bestSuit] >= 5) maxWilling += 2;
         if (suitCounts[bestSuit] === 3) maxWilling += 2;
         if (suitCounts[bestSuit] === 4) maxWilling += 4;
 
-        if (this.highestBidder === partnerIndex) {
-            return 'Pass';
+        if (currentDifficulty === 'medium') {
+            if (points < 4 && honorCount[bestSuit] < 3) return 'Pass';
+            maxWilling = Math.min(19, 15 + points);
         }
 
         if (maxWilling > 24) maxWilling = 24;
@@ -2154,6 +2278,22 @@ class TwentyEightEngine {
         let partnerIndex = (pIndex + 2) % 4;
         let opp1 = (pIndex + 1) % 4;
         let opp2 = (pIndex + 3) % 4;
+
+        // Difficulty adjustment for offline/local AI fallback
+        let isEnemy = (pIndex === 1 || pIndex === 3);
+        if (currentDifficulty === 'easy' && isEnemy) {
+            let validIndices = this.getValidPlayIndices(pIndex);
+            if (validIndices.length === 0) validIndices = hand.map((_, i) => i);
+            if (this.trickCards.length > 0 && !validIndices.some(i => hand[i].suit === this.leadSuit)) {
+                let nonTrumps = validIndices.filter(i => !this.trumpRevealed || hand[i].suit !== this.trumpSuit);
+                if (nonTrumps.length > 0) {
+                    nonTrumps.sort((a, b) => hand[a].power - hand[b].power);
+                    return { reveal: false, index: nonTrumps[0] };
+                }
+            }
+            validIndices.sort((a, b) => hand[a].power - hand[b].power);
+            return { reveal: false, index: validIndices[0] };
+        }
 
         let knownTrumpSuit = (this.trumpRevealed || pIndex === this.highestBidder) ? this.trumpSuit : null;
         let holdsUndeclaredPair = knownTrumpSuit && !this.pairDeclared &&
@@ -3182,7 +3322,7 @@ class UIController {
         const coachText = document.getElementById('end-coach-text');
         const coachTitle = document.getElementById('end-coach-title');
         if (coachBox && coachText) {
-            coachTitle.innerText = currentLang === 'hi' ? '🧠 AI मैच विश्लेषण (Match Analysis)' : '🧠 AI Match Analysis';
+            coachTitle.innerText = currentLang === 'hi' ? 'AI मैच विश्लेषण' : 'AI Match Analysis';
             coachText.innerHTML = `<span style="opacity:0.7;">${currentLang === 'hi' ? 'विश्लेषण तैयार किया जा रहा है...' : 'Analyzing round performance...'}</span>`;
             coachBox.style.display = 'block';
 

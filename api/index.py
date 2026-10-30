@@ -100,11 +100,14 @@ def deal_cards():
     }
 
 # ==================== STRATEGIC BIDDING ENGINE ====================
-def evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count):
+def evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count, difficulty='medium'):
     """
     Expert imperfect-information 28 bidding engine.
-    The AI player only evaluates their own 4 cards and public bids.
-    Zero knowledge of opponents' or partner's cards.
+    Supports 3 difficulty modes: 'easy', 'medium', 'hard'.
+    - Easy: No AI involvement for enemy bots (seats 1 and 3). They pass.
+    - Medium: Moderate AI involvement. Sensible bids up to 19, no risky overbids.
+    - Hard: Full Grandmaster AI. Deep hand evaluation, void bonuses, Jack synergies up to 24.
+    Partner (North, seat 2) always plays intelligently to assist human.
     """
     partner_idx = (player_idx + 2) % 4
     min_required = 16 if current_bid < 16 else current_bid + 1
@@ -116,6 +119,11 @@ def evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count):
     # Rule 2: Forced dealer bid rule (if 3 players passed, dealer must bid 16)
     if pass_count == 3 and current_bid < 16:
         return {'bid': 16}
+
+    # EASY MODE: No AI involvement in enemy bots (East & West, seats 1 and 3)
+    is_enemy = (player_idx in [1, 3])
+    if difficulty == 'easy' and is_enemy:
+        return {'bid': 'Pass'}
 
     # Count points and analyze card combinations
     suit_counts = {s: 0 for s in SUITS}
@@ -137,7 +145,16 @@ def evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count):
     total_pts = sum(suit_points.values())
     max_suit_count = max(suit_counts.values())
 
-    # Mathematical hand evaluation for 28:
+    # MEDIUM DIFFICULTY: Moderate, sensible bidding
+    if difficulty == 'medium':
+        if total_pts < 4 and len(jacks) == 0:
+            return {'bid': 'Pass'}
+        max_willing = min(19, 15 + total_pts + (2 if len(jacks) > 0 else 0))
+        if max_willing >= min_required and min_required <= 19:
+            return {'bid': min_required}
+        return {'bid': 'Pass'}
+
+    # HARD DIFFICULTY: Grandmaster competitive bidding
     bid_strength = 14.0 + (total_pts * 1.0)
 
     if len(jacks) == 1: bid_strength += 1.5
@@ -232,16 +249,19 @@ def get_trick_winner(trick_cards, lead_suit, trump_suit, trump_revealed):
     return best_play['player'], best_play['card'], points
 
 # ==================== GRANDMASTER CARD PLAY ENGINE ====================
-def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, played_history, void_suits):
+def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, played_history, void_suits, difficulty='medium'):
     """
-    Grandmaster-level 28 AI Card Play Engine.
-    Strict Imperfect Information:
-    The AI player ONLY knows its own hand and public table events.
-    Zero dialogue generation, pure strategic execution.
+    Imperfect Information 28 AI Card Play Engine with 3 Difficulty Modes:
+    - Easy: No AI involvement in enemy bots (seats 1 and 3). They play lowest/random valid cards,
+            never smear, never overtrump, never cut unless forced.
+    - Medium: Balanced heuristic play without deep remaining-card calculation.
+    - Hard: Grandmaster card counting (tracks all 32 cards), ruthless master card cashing,
+            aggressive cross-smearing, cross-ruffing, and precision trump management.
     """
     partner_idx = (player_idx + 2) % 4
     opp1_idx = (player_idx + 1) % 4
     opp2_idx = (player_idx + 3) % 4
+    is_enemy = (player_idx in [1, 3])
 
     # 1. Determine legal moves
     if not trick_cards:
@@ -256,7 +276,68 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
     if len(valid_indices) == 1:
         return {'card_index': valid_indices[0], 'reveal_trump': False}
 
-    # 2. Table State & Legitimate Card Counting
+    # ==================== EASY MODE FOR ENEMY BOTS ====================
+    # Zero AI involvement: naive play, never reveals trump, never smears, plays lowest power card
+    if difficulty == 'easy' and is_enemy:
+        if trick_cards and not any(hand[i]['suit'] == lead_suit for i in valid_indices):
+            # Void in lead: discard non-trump trash if possible
+            non_trumps = [i for i in valid_indices if trump_suit is None or hand[i]['suit'] != trump_suit]
+            if non_trumps:
+                non_trumps.sort(key=lambda i: hand[i]['power'])
+                return {'card_index': non_trumps[0], 'reveal_trump': False}
+        valid_indices.sort(key=lambda i: hand[i]['power'])
+        return {'card_index': valid_indices[0], 'reveal_trump': False}
+
+    # ==================== MEDIUM MODE ====================
+    # Moderate AI involvement: basic following and trick winning without deep unplayed card counting
+    if difficulty == 'medium':
+        current_winner_player, winning_card, trick_points = get_trick_winner(trick_cards, lead_suit, trump_suit, trump_revealed)
+        partner_is_winning = (current_winner_player == partner_idx)
+        seat_in_trick = len(trick_cards)
+
+        # Leading
+        if seat_in_trick == 0:
+            suit_counts = {s: sum(1 for c in hand if c['suit'] == s) for s in SUITS}
+            # Lead highest card from longest suit
+            valid_indices.sort(key=lambda i: (-suit_counts[hand[i]['suit']], -hand[i]['power']))
+            return {'card_index': valid_indices[0], 'reveal_trump': False}
+
+        # Partner is winning: duck cheaply
+        if partner_is_winning:
+            valid_indices.sort(key=lambda i: hand[i]['power'])
+            return {'card_index': valid_indices[0], 'reveal_trump': False}
+
+        # Opponent is winning
+        has_lead = any(c['suit'] == lead_suit for c in hand)
+        if has_lead:
+            # Win if we have a higher card, otherwise play lowest
+            winning_moves = [i for i in valid_indices if hand[i]['power'] > winning_card['power']]
+            if winning_moves:
+                winning_moves.sort(key=lambda i: hand[i]['power'])
+                return {'card_index': winning_moves[0], 'reveal_trump': False}
+            valid_indices.sort(key=lambda i: hand[i]['power'])
+            return {'card_index': valid_indices[0], 'reveal_trump': False}
+        else:
+            # Void in lead
+            if trump_revealed and trump_suit:
+                trumps = [i for i in valid_indices if hand[i]['suit'] == trump_suit]
+                if trumps and trick_points >= 1:
+                    trumps.sort(key=lambda i: hand[i]['power'])
+                    return {'card_index': trumps[0], 'reveal_trump': False}
+            elif not trump_revealed and trick_points >= 2:
+                # Ask to reveal trump if juicy trick
+                return {'card_index': valid_indices[0], 'reveal_trump': True}
+
+            # Discard lowest non-trump card
+            non_trumps = [i for i in valid_indices if trump_suit is None or hand[i]['suit'] != trump_suit]
+            if non_trumps:
+                non_trumps.sort(key=lambda i: (hand[i]['value'], hand[i]['power']))
+                return {'card_index': non_trumps[0], 'reveal_trump': False}
+            valid_indices.sort(key=lambda i: hand[i]['power'])
+            return {'card_index': valid_indices[0], 'reveal_trump': False}
+
+    # ==================== HARD MODE: GRANDMASTER AI ====================
+    # Full card counting, ruthless master card cashing, aggressive smearing, cross-ruffing
     unplayed = get_unplayed_cards(played_history, trick_cards, hand)
     current_winner_player, winning_card, trick_points = get_trick_winner(trick_cards, lead_suit, trump_suit, trump_revealed)
     partner_is_winning = (current_winner_player == partner_idx)
@@ -428,33 +509,78 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
 
 # ==================== POST-ROUND COACH RECAP ====================
 def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts, success, trump_suit, pair_declared, language='en'):
-    """Generates punchy AI Coach match analysis using Groq LLM."""
+    """Generates punchy, accurate AI Coach match analysis using Groq LLM with strict grounding."""
     winner_name = SEAT_NAMES[bidding_winner] if bidding_winner in range(4) else f"Player {bidding_winner}"
-    team_name = f"Team {bidding_team} ({winner_name})"
-    pair_note = "Royal K-Q Pair declared (+4 pts target adjustment)." if pair_declared else ""
+    
+    t1_names = "Team 1 (South & North)"
+    t2_names = "Team 2 (East & West)"
+    
+    declarer_team = t1_names if bidding_team == 1 else t2_names
+    defending_team = t2_names if bidding_team == 1 else t1_names
+    
+    declarer_pts = t1_pts if bidding_team == 1 else t2_pts
+    defense_pts = t2_pts if bidding_team == 1 else t1_pts
+    pts_diff = abs(declarer_pts - contract)
 
+    suit_names_en = {'♥': 'Hearts', '♦': 'Diamonds', '♣': 'Clubs', '♠': 'Spades'}
+    suit_names_hi = {'♥': 'पान (Hearts)', '♦': 'ईंट (Diamonds)', '♣': 'चिड़ी (Clubs)', '♠': 'हुकुम (Spades)'}
+    suit_en = suit_names_en.get(trump_suit, trump_suit)
+    suit_hi = suit_names_hi.get(trump_suit, trump_suit)
+
+    # High-quality deterministic fallback templates
     if language == 'hi':
-        fallback = f"{team_name} ने {contract} की बोली {t1_pts if bidding_team == 1 else t2_pts} अंक बनाकर {'जीत ली' if success else 'हार दी'}।"
+        t1_hi = "टीम 1 (साउथ व नॉर्थ)"
+        t2_hi = "टीम 2 (ईस्ट व वेस्ट)"
+        dec_hi = t1_hi if bidding_team == 1 else t2_hi
+        def_hi = t2_hi if bidding_team == 1 else t1_hi
+        if success:
+            fallback = f"{dec_hi} ({winner_name}) ने {suit_hi} में {contract} अंकों की बोली को {declarer_pts} अंक बनाकर सफलतापूर्वक पूरा किया। हुकुम के सटीक नियंत्रण और महत्वपूर्ण चालों ने जीत सुनिश्चित की।"
+        else:
+            fallback = f"{winner_name} की {suit_hi} में {contract} अंकों की बोली {pts_diff} अंकों से चूक गई, क्योंकि {def_hi} ने {defense_pts} अंक जीतकर शानदार बचाव किया। नहले और गुलाम के नुकसान ने स्थिति बिगाड़ दी।"
     else:
-        fallback = f"{team_name} {'successfully made' if success else 'failed to fulfill'} the {contract}-point contract with {t1_pts if bidding_team == 1 else t2_pts} points."
+        if success:
+            fallback = f"{declarer_team} ({winner_name}) successfully fulfilled their {contract}-point contract in {suit_en}, amassing {declarer_pts} trick points. Superior trump management and timely high-card cashing sealed a well-earned victory."
+        else:
+            fallback = f"{winner_name}'s {contract}-point contract in {suit_en} fell short by {pts_diff} points as {defending_team} mounted a resilient defense to secure {defense_pts} points. Costly Jack and 9 drops at critical junctures turned the tide."
 
-    prompt = (
-        f"Round finished in South Asian 28 Card Game:\n"
-        f"- Contract: {contract} points bid by {winner_name} (Team {bidding_team})\n"
-        f"- Trump Suit: {trump_suit}\n"
-        f"- Final Round Score: Team 1 ({t1_pts} pts) vs Team 2 ({t2_pts} pts)\n"
-        f"- Outcome: {'VICTORY (Target achieved)' if success else 'DEFEATED (Target missed)'}\n"
-        f"- {pair_note}\n"
-        f"Language requested: {'Hindi (Devanagari script)' if language == 'hi' else 'English'}.\n"
-        "Write a 2-sentence punchy, professional coach match analysis in JSON with key 'recap'."
+    system_prompt = (
+        "You are an elite, analytical 28 card game commentator.\n"
+        "Provide a concise, grounded 2-sentence match recap summarizing the round.\n"
+        "STRICT NEGATIVE CONSTRAINTS:\n"
+        "- NEVER use the phrase 'South Asian 28 Card Game' or treat the game title as an entity/player.\n"
+        "- The only entities are 'Team 1 (South & North)' and 'Team 2 (East & West)' and individual seats (South, North, East, West).\n"
+        "- Do not make up non-existent events. Rely solely on the provided match statistics.\n"
+        "- Return JSON object with a single key 'recap'."
     )
+    if language == 'hi':
+        system_prompt += (
+            "\n- LANGUAGE REQUIREMENT: Write in authentic, fluent, professional Hindi (Devanagari script) "
+            "as spoken by an expert Indian card game analyst. Avoid awkward mechanical translations."
+        )
+
+    user_prompt = (
+        f"Match Statistics:\n"
+        f"- Declarer: {winner_name} playing for {declarer_team}\n"
+        f"- Defending Team: {defending_team}\n"
+        f"- Contract Bid: {contract} points\n"
+        f"- Trump Suit: {suit_en} ({trump_suit})\n"
+        f"- Points Captured: Declarer Team = {declarer_pts}/28 pts, Defending Team = {defense_pts}/28 pts\n"
+        f"- Outcome: {'CONTRACT FULFILLED (Victory)' if success else f'CONTRACT DEFEATED (Defeated by {pts_diff} points)'}\n"
+        f"- Royal Trump K-Q Pair: {'Declared (+4 points swing)' if pair_declared else 'Not declared'}\n"
+        f"- Output Language: {'Hindi (Devanagari script)' if language == 'hi' else 'English'}\n"
+        "Write a 2-sentence punchy, insightful match analysis in JSON format: {\"recap\": \"...\"}"
+    )
+
     messages = [
-        {"role": "system", "content": "You are a grandmaster 28 card game analyst. Return JSON with 'recap' key."},
-        {"role": "user", "content": prompt}
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
     ]
-    res = call_groq(messages, timeout=2.2)
+
+    res = call_groq(messages, timeout=2.5)
     if res and isinstance(res, dict) and 'recap' in res:
-        return res['recap'].strip(' "')
+        recap_clean = str(res['recap']).strip(' "\'\n')
+        if "South Asian 28" not in recap_clean and len(recap_clean) > 15:
+            return recap_clean
     return fallback
 
 
@@ -512,7 +638,8 @@ class handler(BaseHTTPRequestHandler):
             highest_bidder = data.get('highest_bidder', -1)
             player_idx = data.get('player_idx', 0)
             pass_count = data.get('pass_count', 0)
-            res = evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count)
+            difficulty = data.get('difficulty', 'medium')
+            res = evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count, difficulty)
             self._send_json(200, res)
 
         elif 'trump' in route_str:
@@ -529,7 +656,8 @@ class handler(BaseHTTPRequestHandler):
             player_idx = data.get('player_idx', 0)
             played_history = data.get('played_history', [])
             void_suits = data.get('void_suits', {})
-            res = evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, played_history, void_suits)
+            difficulty = data.get('difficulty', 'medium')
+            res = evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, played_history, void_suits, difficulty)
             self._send_json(200, res)
 
         elif 'recap' in route_str:
