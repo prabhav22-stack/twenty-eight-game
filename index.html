@@ -3162,43 +3162,52 @@ class UIController {
         `;
         table.appendChild(div);
 
-        // Directional 3D Physics Slam from actual seat position
+        // Delicate humanlike card placement onto felt
         if (window.gsap) {
-            let startX = 0, startY = 0, startRot = 0;
+            // Gentle, short proximity offset (as if held in fingers right beside their table slot)
+            let startX = 0, startY = 0;
             if (visualPos === 0) {
-                // Bottom seat (You) - throws upward onto the felt
-                startY = 140;
-                startX = (Math.random() - 0.5) * 35;
-                startRot = (Math.random() - 0.5) * 16;
+                // Bottom player (You): gently slides card forward onto the table
+                startY = 38;
+                startX = (Math.random() - 0.5) * 8;
             } else if (visualPos === 1) {
-                // Right seat (East) - slides in from the right edge
-                startX = 160;
-                startY = -15;
-                startRot = 24;
+                // East (Right): gently lays card toward center from right
+                startX = 42;
+                startY = (Math.random() - 0.5) * 8;
             } else if (visualPos === 2) {
-                // Top seat (North / Partner) - tosses down from the top edge
-                startY = -140;
-                startX = (Math.random() - 0.5) * 35;
-                startRot = (Math.random() - 0.5) * 16;
+                // North (Partner): gently lowers card forward from top
+                startY = -38;
+                startX = (Math.random() - 0.5) * 8;
             } else if (visualPos === 3) {
-                // Left seat (West) - slides in from the left edge
-                startX = -160;
-                startY = -15;
-                startRot = -24;
+                // West (Left): gently lays card toward center from left
+                startX = -42;
+                startY = (Math.random() - 0.5) * 8;
             }
 
-            let endRot = (visualPos === 1 ? 8 : (visualPos === 3 ? -8 : (visualPos === 2 ? 2 : -2))) + (Math.random() - 0.5) * 4;
+            // Natural, organic resting angle on the felt
+            let baseRot = visualPos === 1 ? 6 : (visualPos === 3 ? -6 : (visualPos === 2 ? 1.5 : -1.5));
+            let endRot = baseRot + (Math.random() - 0.5) * 3;
+            let startRot = endRot + (Math.random() - 0.5) * 4;
 
+            // Delicate glide & soft rest: Starts slightly lifted (scale: 1.05) and smoothly settles flat onto felt
             gsap.fromTo(div, 
-                { x: startX, y: startY, scale: 1.28, rotation: startRot, opacity: 0.5 },
+                { 
+                    x: startX, 
+                    y: startY, 
+                    scale: 1.05, 
+                    rotation: startRot, 
+                    opacity: 0.85,
+                    boxShadow: "0 10px 20px rgba(0,0,0,0.45)"
+                },
                 { 
                     x: 0, 
                     y: 0, 
                     scale: 1, 
                     rotation: endRot, 
                     opacity: 1, 
-                    duration: 0.38, 
-                    ease: "back.out(1.5)",
+                    duration: 0.52, 
+                    ease: "power2.out",
+                    boxShadow: "0 3px 8px rgba(0,0,0,0.55)",
                     onComplete: () => {
                         div.style.opacity = '1';
                         div.style.visibility = 'visible';
@@ -3206,13 +3215,14 @@ class UIController {
                 }
             );
 
-            // Radiant golden ripple flare for Master Honors (Jack=3, 9=2)
+            // Subtle gold sheen when placing high-point master honors (Jack=3, 9=2)
             if (card.value >= 2) {
                 gsap.to(div, {
-                    boxShadow: "0 0 28px rgba(229, 193, 88, 0.95), 0 10px 25px rgba(0,0,0,0.85)",
-                    duration: 0.22,
+                    boxShadow: "0 0 16px rgba(229, 193, 88, 0.7), 0 4px 12px rgba(0,0,0,0.6)",
+                    duration: 0.35,
                     yoyo: true,
-                    repeat: 1
+                    repeat: 1,
+                    delay: 0.15
                 });
             }
         }
