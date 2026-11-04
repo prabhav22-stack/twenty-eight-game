@@ -17,14 +17,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
-<!-- Modern UI Enhancements: Confetti, Lucide Icons, VanillaTilt 3D Sheen & Tippy Tooltips -->
+<!-- Modern UI Enhancements: Confetti, Lucide Icons, VanillaTilt 3D Sheen -->
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"></script>
-<script src="https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js"></script>
-<script src="https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.min.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
-<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/translucent.css">
+
 <style>
 :root {
     --felt-center: #165b36; --felt-mid: #0c3820; --felt-edge: #04140b;
@@ -1057,20 +1054,8 @@ function closeStatsModal() {
 }
 
 
-// ==================== MODERN UI SUITE: TIPPY, TILT, CONFETTI, LUCIDE ====================
-function initCardTooltips() {
-    if (typeof tippy !== 'function') return;
-    try {
-        tippy('.my-cards-row .card', {
-            theme: 'translucent',
-            animation: 'scale-subtle',
-            placement: 'top',
-            arrow: true,
-            allowHTML: true,
-            delay: [120, 0]
-        });
-    } catch(e) {}
-}
+// ==================== MODERN UI SUITE: TILT, CONFETTI, LUCIDE ====================
+
 
 function initVanillaTilt() {
     if (window.VanillaTilt) {
@@ -3105,14 +3090,7 @@ class UIController {
                     }
 
                     let ptBadge = card.value > 0 ? `<div class="card-pt-badge">+${card.value}</div>` : '';
-                    let tipInfo = card.rank === 'J' ? `<b>Jack (${card.suit})</b><br><span style="color:#e5c158;font-weight:700;">⭐ 3 Points</span><br>Highest Power Honor` :
-                                 (card.rank === '9' ? `<b>Nine (${card.suit})</b><br><span style="color:#e5c158;font-weight:700;">⭐ 2 Points</span><br>Second Highest Power` :
-                                 (card.rank === 'A' ? `<b>Ace (${card.suit})</b><br><span style="color:#e5c158;font-weight:700;">⭐ 1 Point</span><br>Top Lead Honor` :
-                                 (card.rank === '10' ? `<b>Ten (${card.suit})</b><br><span style="color:#e5c158;font-weight:700;">⭐ 1 Point</span><br>Key Smear Target` :
-                                 (card.rank === 'K' ? `<b>King (${card.suit})</b><br>0 Points<br>Pair Qualifier (with Queen)` :
-                                 (card.rank === 'Q' ? `<b>Queen (${card.suit})</b><br>0 Points<br>Pair Qualifier (with King)` :
-                                 `<b>${card.rank} (${card.suit})</b><br>0 Points<br>Safe Exit Card`)))));
-                    div.setAttribute('data-tippy-content', tipInfo);
+
                     div.innerHTML = `
                         ${ptBadge}
                         <div class="card-corner"><span>${card.rank}</span><span class="corner-suit">${card.suit}</span></div>
@@ -3148,9 +3126,8 @@ class UIController {
             }
         }
 
-        // Initialize micro-tooltips & 3D tilt sheen on player cards
+        // Initialize 3D tilt sheen on player cards
         setTimeout(() => {
-            initCardTooltips();
             initVanillaTilt();
         }, 50);
     }
