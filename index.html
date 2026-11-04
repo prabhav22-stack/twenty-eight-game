@@ -567,6 +567,36 @@ body::before {
     box-shadow: 0 0 26px rgba(229, 193, 88, 0.95), 0 8px 24px rgba(0,0,0,0.85) !important;
 }
 
+/* ==================== 3D HUMANLIKE DEALER DECK & DEALING ==================== */
+.dealer-deck {
+    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
+    width: var(--card-w); height: var(--card-h);
+    border-radius: 7px;
+    background: repeating-linear-gradient(45deg, rgba(229,193,88,0.2) 0px, rgba(229,193,88,0.2) 2px, transparent 2px, transparent 8px),
+                radial-gradient(circle, #7f1d1d 0%, #3b0707 100%);
+    border: 1.5px solid #fff;
+    box-shadow: 2px 2px 0 #9e7818, 4px 4px 0 #0f172a, 6px 8px 22px rgba(0,0,0,0.88);
+    z-index: 38; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.dealer-deck-badge {
+    position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%);
+    font-size: 0.58rem; font-weight: 800; letter-spacing: 1.2px; color: var(--gold-bright);
+    background: rgba(4, 20, 11, 0.92); border: 1px solid var(--gold-primary);
+    padding: 2px 8px; border-radius: 10px; white-space: nowrap; text-transform: uppercase;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+.dealing-card-flyer {
+    position: absolute; top: 42%; left: 50%;
+    width: var(--card-w); height: var(--card-h);
+    border-radius: 7px; z-index: 140; pointer-events: none;
+    transform-origin: center center;
+    transform-style: preserve-3d;
+    perspective: 1000px;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.65);
+}
+
 /* Language Selector Pills */
 .lang-selector-bar {
     display: flex; background: rgba(0,0,0,0.55); border: 1.5px solid rgba(229,193,88,0.45);
@@ -3094,8 +3124,9 @@ class UIController {
                     div.style.zIndex = index + 10;
 
                     if (this.isDealingState && card.isNew) {
-                        div.classList.add('anim-deal');
-                        div.style.animationDelay = `${index * 0.08}s`;
+                        // Keep card invisible while physical dealing flyer is in flight
+                        div.style.visibility = 'hidden';
+                        div.style.opacity = '0';
                     }
 
                     let ptBadge = card.value > 0 ? `<div class="card-pt-badge">+${card.value}</div>` : '';
@@ -3126,8 +3157,8 @@ class UIController {
                     const div = document.createElement('div');
                     div.className = `card card-back`; 
                     if (this.isDealingState && this.engine.players[actualPlayerIndex][c] && this.engine.players[actualPlayerIndex][c].isNew) {
-                        div.classList.add('anim-deal');
-                        div.style.animationDelay = `${c * 0.08}s`;
+                        div.style.visibility = 'hidden';
+                        div.style.opacity = '0';
                     }
                     row.appendChild(div);
                 }
@@ -3139,6 +3170,160 @@ class UIController {
         setTimeout(() => {
             initVanillaTilt();
         }, 50);
+    }
+
+    playHumanDealAnimation(onComplete) {
+        const board = document.getElementById('board');
+        if (!board) { if (onComplete) onComplete(); return; }
+
+        let dealLayer = document.getElementById('deal-layer');
+        if (!dealLayer) {
+            dealLayer = document.createElement('div');
+            dealLayer.id = 'deal-layer';
+            dealLayer.style.cssText = 'position:absolute; inset:0; pointer-events:none; z-index:125; overflow:hidden;';
+            board.appendChild(dealLayer);
+        }
+        dealLayer.innerHTML = '';
+
+        // 1. Spawn 3D Center Dealer Deck
+        const deckEl = document.createElement('div');
+        deckEl.className = 'dealer-deck';
+        let badgeText = this.engine.phase === 'DEALING_2' ? 'Dealing Round 2' : 'Dealing 4 Cards';
+        deckEl.innerHTML = `<div class="dealer-deck-badge">${badgeText}</div>`;
+        dealLayer.appendChild(deckEl);
+
+        if (window.gsap) {
+            gsap.fromTo(deckEl, 
+                { scale: 0.7, opacity: 0, rotation: -12 },
+                { scale: 1, opacity: 1, rotation: 0, duration: 0.28, ease: "back.out(1.6)" }
+            );
+        }
+
+        // 2. Identify seat positions relative to board
+        const positions = ['bottom', 'right', 'top', 'left'];
+        const boardRect = board.getBoundingClientRect();
+        const centerOriginX = boardRect.width * 0.5;
+        const centerOriginY = boardRect.height * 0.42;
+
+        const seatTargets = [];
+        for (let i = 0; i < 4; i++) {
+            let actualPlayerIndex = (mySeat === 99) ? i : (mySeat + i) % 4;
+            const el = document.getElementById(`player-${positions[i]}`);
+            let destX = 0, destY = 0;
+            if (el) {
+                const r = el.getBoundingClientRect();
+                destX = (r.left + r.width / 2) - boardRect.left - centerOriginX;
+                destY = (r.top + r.height / 2) - boardRect.top - centerOriginY;
+            } else {
+                if (i === 0) destY = boardRect.height * 0.45;
+                else if (i === 1) destX = boardRect.width * 0.42;
+                else if (i === 2) destY = -boardRect.height * 0.35;
+                else if (i === 3) destX = -boardRect.width * 0.42;
+            }
+            seatTargets.push({ visualPos: i, actualPlayerIndex, destX, destY });
+        }
+
+        // 3. Build human clockwise dealing sequence (4 rounds x 4 seats = 16 cards)
+        // In 28 card game, dealer deals 4 cards to each player
+        let cardStartIndex = (this.engine.phase === 'DEALING_2') ? 4 : 0;
+        let cardInterval = 0.075; // 75ms rhythmic dealer cadence
+        let cardFlightDuration = 0.38;
+
+        for (let round = 0; round < 4; round++) {
+            for (let s = 0; s < 4; s++) {
+                let seatInfo = seatTargets[s];
+                let cardIndex = cardStartIndex + round;
+                let dealDelay = (round * 4 + s) * cardInterval + 0.15;
+
+                setTimeout(() => {
+                    const flyer = document.createElement('div');
+                    let isMe = (seatInfo.actualPlayerIndex === mySeat && mySeat !== 99);
+
+                    if (isMe) {
+                        let myCards = this.engine.players[mySeat] || [];
+                        let cardData = myCards[cardIndex] || { rank: '?', suit: '♠', value: 0 };
+                        let isRed = (cardData.suit === '♥' || cardData.suit === '♦' || cardData.suit === 'hearts' || cardData.suit === 'diamonds');
+                        let ptBadge = cardData.value > 0 ? `<div class="card-pt-badge">+${cardData.value}</div>` : '';
+                        flyer.className = `card dealing-card-flyer ${isRed ? 'red' : 'black'}`;
+                        flyer.innerHTML = `
+                            ${ptBadge}
+                            <div class="card-corner"><span>${cardData.rank}</span><span class="corner-suit">${cardData.suit}</span></div>
+                            <div class="card-center-suit">${cardData.suit}</div>
+                            <div class="card-corner bottom"><span>${cardData.rank}</span><span class="corner-suit">${cardData.suit}</span></div>
+                        `;
+                    } else {
+                        flyer.className = 'card card-back dealing-card-flyer';
+                    }
+
+                    dealLayer.appendChild(flyer);
+
+                    // Soft deal slide audio
+                    playSound('deal');
+
+                    if (window.gsap) {
+                        let endRot = (seatInfo.visualPos === 1 ? 8 : (seatInfo.visualPos === 3 ? -8 : 0)) + (Math.random() - 0.5) * 6;
+                        if (isMe) {
+                            // 3D perspective flip: starts facedown, flips face-up into South's hand
+                            gsap.fromTo(flyer,
+                                { x: 0, y: 0, scale: 0.85, rotationY: 180, rotation: (Math.random() - 0.5) * 12, opacity: 0.9 },
+                                { 
+                                    x: seatInfo.destX, 
+                                    y: seatInfo.destY, 
+                                    scale: 1, 
+                                    rotationY: 0, 
+                                    rotation: endRot, 
+                                    opacity: 1, 
+                                    duration: cardFlightDuration, 
+                                    ease: "power2.out",
+                                    onComplete: () => {
+                                        flyer.remove();
+                                    }
+                                }
+                            );
+                        } else {
+                            // Smooth facedown glide into opponent's hand
+                            gsap.fromTo(flyer,
+                                { x: 0, y: 0, scale: 0.8, rotation: (Math.random() - 0.5) * 10, opacity: 0.9 },
+                                { 
+                                    x: seatInfo.destX, 
+                                    y: seatInfo.destY, 
+                                    scale: 0.88, 
+                                    rotation: endRot, 
+                                    opacity: 0.95, 
+                                    duration: cardFlightDuration, 
+                                    ease: "power2.out",
+                                    onComplete: () => {
+                                        flyer.remove();
+                                    }
+                                }
+                            );
+                        }
+                    } else {
+                        setTimeout(() => flyer.remove(), 400);
+                    }
+                }, dealDelay * 1000);
+            }
+        }
+
+        // 4. Wrap up: Fade out dealer deck and settle cards in hand
+        let totalDuration = (16 * cardInterval + cardFlightDuration + 0.3) * 1000;
+        setTimeout(() => {
+            if (window.gsap) {
+                gsap.to(deckEl, {
+                    scale: 0.85,
+                    opacity: 0,
+                    duration: 0.22,
+                    ease: "power2.in",
+                    onComplete: () => {
+                        dealLayer.innerHTML = '';
+                        if (onComplete) onComplete();
+                    }
+                });
+            } else {
+                dealLayer.innerHTML = '';
+                if (onComplete) onComplete();
+            }
+        }, totalDuration);
     }
 
     renderPlayedCard(card, pIndex) {
@@ -3398,10 +3583,22 @@ class UIController {
         if (isHost) this.broadcastGameState();
 
         if (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
+            if (this.dealingAnimationActive) return;
+            this.dealingAnimationActive = true;
             this.isDealingState = true;
             this.renderStaticBoard();
-            this.isDealingState = false;
-            if (isHost) { this.aiTimer = setTimeout(() => { this.engine.finishDealAnimation(); this.gameLoop(); }, 1800); }
+
+            this.playHumanDealAnimation(() => {
+                this.isDealingState = false;
+                this.dealingAnimationActive = false;
+                if (isHost) {
+                    this.engine.finishDealAnimation();
+                    this.renderStaticBoard();
+                    this.gameLoop();
+                } else {
+                    this.renderStaticBoard();
+                }
+            });
             return; 
         }
 
