@@ -12,6 +12,59 @@ CARD_VALUES = {'J': 3, '9': 2, 'A': 1, '10': 1, 'K': 0, 'Q': 0, '8': 0, '7': 0}
 CARD_POWER = {'J': 8, '9': 7, 'A': 6, '10': 5, 'K': 4, 'Q': 3, '8': 2, '7': 1}
 SEAT_NAMES = ['South', 'East', 'North', 'West']
 
+# ==================== DEDICATED BOT PERSONALITIES ====================
+BOT_PERSONALITIES = {
+    1: {  # East
+        'name': 'East',
+        'title': 'The Aggressive Striker',
+        'icon': '⚔️',
+        'archetype': 'AGGRESSIVE_STRIKER',
+        'description': 'High-risk challenger. Strikes high in 3rd seat, forces out declarer trumps, and cashes honors fast.',
+        'bid_aggression': 1.25,
+        'min_hand_pts_bid': 3,
+        'max_bid_ceiling': 21,
+        'third_hand_aggression': 1.8,
+        'smear_weight': 1.1,
+        'duck_factor': 0.25,
+        'trump_punish_factor': 2.0,
+        'lead_style': 'ATTACK_HIGH'
+    },
+    2: {  # North (Partner)
+        'name': 'North',
+        'title': 'The Loyal Wingman',
+        'icon': '🛡️',
+        'archetype': 'LOYAL_WINGMAN',
+        'description': 'Selfless cooperative grandmaster. Strictly defers to your bids, smears 10s onto your tricks, and returns your leads.',
+        'bid_aggression': 0.85,
+        'min_hand_pts_bid': 4,
+        'max_bid_ceiling': 19,
+        'respect_partner_bid': True,
+        'third_hand_aggression': 1.2,
+        'smear_weight': 3.4,         # Highest priority: gifts 10s and Aces to South
+        'duck_factor': 0.8,
+        'trump_punish_factor': 0.4,
+        'return_partner_suit': 2.6,   # Religiously returns South's successful leads
+        'extract_opp_trumps': True,   # Bleeds opponent trumps when South is declarer
+        'lead_style': 'SUPPORT_SOUTH'
+    },
+    3: {  # West
+        'name': 'West',
+        'title': 'The Cold Saboteur',
+        'icon': '♟️',
+        'archetype': 'COLD_SABOTEUR',
+        'description': 'Calculating trapper. Feigns weakness with 2nd-hand-low ducking, passes to trap declarer, and ambushes 10s with late trump cuts.',
+        'bid_aggression': 0.9,
+        'min_hand_pts_bid': 5,
+        'max_bid_ceiling': 20,
+        'second_hand_low': True,      # Classic bridge defense: ducks low on 2nd seat
+        'ambush_trump_cut': True,     # Saves trumps specifically for South's 10s and Aces
+        'smear_weight': 1.4,
+        'duck_factor': 2.4,           # Prefers ducking low to preserve control
+        'trump_punish_factor': 1.5,
+        'lead_style': 'PASSIVE_EXIT'  # Exits with neutral cards to force South to lead
+    }
+}
+
 def get_groq_api_key():
     """Retrieves GROQ_API_KEY from environment or local .env.local file without committing secrets."""
     key = os.environ.get("GROQ_API_KEY")
@@ -102,30 +155,42 @@ def deal_cards():
 # ==================== STRATEGIC BIDDING ENGINE ====================
 def evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count, difficulty='medium'):
     """
-    Expert imperfect-information 28 bidding engine.
-    Supports 3 difficulty modes: 'easy', 'medium', 'hard'.
-    - Easy: No AI involvement for enemy bots (seats 1 and 3). They pass.
-    - Medium: Moderate AI involvement. Sensible bids up to 19, no risky overbids.
-    - Hard: Full Grandmaster AI. Deep hand evaluation, void bonuses, Jack synergies up to 24.
-    Partner (North, seat 2) always plays intelligently to assist human.
+    Personality-driven imperfect-information 28 bidding engine:
+    - East (Seat 1, Aggressive Striker): High risk-tolerance, aggressively challenges South up to 21.
+    - North (Seat 2, Loyal Wingman): Respects South, defers to South's contract, defends if South passes.
+    - West (Seat 3, Cold Saboteur): Disciplined and cold, passes to trap South into overbidding.
     """
+    bot = BOT_PERSONALITIES.get(player_idx, {
+        'name': SEAT_NAMES[player_idx],
+        'title': 'Player',
+        'icon': '👤',
+        'bid_aggression': 1.0,
+        'max_bid_ceiling': 20
+    })
+
     partner_idx = (player_idx + 2) % 4
     min_required = 16 if current_bid < 16 else current_bid + 1
-
-    # Rule 1: Respect partner's bid! Partner holds contract -> ALWAYS pass!
-    if highest_bidder == partner_idx:
-        return {'bid': 'Pass'}
-
-    # Rule 2: Forced dealer bid rule (if 3 players passed, dealer must bid 16)
-    if pass_count == 3 and current_bid < 16:
-        return {'bid': 16}
-
-    # EASY MODE: No AI involvement in enemy bots (East & West, seats 1 and 3)
     is_enemy = (player_idx in [1, 3])
-    if difficulty == 'easy' and is_enemy:
-        return {'bid': 'Pass'}
 
-    # Count points and analyze card combinations
+    # 1. Partner Respect Rule
+    # North (Loyal Wingman) strictly defers to South (human)!
+    if highest_bidder == partner_idx:
+        # If North has massive power (e.g. 2 Jacks and 6+ pts) at opening bid 16, North can support-raise to 17
+        total_pts = sum(CARD_VALUES.get(c['rank'], 0) for c in hand)
+        j_count = sum(1 for c in hand if c['rank'] == 'J')
+        if player_idx == 2 and total_pts >= 6 and j_count >= 2 and current_bid == 16:
+            return {'bid': 17, 'personality': bot}
+        return {'bid': 'Pass', 'personality': bot}
+
+    # 2. Forced dealer bid rule (if 3 players passed, dealer must bid 16)
+    if pass_count == 3 and current_bid < 16:
+        return {'bid': 16, 'personality': bot}
+
+    # 3. Easy Mode: No AI involvement in enemy bots
+    if difficulty == 'easy' and is_enemy:
+        return {'bid': 'Pass', 'personality': bot}
+
+    # Count points and card combinations
     suit_counts = {s: 0 for s in SUITS}
     suit_points = {s: 0 for s in SUITS}
     jacks = []
@@ -145,22 +210,11 @@ def evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count, 
     total_pts = sum(suit_points.values())
     max_suit_count = max(suit_counts.values())
 
-    # MEDIUM DIFFICULTY: Moderate, sensible bidding
-    if difficulty == 'medium':
-        if total_pts < 4 and len(jacks) == 0:
-            return {'bid': 'Pass'}
-        max_willing = min(19, 15 + total_pts + (2 if len(jacks) > 0 else 0))
-        if max_willing >= min_required and min_required <= 19:
-            return {'bid': min_required}
-        return {'bid': 'Pass'}
-
-    # HARD DIFFICULTY: Grandmaster competitive bidding
+    # Baseline mathematical strength
     bid_strength = 14.0 + (total_pts * 1.0)
-
     if len(jacks) == 1: bid_strength += 1.5
     elif len(jacks) >= 2: bid_strength += 3.5
 
-    # Jack + 9 combo in the same suit is extremely powerful in 28
     for s in jacks:
         if s in nines: bid_strength += 2.5
         if s in aces: bid_strength += 1.0
@@ -169,21 +223,44 @@ def evaluate_bidding(hand, current_bid, highest_bidder, player_idx, pass_count, 
         if s not in jacks and suit_counts[s] >= 2:
             bid_strength += 1.0
 
-    # Length bonus in primary suit
     if max_suit_count == 3: bid_strength += 2.0
     elif max_suit_count == 4: bid_strength += 4.0
 
-    # Void bonus (ability to trump early in round)
     voids = sum(1 for s in SUITS if suit_counts[s] == 0)
     bid_strength += voids * 0.8
 
-    max_willing_bid = min(24, int(bid_strength))
+    # Apply Distinctive Bot Personalities
+    if player_idx == 1:
+        # East (The Aggressive Striker): +2.0 boost, pushes bids up to 21
+        bid_strength += 2.0
+        max_ceiling = bot.get('max_bid_ceiling', 21)
+    elif player_idx == 3:
+        # West (The Cold Saboteur): Disciplined, avoids overbids, traps South
+        bid_strength -= 0.6
+        max_ceiling = bot.get('max_bid_ceiling', 20)
+        # If South already bid 18+ and West doesn't hold monster strength, West passes to trap!
+        if current_bid >= 18 and total_pts < 6:
+            return {'bid': 'Pass', 'personality': bot}
+    elif player_idx == 2:
+        # North (The Loyal Wingman): Supportive, protects South
+        max_ceiling = bot.get('max_bid_ceiling', 19)
+        if highest_bidder == 0:
+            return {'bid': 'Pass', 'personality': bot}
+    else:
+        max_ceiling = 24
 
-    # Competitive bidding against opponents
-    if max_willing_bid >= min_required and min_required <= 24:
-        return {'bid': min_required}
+    max_willing_bid = min(max_ceiling, int(bid_strength))
 
-    return {'bid': 'Pass'}
+    # Medium difficulty ceiling
+    if difficulty == 'medium':
+        max_willing_bid = min(19, max_willing_bid)
+        if total_pts < 4 and len(jacks) == 0:
+            return {'bid': 'Pass', 'personality': bot}
+
+    if max_willing_bid >= min_required and min_required <= max_ceiling:
+        return {'bid': min_required, 'personality': bot}
+
+    return {'bid': 'Pass', 'personality': bot}
 
 def select_ai_trump(hand):
     """Selects optimal trump suit based strictly on the player's private hand."""
@@ -327,13 +404,20 @@ def run_ismcts_rollout(valid_indices, hand, trick_cards, lead_suit, trump_suit, 
 # ==================== GRANDMASTER CARD PLAY ENGINE ====================
 def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, played_history, void_suits, difficulty='medium'):
     """
-    Imperfect Information 28 AI Card Play Engine with 3 Difficulty Modes:
-    - Easy: No AI involvement in enemy bots (seats 1 and 3). They play lowest/random valid cards,
-            never smear, never overtrump, never cut unless forced.
-    - Medium: Balanced heuristic play without deep remaining-card calculation.
-    - Hard: Grandmaster ISMCTS rollouts (Bayesian determinizations) + card counting (tracks all 32 cards),
-            ruthless master card cashing, aggressive cross-smearing, cross-ruffing, and precision trump management.
+    Personality-driven Imperfect Information 28 Card Play Engine:
+    - East (Seat 1, Aggressive Striker): Attacks 3rd-hand-high, bleeds declarer trumps, cashes masters fast.
+    - North (Seat 2, Loyal Wingman): 3.4x smear priority onto South, returns South's suits, clears trumps for declarer South.
+    - West (Seat 3, Cold Saboteur): Second-hand-low ducking, ambushes South's 10s and Aces with late trump cuts.
     """
+    bot = BOT_PERSONALITIES.get(player_idx, {
+        'name': SEAT_NAMES[player_idx],
+        'title': 'Player',
+        'icon': '👤',
+        'archetype': 'BALANCED',
+        'smear_weight': 1.0,
+        'duck_factor': 1.0
+    })
+
     partner_idx = (player_idx + 2) % 4
     opp1_idx = (player_idx + 1) % 4
     opp2_idx = (player_idx + 3) % 4
@@ -350,7 +434,7 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
             valid_indices = list(range(len(hand)))
 
     if len(valid_indices) == 1:
-        return {'card_index': valid_indices[0], 'reveal_trump': False}
+        return {'card_index': valid_indices[0], 'reveal_trump': False, 'personality': bot}
 
     # ==================== EASY MODE FOR ENEMY BOTS ====================
     # Zero AI involvement: naive play, never reveals trump, never smears, plays lowest power card
@@ -447,17 +531,43 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
         c = hand[i]
         if trump_suit and c['suit'] == trump_suit:
             return -100 # Never smear trumps unless forced
-        if c['rank'] == '10': return 100 # Unprotected 10 is ideal smear
-        elif c['rank'] == 'A': return 80
-        elif c['rank'] == '9': return 70
-        elif c['rank'] == 'J': return 60
-        return -c['power'] # Lower power 7/8 preferred over K/Q
+        multiplier = bot.get('smear_weight', 1.0)
+        base = 0
+        if c['rank'] == '10': base = 100 * multiplier # Unprotected 10 is ideal smear
+        elif c['rank'] == 'A': base = 85 * multiplier
+        elif c['rank'] == '9': base = 70 * multiplier
+        elif c['rank'] == 'J': base = 60 * multiplier
+        return base - c['power']
 
     # ==================== CASE 1: LEADING THE TRICK ====================
     if seat_in_trick == 0:
-        masters = [i for i in valid_indices if is_master_card(hand[i], unplayed)]
+        # NORTH (Loyal Wingman) PERSONALITY: Returns South's lead or clears trumps for declarer South
+        if player_idx == 2:
+            # 1. If South is declarer and trump is revealed, lead trumps to draw out East & West's trumps!
+            if trump_revealed and trump_suit and any(c['suit'] == trump_suit for c in hand):
+                trumps_in_hand = [i for i in valid_indices if hand[i]['suit'] == trump_suit]
+                if trumps_in_hand:
+                    trumps_in_hand.sort(key=lambda i: hand[i]['power'])
+                    return {'card_index': trumps_in_hand[0], 'reveal_trump': False, 'personality': bot}
 
-        # Check if opponents are void in the suit of these masters (to avoid getting trumped)
+            # 2. Return South's successful suit: look at past tricks where South led
+            if played_history:
+                for ph in played_history:
+                    if ph.get('suit') and any(hand[i]['suit'] == ph['suit'] for i in valid_indices):
+                        matching = [i for i in valid_indices if hand[i]['suit'] == ph['suit']]
+                        if matching:
+                            matching.sort(key=lambda i: hand[i]['power'])
+                            return {'card_index': matching[0], 'reveal_trump': False, 'personality': bot}
+
+        # WEST (Cold Saboteur) PERSONALITY: Passive low exit lead (7s, 8s) to force South to lead away from honors
+        elif player_idx == 3:
+            zeros = [i for i in valid_indices if hand[i]['value'] == 0 and (trump_suit is None or hand[i]['suit'] != trump_suit)]
+            if zeros:
+                zeros.sort(key=lambda i: hand[i]['power'])
+                return {'card_index': zeros[0], 'reveal_trump': False, 'personality': bot}
+
+        # EAST (Aggressive Striker) PERSONALITY: Attacks with high cards & side-suit masters
+        masters = [i for i in valid_indices if is_master_card(hand[i], unplayed)]
         safe_masters = []
         for i in masters:
             s = hand[i]['suit']
@@ -469,61 +579,43 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
                 safe_masters.append(i)
 
         if safe_masters:
-            # Cash side-suit masters first, then trump masters
             safe_masters.sort(key=lambda i: (
                 1 if (trump_suit and hand[i]['suit'] == trump_suit) else 2,
                 hand[i]['value'],
                 hand[i]['power']
             ), reverse=True)
-            return {'card_index': safe_masters[0], 'reveal_trump': False}
+            return {'card_index': safe_masters[0], 'reveal_trump': False, 'personality': bot}
 
-        # If holding Jack + 9 in a suit, leading the Jack forces out the Ace/10 and establishes the 9
         for s in SUITS:
             j_idx = next((i for i in valid_indices if hand[i]['suit'] == s and hand[i]['rank'] == 'J'), None)
             nine_idx = next((i for i in valid_indices if hand[i]['suit'] == s and hand[i]['rank'] == '9'), None)
             if j_idx is not None and nine_idx is not None:
-                return {'card_index': j_idx, 'reveal_trump': False}
+                return {'card_index': j_idx, 'reveal_trump': False, 'personality': bot}
 
-        # Cross-ruff: If partner is known void in a suit, lead that suit so partner can trump
-        if trump_revealed and trump_suit:
-            for s in SUITS:
-                if s != trump_suit and void_suits.get(str(partner_idx), {}).get(s):
-                    if not void_suits.get(str(opp1_idx), {}).get(s) and not void_suits.get(str(opp2_idx), {}).get(s):
-                        suit_zeros = [i for i in valid_indices if hand[i]['suit'] == s and hand[i]['value'] == 0]
-                        if suit_zeros:
-                            suit_zeros.sort(key=lambda i: hand[i]['power'])
-                            return {'card_index': suit_zeros[0], 'reveal_trump': False}
-
-        # ISMCTS Rollouts for Opening Lead: chooses card with highest mathematical equity
         best_lead = run_ismcts_rollout(valid_indices, hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, unplayed, void_suits)
-        return {'card_index': best_lead, 'reveal_trump': False}
+        return {'card_index': best_lead, 'reveal_trump': False, 'personality': bot}
 
     # ==================== CASE 2: PARTNER IS WINNING ====================
     elif partner_is_winning:
         is_last_seat = (seat_in_trick == 3)
         partner_has_master = is_master_card(winning_card, unplayed)
         partner_guaranteed = is_last_seat or partner_has_master
-
         has_lead = any(c['suit'] == lead_suit for c in hand)
 
-        if partner_guaranteed:
-            # Partner's trick is guaranteed! SMEAR MAXIMUM POINTS!
+        # NORTH (Loyal Wingman) HIGHEST PRIORITY SMEAR: Gifts 10s and Aces directly to South!
+        if partner_guaranteed or (player_idx == 2 and winning_card['rank'] in ['J', '9']):
             valid_indices.sort(key=lambda i: smear_value(i), reverse=True)
-            return {'card_index': valid_indices[0], 'reveal_trump': False}
+            return {'card_index': valid_indices[0], 'reveal_trump': False, 'personality': bot}
         else:
-            # Partner currently winning, but opponents still have turns behind us
             if has_lead:
-                # If we hold a master card and trick has points, overtake to lock the trick
                 master_leads = [i for i in valid_indices if is_master_card(hand[i], unplayed)]
                 if master_leads and trick_points >= 1:
-                    return {'card_index': master_leads[0], 'reveal_trump': False}
-                # Otherwise, duck with lowest power to not risk points
+                    return {'card_index': master_leads[0], 'reveal_trump': False, 'personality': bot}
                 valid_indices.sort(key=lambda i: hand[i]['power'])
-                return {'card_index': valid_indices[0], 'reveal_trump': False}
+                return {'card_index': valid_indices[0], 'reveal_trump': False, 'personality': bot}
             else:
-                # Void in lead suit: discard cheapest trash
                 valid_indices.sort(key=lambda i: discard_cost(i))
-                return {'card_index': valid_indices[0], 'reveal_trump': False}
+                return {'card_index': valid_indices[0], 'reveal_trump': False, 'personality': bot}
 
     # ==================== CASE 3: OPPONENT IS WINNING ====================
     else:
@@ -531,55 +623,73 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
 
         if has_lead:
             winning_indices = [i for i in valid_indices if hand[i]['power'] > winning_card['power']]
+            
+            # WEST (Cold Saboteur) PERSONALITY: Second Hand Low! Ducks low on 2nd seat to let East attack in 3rd seat
+            if player_idx == 3 and seat_in_trick == 1:
+                zeros = [i for i in valid_indices if hand[i]['value'] == 0]
+                if zeros:
+                    zeros.sort(key=lambda i: hand[i]['power'])
+                    return {'card_index': zeros[0], 'reveal_trump': False, 'personality': bot}
+
+            # EAST (Aggressive Striker) PERSONALITY: Third Hand High! Hits hard in 3rd seat
+            if player_idx == 1 and seat_in_trick == 2 and winning_indices:
+                winning_indices.sort(key=lambda i: hand[i]['power'], reverse=True)
+                return {'card_index': winning_indices[0], 'reveal_trump': False, 'personality': bot}
+
             if winning_indices:
                 if seat_in_trick == 3:
-                    # Last player: win as cheaply as possible
                     winning_indices.sort(key=lambda i: hand[i]['power'])
-                    return {'card_index': winning_indices[0], 'reveal_trump': False}
+                    return {'card_index': winning_indices[0], 'reveal_trump': False, 'personality': bot}
                 else:
-                    # 2nd or 3rd player: if trick has points, win decisively; if 0 pts, win cheaply
                     if trick_points >= 2 or winning_card['rank'] in ['J', '9']:
                         winning_indices.sort(key=lambda i: hand[i]['power'], reverse=True)
-                        return {'card_index': winning_indices[0], 'reveal_trump': False}
+                        return {'card_index': winning_indices[0], 'reveal_trump': False, 'personality': bot}
                     else:
                         winning_indices.sort(key=lambda i: hand[i]['power'])
-                        return {'card_index': winning_indices[0], 'reveal_trump': False}
+                        return {'card_index': winning_indices[0], 'reveal_trump': False, 'personality': bot}
             else:
-                # Cannot win: play lowest power 0-pointer (duck)
                 valid_indices.sort(key=lambda i: (hand[i]['value'], hand[i]['power']))
-                return {'card_index': valid_indices[0], 'reveal_trump': False}
+                return {'card_index': valid_indices[0], 'reveal_trump': False, 'personality': bot}
         else:
             # Void in lead suit
             if (trump_revealed or reveal_trump) and trump_suit:
                 trumps = [i for i in valid_indices if hand[i]['suit'] == trump_suit]
                 if trumps:
                     if winning_card['suit'] == trump_suit:
-                        # Opponent played trump: can we overtrump?
                         overtrumps = [i for i in trumps if hand[i]['power'] > winning_card['power']]
                         if overtrumps and (trick_points >= 2 or winning_card['value'] >= 2):
                             overtrumps.sort(key=lambda i: hand[i]['power'])
-                            return {'card_index': overtrumps[0], 'reveal_trump': reveal_trump}
+                            return {'card_index': overtrumps[0], 'reveal_trump': reveal_trump, 'personality': bot}
                         else:
-                            # Cannot or should not overtrump: sluff trash off-suit
                             non_trumps = [i for i in valid_indices if hand[i]['suit'] != trump_suit]
                             if non_trumps:
                                 non_trumps.sort(key=lambda i: discard_cost(i))
-                                return {'card_index': non_trumps[0], 'reveal_trump': False}
+                                return {'card_index': non_trumps[0], 'reveal_trump': False, 'personality': bot}
                             else:
                                 trumps.sort(key=lambda i: hand[i]['power'])
-                                return {'card_index': trumps[0], 'reveal_trump': reveal_trump}
+                                return {'card_index': trumps[0], 'reveal_trump': reveal_trump, 'personality': bot}
                     else:
-                        # Opponent winning with non-trump: cut with lowest trump!
-                        if trick_points >= 1 or winning_card['value'] >= 1:
-                            trumps.sort(key=lambda i: hand[i]['power'])
-                            return {'card_index': trumps[0], 'reveal_trump': reveal_trump}
+                        # WEST (Cold Saboteur): Ambush Trump Cut! Only cuts if pot has juicy points (>= 2 pts or Ace/10)
+                        if player_idx == 3:
+                            if trick_points >= 2 or winning_card['value'] >= 1:
+                                trumps.sort(key=lambda i: hand[i]['power'])
+                                return {'card_index': trumps[0], 'reveal_trump': reveal_trump, 'personality': bot}
+                            else:
+                                non_trumps = [i for i in valid_indices if hand[i]['suit'] != trump_suit]
+                                if non_trumps:
+                                    non_trumps.sort(key=lambda i: discard_cost(i))
+                                    return {'card_index': non_trumps[0], 'reveal_trump': False, 'personality': bot}
+                        else:
+                            # Standard cut
+                            if trick_points >= 1 or winning_card['value'] >= 1:
+                                trumps.sort(key=lambda i: hand[i]['power'])
+                                return {'card_index': trumps[0], 'reveal_trump': reveal_trump, 'personality': bot}
 
-            # Sluff using ISMCTS rollouts if multiple candidates exist
             if len(valid_indices) > 1:
                 best_sluff = run_ismcts_rollout(valid_indices, hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, unplayed, void_suits)
-                return {'card_index': best_sluff, 'reveal_trump': reveal_trump if not trump_revealed else False}
+                return {'card_index': best_sluff, 'reveal_trump': reveal_trump if not trump_revealed else False, 'personality': bot}
             valid_indices.sort(key=lambda i: discard_cost(i))
-            return {'card_index': valid_indices[0], 'reveal_trump': reveal_trump if not trump_revealed else False}
+            return {'card_index': valid_indices[0], 'reveal_trump': reveal_trump if not trump_revealed else False, 'personality': bot}
 
 # ==================== POST-ROUND COACH RECAP ====================
 SUITS_MAP_EN = {'♥': 'Hearts', '♦': 'Diamonds', '♣': 'Clubs', '♠': 'Spades'}

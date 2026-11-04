@@ -2883,34 +2883,54 @@ class UIController {
 
     updatePlayerNames() {
         let t = I18N[currentLang] || I18N.en;
+        const botRoles = {
+            1: { en: "East ⚔️ (Striker)", hi: "ईस्ट ⚔️ (हमलावर)" },
+            2: { en: "Partner 🛡️ (Wingman)", hi: "साथी 🛡️ (वफादार)" },
+            3: { en: "West ♟️ (Saboteur)", hi: "वेस्ट ♟️ (चालबाज़)" }
+        };
+
         if(viewMode === 'BOARD') {
             for(let i=0; i<4; i++) {
                 let isHuman = humanSeats.includes(i);
                 let dir = COMPASS_FULL[i];
                 let dirName = currentLang === 'hi' ? (t.dirs && t.dirs[dir] ? t.dirs[dir] : dir) : dir;
                 let isDefault = !playerCustomNames[i] || COMPASS_FULL.includes(playerCustomNames[i]);
-                let pName = isDefault ? dirName : playerCustomNames[i];
-                this.playerNames[i] = `${isHuman ? "👤" : "🤖"} ${pName}`;
+                if (isHuman) {
+                    let pName = isDefault ? dirName : playerCustomNames[i];
+                    this.playerNames[i] = `👤 ${pName}`;
+                } else {
+                    let role = botRoles[i] ? (currentLang === 'hi' ? botRoles[i].hi : botRoles[i].en) : `🤖 ${dirName}`;
+                    this.playerNames[i] = role;
+                }
             }
             document.getElementById('t1-header').innerText = currentLang === 'hi' ? "टीम 1 (द व उ)" : "Team 1 (S & N)";
             document.getElementById('t2-header').innerText = currentLang === 'hi' ? "टीम 2 (पू व प)" : "Team 2 (E & W)";
             return;
         }
+
         for(let i=0; i<4; i++) {
             let isHuman = humanSeats.includes(i);
-            let icon = isHuman ? "👤" : "🤖";
             let dir = COMPASS_FULL[i];
             let dirName = currentLang === 'hi' ? (t.dirs && t.dirs[dir] ? t.dirs[dir] : dir) : dir;
             let isDefaultName = !playerCustomNames[i] || COMPASS_FULL.includes(playerCustomNames[i]);
             let displayName = isDefaultName ? dirName : playerCustomNames[i];
+
             if (i === mySeat) { 
-                let youLabel = myNickname || (currentLang === 'hi' ? 'खिलाड़ी 1' : 'Player 1');
+                let youLabel = myNickname || (currentLang === 'hi' ? 'आप' : 'You');
                 this.playerNames[i] = `👤 ${youLabel} (${dirName})`; 
-            } else if (i === (mySeat + 2) % 4) { 
-                let partnerLabel = currentLang === 'hi' ? 'साथी' : 'PARTNER';
-                this.playerNames[i] = `${icon} ${partnerLabel} (${dirName})`; 
-            } else { 
-                this.playerNames[i] = `${icon} ${displayName}`; 
+            } else if (isHuman) {
+                this.playerNames[i] = `👤 ${displayName}`;
+            } else {
+                // Distinctive AI Personalities
+                if (i === (mySeat + 2) % 4) {
+                    this.playerNames[i] = currentLang === 'hi' ? "🛡️ साथी (वफादार विंगमैन)" : "🛡️ Partner (Wingman)";
+                } else if (i === 1) {
+                    this.playerNames[i] = currentLang === 'hi' ? "⚔️ ईस्ट (आक्रामक हमलावर)" : "⚔️ East (Striker)";
+                } else if (i === 3) {
+                    this.playerNames[i] = currentLang === 'hi' ? "♟️ वेस्ट (शातिर चालबाज़)" : "♟️ West (Saboteur)";
+                } else {
+                    this.playerNames[i] = `🤖 ${displayName}`;
+                }
             }
         }
         let myDir = COMPASS_SHORT[mySeat];
