@@ -856,10 +856,13 @@ body::before {
     <div id="end-badge" style="display:inline-block; padding:4px 14px; border-radius:20px; font-weight:800; font-size:clamp(0.8rem, 1.8vh, 0.95rem); margin-bottom:8px;"></div>
     <div id="end-text" style="font-size:clamp(0.78rem, 1.6vh, 0.88rem); line-height:1.45; color:#e2e8f0; margin:8px 0 14px 0;"></div>
     <div id="end-coach-box" style="display:none; background:rgba(15,23,42,0.85); border:1px solid var(--gold-border); border-radius:12px; padding:10px 14px; margin:0 auto 16px auto; max-width:92%; text-align:left;">
-        <div style="font-size:0.75rem; color:var(--gold-bright); font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-            <span>🧠</span> <span id="end-coach-title">AI Match Analysis</span>
+        <div style="font-size:0.75rem; color:var(--gold-bright); font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span>🧠</span> <span id="end-coach-title">AI Match Analysis</span>
+            </div>
+            <span id="end-coach-verdict-badge" style="display:none; font-size:0.64rem; font-weight:800; padding:2px 8px; border-radius:10px; background:rgba(229,193,88,0.18); border:1px solid var(--gold-border); color:var(--gold-bright);"></span>
         </div>
-        <div id="end-coach-text" style="font-size:0.8rem; color:#cbd5e1; line-height:1.4; font-style:italic;"></div>
+        <div id="end-coach-text" style="font-size:0.8rem; color:#cbd5e1; line-height:1.45;"></div>
     </div>
     <button id="next-round-btn" class="menu-btn primary-gold" style="justify-content:center; margin:0 auto;" onclick="ui.startNewRound()">Deal Next Round</button>
 </div>
@@ -1786,10 +1789,10 @@ const BackendAPI = {
             return null;
         }
     },
-    async getRecap(biddingWinner, contract, biddingTeam, t1Pts, t2Pts, success, trumpSuit, pairDeclared, language) {
+    async getRecap(biddingWinner, contract, biddingTeam, t1Pts, t2Pts, success, trumpSuit, pairDeclared, language, tricks, trumpRevealEvent, customNames) {
         try {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 3500);
+            const timer = setTimeout(() => ctrl.abort(), 4000);
             const res = await fetch('/api/recap', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1802,14 +1805,16 @@ const BackendAPI = {
                     success: success,
                     trump_suit: trumpSuit,
                     pair_declared: pairDeclared,
-                    language: language || 'en'
+                    language: language || 'en',
+                    tricks: tricks || [],
+                    trump_reveal_event: trumpRevealEvent || null,
+                    custom_names: customNames || null
                 }),
                 signal: ctrl.signal
             });
             clearTimeout(timer);
             if (!res.ok) return null;
-            const data = await res.json();
-            return data.recap;
+            return await res.json();
         } catch(e) {
             return null;
         }
@@ -1831,6 +1836,10 @@ class TwentyEightEngine {
         this.phase = 'LOBBY';
         this.trickCards = [];
         this.playerBids = [null, null, null, null];
+        this.roundTricks = [];
+        this.trumpRevealEvent = null;
+        this.justRevealedInCurrentTrick = false;
+        this.justRevealedByPlayer = -1;
     }
 
     resetRound() {
@@ -1848,6 +1857,10 @@ class TwentyEightEngine {
         this.currentTurn = this.roundStarter;
         this.roundStarter = (this.roundStarter + 1) % 4;
         this.passCount = 0; this.playedCardsHistory = [];
+        this.roundTricks = [];
+        this.trumpRevealEvent = null;
+        this.justRevealedInCurrentTrick = false;
+        this.justRevealedByPlayer = -1;
         this.voidInSuit = [
             {'♥':false, '♦':false, '♣':false, '♠':false},
             {'♥':false, '♦':false, '♣':false, '♠':false},
@@ -2394,6 +2407,40 @@ class TwentyEightEngine {
         if (winningPlay.player === 0 || winningPlay.player === 2) this.t1TrickPts += trickPoints;
         else this.t2TrickPts += trickPoints;
 
+        // Record trick telemetry for deeply grounded AI Match Analysis
+        let trickHonors = (this.trickCards || [])
+            .filter(tc => tc.card && tc.card.value > 0)
+            .map(tc => ({
+                rank: tc.card.rank,
+                suit: tc.card.suit,
+                pts: tc.card.value,
+                player: tc.player,
+                seat: COMPASS_FULL[tc.player] || `Player ${tc.player}`
+            }));
+
+        let currentTrickNum = this.roundTricks.length + 1;
+        let trickRecord = {
+            trickNum: currentTrickNum,
+            leader: this.trickCards[0] ? this.trickCards[0].player : 0,
+            leaderSeat: this.trickCards[0] ? COMPASS_FULL[this.trickCards[0].player] : 'South',
+            winningPlayer: winningPlay.player,
+            winningSeat: COMPASS_FULL[winningPlay.player] || `Player ${winningPlay.player}`,
+            winningTeam: winTeam + 1,
+            winningCard: winningPlay.card ? `${winningPlay.card.rank}${winningPlay.card.suit}` : '',
+            points: trickPoints,
+            honors: trickHonors,
+            trumpRevealedThisTrick: this.justRevealedInCurrentTrick ? {
+                by: this.justRevealedByPlayer,
+                seat: COMPASS_FULL[this.justRevealedByPlayer] || `Player ${this.justRevealedByPlayer}`,
+                suit: this.trumpSuit
+            } : null,
+            t1TotalAfter: this.t1TrickPts,
+            t2TotalAfter: this.t2TrickPts
+        };
+        this.roundTricks.push(trickRecord);
+        this.justRevealedInCurrentTrick = false;
+        this.justRevealedByPlayer = -1;
+
         playSound('trick');
         this.log(`🏆 Player ${winningPlay.player} wins trick (+${trickPoints} pts)`);
         this.trickCards = [];
@@ -2430,6 +2477,18 @@ class TwentyEightEngine {
         }
         this.trumpRevealed = true;
         this.justRevealedBy = autoEndReveal ? -1 : requesterIndex;
+        if (!autoEndReveal) {
+            this.justRevealedInCurrentTrick = true;
+            this.justRevealedByPlayer = requesterIndex;
+            if (!this.trumpRevealEvent) {
+                this.trumpRevealEvent = {
+                    trickNum: this.roundTricks.length + 1,
+                    player: requesterIndex,
+                    seat: COMPASS_FULL[requesterIndex] || `Player ${requesterIndex}`,
+                    suit: this.trumpSuit
+                };
+            }
+        }
         playSound('reveal');
         this.log(`🚨 Player ${requesterIndex} revealed Trump: ${this.trumpSuit}!`);
         this.hiddenTrumpCard = null;
@@ -3321,8 +3380,10 @@ class UIController {
         const coachBox = document.getElementById('end-coach-box');
         const coachText = document.getElementById('end-coach-text');
         const coachTitle = document.getElementById('end-coach-title');
+        const coachBadge = document.getElementById('end-coach-verdict-badge');
         if (coachBox && coachText) {
             coachTitle.innerText = currentLang === 'hi' ? 'AI मैच विश्लेषण' : 'AI Match Analysis';
+            if (coachBadge) coachBadge.style.display = 'none';
             coachText.innerHTML = `<span style="opacity:0.7;">${currentLang === 'hi' ? 'विश्लेषण तैयार किया जा रहा है...' : 'Analyzing round performance...'}</span>`;
             coachBox.style.display = 'block';
 
@@ -3335,10 +3396,21 @@ class UIController {
                 this.engine.roundSuccess,
                 this.engine.trumpSuit,
                 this.engine.pairDeclared,
-                currentLang
-            ).then(recap => {
-                if (recap && coachText) {
-                    coachText.innerText = `"${recap}"`;
+                currentLang,
+                this.engine.roundTricks || [],
+                this.engine.trumpRevealEvent || null,
+                playerCustomNames || []
+            ).then(res => {
+                if (res && coachText) {
+                    let verdictText = (typeof res === 'object' && res.verdict) ? res.verdict : '';
+                    let recapText = (typeof res === 'object' && res.recap) ? res.recap : (typeof res === 'string' ? res : '');
+                    if (coachBadge && verdictText) {
+                        coachBadge.innerText = verdictText;
+                        coachBadge.style.display = 'inline-block';
+                    }
+                    if (recapText) {
+                        coachText.innerText = `"${recapText}"`;
+                    }
                 } else if (coachBox) {
                     coachBox.style.display = 'none';
                 }
