@@ -555,8 +555,17 @@ body::before {
 @keyframes pulseGlow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 @keyframes scoreBump { 0% { transform: scale(1); } 50% { transform: scale(1.4); color: var(--gold-primary); } 100% { transform: scale(1); } }
 .anim-bump { animation: scoreBump 0.35s ease; display: inline-block; }
-@keyframes dealCard { 0% { opacity: 0; transform: translateY(-60px) scale(0.3); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
-.anim-deal { animation: dealCard 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+@keyframes dealCard {
+    0% { opacity: 0; transform: translateY(-80px) scale(0.35) rotate(-10deg); filter: blur(2px); }
+    65% { transform: translateY(6px) scale(1.05) rotate(2deg); filter: blur(0); }
+    100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+.anim-deal { animation: dealCard 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+/* Dynamic Card Impact Ripple */
+.card-honor-glow {
+    box-shadow: 0 0 26px rgba(229, 193, 88, 0.95), 0 8px 24px rgba(0,0,0,0.85) !important;
+}
 
 /* Language Selector Pills */
 .lang-selector-bar {
@@ -3153,16 +3162,59 @@ class UIController {
         `;
         table.appendChild(div);
 
-        // Smooth GSAP drop animation that keeps card completely visible
+        // Directional 3D Physics Slam from actual seat position
         if (window.gsap) {
-            let rot = visualPos === 1 ? 8 : (visualPos === 3 ? -8 : (visualPos === 2 ? 2 : -2));
+            let startX = 0, startY = 0, startRot = 0;
+            if (visualPos === 0) {
+                // Bottom seat (You) - throws upward onto the felt
+                startY = 140;
+                startX = (Math.random() - 0.5) * 35;
+                startRot = (Math.random() - 0.5) * 16;
+            } else if (visualPos === 1) {
+                // Right seat (East) - slides in from the right edge
+                startX = 160;
+                startY = -15;
+                startRot = 24;
+            } else if (visualPos === 2) {
+                // Top seat (North / Partner) - tosses down from the top edge
+                startY = -140;
+                startX = (Math.random() - 0.5) * 35;
+                startRot = (Math.random() - 0.5) * 16;
+            } else if (visualPos === 3) {
+                // Left seat (West) - slides in from the left edge
+                startX = -160;
+                startY = -15;
+                startRot = -24;
+            }
+
+            let endRot = (visualPos === 1 ? 8 : (visualPos === 3 ? -8 : (visualPos === 2 ? 2 : -2))) + (Math.random() - 0.5) * 4;
+
             gsap.fromTo(div, 
-                { scale: 1.25, opacity: 0.35, y: -18 },
-                { scale: 1, opacity: 1, y: 0, rotation: rot, duration: 0.28, ease: "power2.out", onComplete: () => {
-                    div.style.opacity = '1';
-                    div.style.visibility = 'visible';
-                }}
+                { x: startX, y: startY, scale: 1.28, rotation: startRot, opacity: 0.5 },
+                { 
+                    x: 0, 
+                    y: 0, 
+                    scale: 1, 
+                    rotation: endRot, 
+                    opacity: 1, 
+                    duration: 0.38, 
+                    ease: "back.out(1.5)",
+                    onComplete: () => {
+                        div.style.opacity = '1';
+                        div.style.visibility = 'visible';
+                    }
+                }
             );
+
+            // Radiant golden ripple flare for Master Honors (Jack=3, 9=2)
+            if (card.value >= 2) {
+                gsap.to(div, {
+                    boxShadow: "0 0 28px rgba(229, 193, 88, 0.95), 0 10px 25px rgba(0,0,0,0.85)",
+                    duration: 0.22,
+                    yoyo: true,
+                    repeat: 1
+                });
+            }
         }
         playSound('play');
     }
@@ -3183,9 +3235,37 @@ class UIController {
 
     playTrumpRevealAnimation(suit) {
         const blast = document.getElementById('dramatic-reveal');
-        const suitColor = (suit === '♥' || suit === '♦') ? '#ef4444' : '#ffffff';
-        blast.innerHTML = `<div style="font-size:1.1rem; color:var(--gold-primary); font-family:'Cinzel',serif; text-align:center; letter-spacing:2px;">TRUMP REVEALED</div><div style="font-size:clamp(4rem, 14vw, 6rem); line-height:1; color:${suitColor}; text-shadow: 0 0 30px rgba(255,255,255,0.8);">${suit}</div>`;
+        const isRed = (suit === '♥' || suit === '♦' || suit === 'hearts' || suit === 'diamonds');
+        const suitColor = isRed ? '#ef4444' : '#ffffff';
+        blast.innerHTML = `
+            <div style="font-size:1.15rem; color:var(--gold-primary); font-family:'Cinzel',serif; text-align:center; letter-spacing:2.5px; text-shadow:0 0 16px var(--gold-glow);">TRUMP REVEALED</div>
+            <div class="trump-big-icon" style="font-size:clamp(4.5rem, 15vw, 6.8rem); line-height:1; color:${suitColor}; filter: drop-shadow(0 0 35px ${suitColor});">${suit}</div>
+        `;
         blast.classList.add('anim-reveal-blast');
+
+        // Directional spark shockwave burst in the trump suit's royal colors
+        if (typeof confetti === 'function') {
+            let sparkColors = isRed ? ['#ef4444', '#fca5a5', '#ffd700', '#ffffff'] : ['#38bdf8', '#bae6fd', '#e5c158', '#ffffff'];
+            confetti({
+                particleCount: 55,
+                spread: 360,
+                startVelocity: 26,
+                origin: { x: 0.5, y: 0.44 },
+                colors: sparkColors,
+                ticks: 90
+            });
+        }
+
+        if (window.gsap) {
+            const icon = blast.querySelector('.trump-big-icon');
+            if (icon) {
+                gsap.fromTo(icon, 
+                    { scale: 0.15, rotationY: 720, opacity: 0 },
+                    { scale: 1.15, rotationY: 0, opacity: 1, duration: 0.65, ease: "back.out(1.8)" }
+                );
+            }
+        }
+
         setTimeout(() => { blast.classList.remove('anim-reveal-blast'); this.gameLoop(); }, 2100); 
     }
 
@@ -3194,25 +3274,80 @@ class UIController {
         const table = document.getElementById('center-table');
         const cards = table.querySelectorAll('.trick-card');
         let visualPos = (mySeat === 99) ? winnerIndex : (winnerIndex - mySeat + 4) % 4;
-        
-        cards.forEach(c => {
-            c.style.transition = 'all 0.65s cubic-bezier(0.34, 1.56, 0.64, 1)';
-            if(visualPos === 0) { c.style.top = '145%'; c.style.left = '50%'; }
-            else if(visualPos === 1) { c.style.top = '50%'; c.style.left = '145%'; }
-            else if(visualPos === 2) { c.style.top = '-45%'; c.style.left = '50%'; }
-            else if(visualPos === 3) { c.style.top = '50%'; c.style.left = '-45%'; }
-            c.style.transform = 'translate(-50%, -50%) scale(0.2) rotate(180deg)';
-            c.style.opacity = '0';
-        });
+        let isTeam1Winner = (winnerIndex === 0 || winnerIndex === 2);
+        let glowColor = isTeam1Winner ? 'rgba(56, 189, 248, 0.9)' : 'rgba(251, 113, 133, 0.9)';
 
-        setTimeout(() => {
-            this.animatingTrick = false; table.innerHTML = '';
-            if (isHost) {
-                this.engine.resolveTrick();
-                // 750ms natural pause after cards clear before next trick begins
-                setTimeout(() => { this.gameLoop(); }, 750);
-            }
-        }, 650);
+        if (window.gsap && cards.length > 0) {
+            const tl = gsap.timeline();
+
+            // Phase 1: Snap all 4 cards into a neat stacked pile in the center (0.24s)
+            tl.to(cards, {
+                x: 0,
+                y: 0,
+                rotation: (i) => (i - 1.5) * 4,
+                scale: 1.06,
+                boxShadow: `0 0 22px ${glowColor}, 0 8px 20px rgba(0,0,0,0.75)`,
+                duration: 0.24,
+                ease: "power2.out"
+            });
+
+            // Phase 2: Rapid whoosh & whip of the entire stack into the winner's seat (0.42s)
+            let destX = 0, destY = 0;
+            if (visualPos === 0) destY = 240;
+            else if (visualPos === 1) destX = 240;
+            else if (visualPos === 2) destY = -240;
+            else if (visualPos === 3) destX = -240;
+
+            tl.to(cards, {
+                x: destX,
+                y: destY,
+                scale: 0.16,
+                opacity: 0,
+                rotation: "+=45",
+                duration: 0.42,
+                ease: "power3.in",
+                stagger: 0.02
+            });
+
+            // Phase 3: Tactile bounce on winner's badge
+            tl.add(() => {
+                const positions = ['bottom', 'right', 'top', 'left'];
+                const winnerBadge = document.getElementById(`player-${positions[visualPos]}`);
+                if (winnerBadge) {
+                    gsap.fromTo(winnerBadge, 
+                        { scale: 1.25 }, 
+                        { scale: 1, duration: 0.35, ease: "back.out(2)" }
+                    );
+                }
+            });
+
+            setTimeout(() => {
+                this.animatingTrick = false;
+                table.innerHTML = '';
+                if (isHost) {
+                    this.engine.resolveTrick();
+                    setTimeout(() => { this.gameLoop(); }, 600);
+                }
+            }, 720);
+        } else {
+            // Fallback
+            cards.forEach(c => {
+                c.style.transition = 'all 0.65s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                if(visualPos === 0) { c.style.top = '145%'; c.style.left = '50%'; }
+                else if(visualPos === 1) { c.style.top = '50%'; c.style.left = '145%'; }
+                else if(visualPos === 2) { c.style.top = '-45%'; c.style.left = '50%'; }
+                else if(visualPos === 3) { c.style.top = '50%'; c.style.left = '-45%'; }
+                c.style.transform = 'translate(-50%, -50%) scale(0.2) rotate(180deg)';
+                c.style.opacity = '0';
+            });
+            setTimeout(() => {
+                this.animatingTrick = false; table.innerHTML = '';
+                if (isHost) {
+                    this.engine.resolveTrick();
+                    setTimeout(() => { this.gameLoop(); }, 750);
+                }
+            }, 650);
+        }
     }
 
     broadcastGameState() {
