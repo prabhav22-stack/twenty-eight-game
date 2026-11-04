@@ -1,0 +1,19 @@
+{
+  "name": "Twenty-Eight (28) Royal Casino",
+  "short_name": "28 Casino",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030b06",
+  "theme_color": "#0a1a10",
+  "description": "Royal Casino 28 Card Game with Grandmaster AI, 3D Animations & Real-Time Multiplayer",
+  "orientation": "any",
+  "categories": ["games", "card"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

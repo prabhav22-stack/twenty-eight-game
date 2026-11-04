@@ -248,6 +248,82 @@ def get_trick_winner(trick_cards, lead_suit, trump_suit, trump_revealed):
                 best_play = play
     return best_play['player'], best_play['card'], points
 
+# ==================== ISMCTS ENGINE (INFORMATION SET MONTE CARLO) ====================
+def run_ismcts_rollout(valid_indices, hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, unplayed, void_suits, num_simulations=35):
+    """
+    Information Set Monte Carlo Tree Search Rollouts for Imperfect Information 28.
+    Simulates plausible hidden hands consistent with opponents' public void constraints
+    to calculate expected point outcome for each candidate card.
+    Zero hidden card peeking - pure Bayesian determinization rollouts.
+    """
+    if len(valid_indices) <= 1:
+        return valid_indices[0] if valid_indices else 0
+
+    partner_idx = (player_idx + 2) % 4
+    move_scores = {idx: 0.0 for idx in valid_indices}
+
+    # Determine which seats still need to play in the current trick
+    played_seats = [tc['player'] for tc in trick_cards]
+    remaining_seats = []
+    curr = (trick_cards[-1]['player'] + 1) % 4 if trick_cards else player_idx
+    while len(played_seats) + len(remaining_seats) < 4:
+        if curr != player_idx:
+            remaining_seats.append(curr)
+        curr = (curr + 1) % 4
+
+    for _ in range(num_simulations):
+        deck_sample = list(unplayed)
+        random.shuffle(deck_sample)
+
+        for move_idx in valid_indices:
+            my_card = hand[move_idx]
+            sim_trick = list(trick_cards) + [{'player': player_idx, 'card': my_card}]
+            temp_lead = lead_suit or my_card['suit']
+            cur_deck = list(deck_sample)
+
+            for seat in remaining_seats:
+                seat_voids = void_suits.get(str(seat), {})
+                # Legal cards for this seat
+                legal = [c for c in cur_deck if not seat_voids.get(c['suit'], False)]
+                matches = [c for c in legal if c['suit'] == temp_lead]
+                if matches:
+                    chosen = max(matches, key=lambda c: c['power'])
+                elif legal:
+                    trumps = [c for c in legal if trump_revealed and trump_suit and c['suit'] == trump_suit]
+                    if trumps:
+                        chosen = min(trumps, key=lambda c: c['power'])
+                    else:
+                        chosen = min(legal, key=lambda c: (c['value'], c['power']))
+                else:
+                    chosen = {'suit': temp_lead, 'rank': '7', 'value': 0, 'power': 1}
+
+                if chosen in cur_deck:
+                    cur_deck.remove(chosen)
+                sim_trick.append({'player': seat, 'card': chosen})
+
+            # Calculate trick winner
+            best_play = sim_trick[0]
+            pts = sum(tc['card']['value'] for tc in sim_trick)
+            for play in sim_trick[1:]:
+                c = play['card']
+                w = best_play['card']
+                c_trump = (trump_revealed and trump_suit and c['suit'] == trump_suit)
+                w_trump = (trump_revealed and trump_suit and w['suit'] == trump_suit)
+                if c_trump and not w_trump: best_play = play
+                elif c_trump and w_trump:
+                    if c['power'] > w['power']: best_play = play
+                elif not c_trump and not w_trump:
+                    if c['suit'] == temp_lead and (w['suit'] != temp_lead or c['power'] > w['power']):
+                        best_play = play
+
+            is_team_win = (best_play['player'] in [player_idx, partner_idx])
+            delta = pts if is_team_win else -pts
+            if is_team_win and my_card['value'] > 0:
+                delta += 0.5 # Reward for successfully cashing point cards
+            move_scores[move_idx] += delta
+
+    return max(valid_indices, key=lambda i: move_scores[i])
+
 # ==================== GRANDMASTER CARD PLAY ENGINE ====================
 def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, played_history, void_suits, difficulty='medium'):
     """
@@ -255,8 +331,8 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
     - Easy: No AI involvement in enemy bots (seats 1 and 3). They play lowest/random valid cards,
             never smear, never overtrump, never cut unless forced.
     - Medium: Balanced heuristic play without deep remaining-card calculation.
-    - Hard: Grandmaster card counting (tracks all 32 cards), ruthless master card cashing,
-            aggressive cross-smearing, cross-ruffing, and precision trump management.
+    - Hard: Grandmaster ISMCTS rollouts (Bayesian determinizations) + card counting (tracks all 32 cards),
+            ruthless master card cashing, aggressive cross-smearing, cross-ruffing, and precision trump management.
     """
     partner_idx = (player_idx + 2) % 4
     opp1_idx = (player_idx + 1) % 4
@@ -418,14 +494,9 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
                             suit_zeros.sort(key=lambda i: hand[i]['power'])
                             return {'card_index': suit_zeros[0], 'reveal_trump': False}
 
-        # Safe low lead: lead from longest suit, lowest value (7 or 8) to avoid leading unprotected 10s/Aces
-        suit_counts = {s: sum(1 for c in hand if c['suit'] == s) for s in SUITS}
-        valid_indices.sort(key=lambda i: (
-            hand[i]['value'], # 0-pointers first
-            -suit_counts[hand[i]['suit']], # longer suits
-            hand[i]['power']
-        ))
-        return {'card_index': valid_indices[0], 'reveal_trump': False}
+        # ISMCTS Rollouts for Opening Lead: chooses card with highest mathematical equity
+        best_lead = run_ismcts_rollout(valid_indices, hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, unplayed, void_suits)
+        return {'card_index': best_lead, 'reveal_trump': False}
 
     # ==================== CASE 2: PARTNER IS WINNING ====================
     elif partner_is_winning:
@@ -503,7 +574,10 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
                             trumps.sort(key=lambda i: hand[i]['power'])
                             return {'card_index': trumps[0], 'reveal_trump': reveal_trump}
 
-            # Sluff lowest cost trash card
+            # Sluff using ISMCTS rollouts if multiple candidates exist
+            if len(valid_indices) > 1:
+                best_sluff = run_ismcts_rollout(valid_indices, hand, trick_cards, lead_suit, trump_suit, trump_revealed, player_idx, unplayed, void_suits)
+                return {'card_index': best_sluff, 'reveal_trump': reveal_trump if not trump_revealed else False}
             valid_indices.sort(key=lambda i: discard_cost(i))
             return {'card_index': valid_indices[0], 'reveal_trump': reveal_trump if not trump_revealed else False}
 

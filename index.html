@@ -8,11 +8,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="application-name" content="Twenty-Eight (28)">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👑</text></svg>">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
 <title>Twenty-Eight (28) - Royal Casino Edition</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
 <style>
 :root {
     --felt-center: #165b36; --felt-mid: #0c3820; --felt-edge: #04140b;
@@ -662,6 +666,7 @@ body::before {
     <div class="bar-quick-actions">
         <button class="bar-icon-btn" id="top-diff-btn" onclick="cycleDifficulty()" title="AI Difficulty: Click to change" style="font-weight:700; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5);"><span id="top-diff-dot" style="width:7px; height:7px; border-radius:50%; background:#eab308;"></span><span id="top-diff-label">Medium</span></button>
         <div id="ai-status-pill" style="display:inline-flex; align-items:center; gap:5px; font-size:0.68rem; font-weight:800; color:#86efac; background:rgba(34,197,94,0.18); border:1px solid rgba(74,222,128,0.4); padding:3px 9px; border-radius:14px; white-space:nowrap;"><span style="width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span> 🧠 Groq AI</div>
+        <button class="bar-icon-btn" onclick="openStatsModal()" id="stats-icon-btn" title="Career Stats & Elo" style="font-weight:700;">🏆 <span id="stats-btn-text">Stats</span></button>
         <button class="bar-icon-btn" onclick="toggleLanguage()" id="lang-toggle-btn" title="Language / भाषा">🌐 हिन्दी</button>
         <button class="bar-icon-btn" onclick="toggleLogModal()" id="log-icon-btn" title="Game History / Log">📜 <span id="log-btn-text">Log</span></button>
         <button class="bar-icon-btn" onclick="openShareModal()" id="share-icon-btn" title="Share Room Invite">🔗 Invite</button>
@@ -743,6 +748,16 @@ body::before {
             <button class="menu-btn" onclick="startSinglePlayer()">
                 <span id="btn-ai-title">Single Player vs AI</span>
                 <span class="btn-sub" id="btn-ai-sub">Instant Offline Match</span>
+            </button>
+        </div>
+
+        <div class="menu-card">
+            <h3 id="menu-career-title">🏆 Player Profile & Apps</h3>
+            <button class="menu-btn" style="justify-content:center; gap:8px;" onclick="openStatsModal()">
+                <span>🏆 View Career Stats & Elo Rating</span>
+            </button>
+            <button class="menu-btn" id="pwa-install-btn" style="display:none; justify-content:center; gap:8px;" onclick="installPWA()">
+                <span>📲 Install 28 to Home Screen</span>
             </button>
         </div>
     </div>
@@ -850,6 +865,49 @@ body::before {
     <button id="bid-won-ok-btn" class="menu-btn primary-gold" style="justify-content:center; padding:6px 20px; margin:0 auto; font-size:0.8rem;" onclick="ui.dismissBidWonModal()">OK</button>
 </div>
 
+<!-- ==================== CAREER STATS & ELO MODAL ==================== -->
+<div id="stats-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:2200; align-items:center; justify-content:center; padding:16px;">
+    <div style="background:rgba(8,20,13,0.96); border:1.5px solid var(--gold-border); border-radius:18px; padding:18px; width:clamp(300px, 92vw, 420px); max-height:85vh; overflow-y:auto; box-shadow:0 16px 40px rgba(0,0,0,0.8); backdrop-filter:blur(14px);">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(229,193,88,0.25); padding-bottom:8px; margin-bottom:12px;">
+            <div style="font-family:'Cinzel',serif; font-size:1.15rem; color:var(--gold-bright); font-weight:900; display:flex; align-items:center; gap:6px;">
+                <span>🏆</span> <span id="stats-modal-title">Career Player Profile</span>
+            </div>
+            <button class="log-modal-close" onclick="closeStatsModal()">✕</button>
+        </div>
+        
+        <div style="background:linear-gradient(135deg, rgba(229,193,88,0.18), rgba(0,0,0,0.5)); border:1px solid rgba(229,193,88,0.45); border-radius:12px; padding:12px; margin-bottom:14px; text-align:center;">
+            <div style="font-size:0.68rem; color:#94a3b8; text-transform:uppercase; letter-spacing:1.5px;">Current Skill Rating</div>
+            <div id="stats-elo-num" style="font-size:2.2rem; font-family:'Cinzel',serif; font-weight:900; color:var(--gold-bright); text-shadow:0 0 16px rgba(229,193,88,0.5);">1200</div>
+            <div id="stats-rank-title" style="display:inline-block; font-size:0.75rem; font-weight:800; padding:2px 10px; border-radius:12px; background:rgba(229,193,88,0.2); border:1px solid var(--gold-primary); color:var(--gold-bright); margin-top:2px;">Club Challenger ♣</div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
+            <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:8px 10px; text-align:center;">
+                <div style="font-size:0.65rem; color:#94a3b8; text-transform:uppercase;">Matches Won</div>
+                <div id="stats-matches-won" style="font-size:1.15rem; font-weight:800; color:#86efac; margin-top:2px;">0 / 0</div>
+                <div id="stats-win-rate" style="font-size:0.65rem; color:#94a3b8;">Win Rate: 0%</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:8px 10px; text-align:center;">
+                <div style="font-size:0.65rem; color:#94a3b8; text-transform:uppercase;">Win Streak</div>
+                <div id="stats-current-streak" style="font-size:1.15rem; font-weight:800; color:var(--gold-bright); margin-top:2px;">0 🔥</div>
+                <div id="stats-best-streak" style="font-size:0.65rem; color:#94a3b8;">Best: 0</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:8px 10px; text-align:center;">
+                <div style="font-size:0.65rem; color:#94a3b8; text-transform:uppercase;">Contracts Made</div>
+                <div id="stats-contracts-made" style="font-size:1.15rem; font-weight:800; color:#38bdf8; margin-top:2px;">0 / 0</div>
+                <div id="stats-contracts-rate" style="font-size:0.65rem; color:#94a3b8;">Success: 0%</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:8px 10px; text-align:center;">
+                <div style="font-size:0.65rem; color:#94a3b8; text-transform:uppercase;">Total Trick Pts</div>
+                <div id="stats-total-pts" style="font-size:1.15rem; font-weight:800; color:#fca5a5; margin-top:2px;">0</div>
+                <div id="stats-pairs-declared" style="font-size:0.65rem; color:#94a3b8;">K-Q Pairs: 0</div>
+            </div>
+        </div>
+
+        <button class="menu-btn primary-gold" style="justify-content:center;" onclick="closeStatsModal()">Close Profile</button>
+    </div>
+</div>
+
 <div id="end-modal" class="modal" style="top:40%; z-index:1600; text-align:center;">
     <div id="end-icon" style="font-size:clamp(2.5rem, 5.5vh, 3.4rem); margin-bottom:4px;">🎉</div>
     <h2 id="end-title" style="font-size:clamp(1.15rem, 2.5vh, 1.45rem); margin-bottom:6px;">YOU & YOUR PARTNER WON!</h2>
@@ -870,6 +928,122 @@ body::before {
 <div id="dramatic-reveal"></div>
 
 <script>
+// ==================== PWA INSTALLATION & SERVICE WORKER ====================
+let deferredPWAInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPWAInstallPrompt = e;
+    const pwaBtn = document.getElementById('pwa-install-btn');
+    if (pwaBtn) pwaBtn.style.display = 'flex';
+});
+
+function installPWA() {
+    if (deferredPWAInstallPrompt) {
+        deferredPWAInstallPrompt.prompt();
+        deferredPWAInstallPrompt.userChoice.then(() => {
+            deferredPWAInstallPrompt = null;
+            const pwaBtn = document.getElementById('pwa-install-btn');
+            if (pwaBtn) pwaBtn.style.display = 'none';
+        });
+    }
+}
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW reg error:', err));
+    });
+}
+
+// ==================== CAREER STATS & ELO ENGINE ====================
+function getCareerStats() {
+    let defaultStats = {
+        elo: 1200,
+        gamesPlayed: 0,
+        gamesWon: 0,
+        contractsAttempted: 0,
+        contractsMade: 0,
+        highestBidWon: 0,
+        totalTrickPoints: 0,
+        currentStreak: 0,
+        bestStreak: 0,
+        pairsDeclared: 0
+    };
+    try {
+        let saved = localStorage.getItem('twenty_eight_career_stats');
+        if (saved) return Object.assign(defaultStats, JSON.parse(saved));
+    } catch(e) {}
+    return defaultStats;
+}
+
+function saveCareerStats(stats) {
+    try {
+        localStorage.setItem('twenty_eight_career_stats', JSON.stringify(stats));
+    } catch(e) {}
+}
+
+function getEloRankTitle(elo) {
+    if (elo < 1100) return 'Apprentice ♠';
+    if (elo < 1300) return 'Club Challenger ♣';
+    if (elo < 1500) return 'Diamond Tactician ♦';
+    if (elo < 1700) return 'Heart Master ♥';
+    return 'Grandmaster of 28 👑';
+}
+
+function recordMatchInCareer(isWin, humanBidder, bidWon, currentBid, trickPtsScored, diffLevel) {
+    let s = getCareerStats();
+    s.gamesPlayed++;
+    if (isWin) {
+        s.gamesWon++;
+        s.currentStreak++;
+        if (s.currentStreak > s.bestStreak) s.bestStreak = s.currentStreak;
+    } else {
+        s.currentStreak = 0;
+    }
+
+    if (humanBidder) {
+        s.contractsAttempted++;
+        if (bidWon) {
+            s.contractsMade++;
+            if (currentBid > s.highestBidWon) s.highestBidWon = currentBid;
+        }
+    }
+
+    s.totalTrickPoints += trickPtsScored;
+
+    // Dynamic Elo Rating update
+    let kFactor = diffLevel === 'hard' ? 24 : (diffLevel === 'medium' ? 16 : 10);
+    let eloDelta = isWin ? kFactor : -Math.round(kFactor * 0.75);
+    s.elo = Math.max(800, s.elo + eloDelta);
+
+    saveCareerStats(s);
+}
+
+function openStatsModal() {
+    let s = getCareerStats();
+    let modal = document.getElementById('stats-modal');
+    if (!modal) return;
+    
+    document.getElementById('stats-elo-num').innerText = s.elo;
+    document.getElementById('stats-rank-title').innerText = getEloRankTitle(s.elo);
+    document.getElementById('stats-matches-won').innerText = `${s.gamesWon} / ${s.gamesPlayed}`;
+    let winRate = s.gamesPlayed > 0 ? Math.round((s.gamesWon / s.gamesPlayed) * 100) : 0;
+    document.getElementById('stats-win-rate').innerText = `Win Rate: ${winRate}%`;
+    document.getElementById('stats-current-streak').innerText = `${s.currentStreak} 🔥`;
+    document.getElementById('stats-best-streak').innerText = `Best: ${s.bestStreak}`;
+    document.getElementById('stats-contracts-made').innerText = `${s.contractsMade} / ${s.contractsAttempted}`;
+    let cRate = s.contractsAttempted > 0 ? Math.round((s.contractsMade / s.contractsAttempted) * 100) : 0;
+    document.getElementById('stats-contracts-rate').innerText = `Success: ${cRate}%`;
+    document.getElementById('stats-total-pts').innerText = s.totalTrickPoints;
+    document.getElementById('stats-pairs-declared').innerText = `K-Q Pairs: ${s.pairsDeclared}`;
+    
+    modal.style.display = 'flex';
+}
+
+function closeStatsModal() {
+    let modal = document.getElementById('stats-modal');
+    if (modal) modal.style.display = 'none';
+}
+
 // ==================== FULLSCREEN TOGGLE ====================
 function toggleFullscreen() {
     if (!document.fullscreenElement) {
@@ -1435,8 +1609,8 @@ function tryClaimHostThenClient() {
         debug: 1,
         config: {
             iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:global.stun.twilio.com:3478' }
+                { urls: 'stun:stun.cloudflare.com:3478' },
+                { urls: 'stun:global.stun.twilio.com:3478'}, { urls: 'stun:stun.services.mozilla.com:3478' }
             ]
         }
     });
@@ -1470,8 +1644,8 @@ function connectAsClient() {
         debug: 1,
         config: {
             iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:global.stun.twilio.com:3478' }
+                { urls: 'stun:stun.cloudflare.com:3478' },
+                { urls: 'stun:global.stun.twilio.com:3478'}, { urls: 'stun:stun.services.mozilla.com:3478' }
             ]
         }
     });
@@ -1516,8 +1690,8 @@ function becomeRoomHost() {
         debug: 1,
         config: {
             iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:global.stun.twilio.com:3478' }
+                { urls: 'stun:stun.cloudflare.com:3478' },
+                { urls: 'stun:global.stun.twilio.com:3478'}, { urls: 'stun:stun.services.mozilla.com:3478' }
             ]
         }
     });
@@ -2467,6 +2641,11 @@ class TwentyEightEngine {
         } else {
             if (bidTeam === 1) this.t1GamePts -= this.gamePointsWon; else this.t2GamePts -= this.gamePointsWon;
         }
+
+        // Record career stats for Human player (Team 1)
+        let isHumanWin = (bidTeam === 1 && this.roundSuccess) || (bidTeam === 2 && !this.roundSuccess);
+        let humanBidder = (this.highestBidder === 0 || this.highestBidder === 2);
+        recordMatchInCareer(isHumanWin, humanBidder, this.roundSuccess, this.currentBid, this.t1TrickPts, currentDifficulty);
     }
 
     revealTrump(requesterIndex, autoEndReveal = false) {
@@ -2900,7 +3079,14 @@ class UIController {
             <div class="card-corner bottom"><span>${card.rank}</span><span class="corner-suit">${card.suit}</span></div>
         `;
         table.appendChild(div);
-        setTimeout(() => { div.classList.remove('anim-drop-in'); }, 20);
+        if (window.gsap) {
+            gsap.fromTo(div, 
+                { scale: 1.35, y: -24, opacity: 0, rotation: (Math.random() - 0.5) * 24 },
+                { scale: 1, y: 0, opacity: 1, rotation: (Math.random() - 0.5) * 8, duration: 0.32, ease: "back.out(1.5)" }
+            );
+        } else {
+            setTimeout(() => { div.classList.remove('anim-drop-in'); }, 20);
+        }
     }
 
     syncTable() {
