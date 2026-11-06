@@ -383,8 +383,16 @@ body::before {
     border: 1.5px solid #f8fafc; border-radius: 6px; box-shadow: -2px 3px 8px rgba(0,0,0,0.6); color: transparent; position: relative;
 }
 .my-cards-row .card.playable { cursor: pointer; border: 1.5px solid var(--gold-primary); box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 10px rgba(229, 193, 88, 0.35); }
-.my-cards-row .card.playable:hover, .my-cards-row .card.playable:active { transform: translateY(-16px) scale(1.08) !important; box-shadow: 0 14px 28px rgba(0,0,0,0.85), 0 0 18px var(--gold-glow); z-index: 99 !important; }
-.my-cards-row .card.unplayable { filter: brightness(0.55) saturate(0.75); transform: translateY(4px) scale(0.96); cursor: not-allowed; }
+.my-cards-row .card.playable:hover, .my-cards-row .card.playable:active {
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) - 18px)) scale(1.08) !important;
+    box-shadow: 0 14px 28px rgba(0,0,0,0.85), 0 0 18px var(--gold-glow);
+    z-index: 99 !important;
+}
+.my-cards-row .card.unplayable {
+    filter: brightness(0.55) saturate(0.75);
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) + 6px)) scale(0.96) !important;
+    cursor: not-allowed;
+}
 
 .trick-card {
     position: absolute; transform-origin: center center;
@@ -2947,8 +2955,26 @@ class UIController {
         titleEl.innerHTML = title;
         valEl.innerHTML = value;
         splash.classList.add('show');
+        if (window.gsap) {
+            gsap.fromTo(splash, 
+                { scale: 0.65, y: -20, opacity: 0 },
+                { scale: 1, y: 0, opacity: 1, duration: 0.32, ease: "back.out(1.6)" }
+            );
+        }
         if (this.splashTimer) clearTimeout(this.splashTimer);
-        this.splashTimer = setTimeout(() => splash.classList.remove('show'), 2200);
+        this.splashTimer = setTimeout(() => {
+            if (window.gsap) {
+                gsap.to(splash, {
+                    scale: 0.85,
+                    opacity: 0,
+                    duration: 0.22,
+                    ease: "power2.in",
+                    onComplete: () => splash.classList.remove('show')
+                });
+            } else {
+                splash.classList.remove('show');
+            }
+        }, 2200);
     }
 
     triggerPartnerBidSplash(title, value) {
@@ -2981,9 +3007,16 @@ class UIController {
         if (!el) return;
         if (el.innerText !== String(newValue)) {
             el.innerText = newValue;
-            el.classList.remove('anim-bump');
-            void el.offsetWidth;
-            el.classList.add('anim-bump');
+            if (window.gsap) {
+                gsap.fromTo(el,
+                    { scale: 1.45, color: '#fef08a' },
+                    { scale: 1, color: 'inherit', duration: 0.35, ease: 'back.out(2)' }
+                );
+            } else {
+                el.classList.remove('anim-bump');
+                void el.offsetWidth;
+                el.classList.add('anim-bump');
+            }
         }
     }
 
@@ -3143,7 +3176,9 @@ class UIController {
                     let offset = index - mid;
                     let deg = offset * (isMobile ? 1.2 : 2.5);
                     let yLift = Math.abs(offset) * (isMobile ? 0.4 : 1.5);
-                    div.style.transform = `rotate(${deg}deg) translateY(${yLift}px)`;
+                    div.style.setProperty('--rot', `${deg}deg`);
+                    div.style.setProperty('--y-lift', `${yLift}px`);
+                    div.style.transform = `rotate(var(--rot)) translateY(var(--y-lift))`;
                     div.style.zIndex = index + 10;
 
                     if (this.isDealingState && card.isNew) {
@@ -3486,6 +3521,16 @@ class UIController {
                     delay: 0.15
                 });
             }
+
+            // Dramatic luminous flare when cutting with Trump
+            let isTrump = (this.engine.trumpRevealed && card.suit === this.engine.trumpSuit);
+            if (isTrump) {
+                let trumpGlow = (card.suit === '♥' || card.suit === '♦') ? 'rgba(239, 68, 68, 0.9)' : 'rgba(56, 189, 248, 0.9)';
+                gsap.fromTo(div,
+                    { boxShadow: `0 0 28px ${trumpGlow}, 0 6px 16px rgba(0,0,0,0.7)` },
+                    { boxShadow: "0 3px 8px rgba(0,0,0,0.55)", duration: 0.85, ease: "power1.out", delay: 0.1 }
+                );
+            }
         }
         playSound('play');
     }
@@ -3535,6 +3580,13 @@ class UIController {
                     { scale: 1.15, rotationY: 0, opacity: 1, duration: 0.65, ease: "back.out(1.8)" }
                 );
             }
+            const trumpPill = document.getElementById('trump-status');
+            if (trumpPill) {
+                gsap.fromTo(trumpPill,
+                    { scale: 1.35, color: 'var(--gold-bright)' },
+                    { scale: 1, color: 'inherit', duration: 0.6, ease: "back.out(2)", delay: 0.45 }
+                );
+            }
         }
 
         setTimeout(() => { blast.classList.remove('anim-reveal-blast'); this.gameLoop(); }, 2100); 
@@ -3564,12 +3616,21 @@ class UIController {
                 ease: "power2.out"
             });
 
-            // Phase 2: Rapid whoosh & whip of the entire stack into the winner's seat (0.42s)
+            // Phase 2: Rapid whoosh & whip of the entire stack into the winner's exact seat
+            const positions = ['bottom', 'right', 'top', 'left'];
+            const winnerBadge = document.getElementById(`player-${positions[visualPos]}`);
             let destX = 0, destY = 0;
-            if (visualPos === 0) destY = 240;
-            else if (visualPos === 1) destX = 240;
-            else if (visualPos === 2) destY = -240;
-            else if (visualPos === 3) destX = -240;
+            if (winnerBadge && table) {
+                const tableRect = table.getBoundingClientRect();
+                const bRect = winnerBadge.getBoundingClientRect();
+                destX = (bRect.left + bRect.width / 2) - (tableRect.left + tableRect.width / 2);
+                destY = (bRect.top + bRect.height / 2) - (tableRect.top + tableRect.height / 2);
+            } else {
+                if (visualPos === 0) destY = 240;
+                else if (visualPos === 1) destX = 240;
+                else if (visualPos === 2) destY = -240;
+                else if (visualPos === 3) destX = -240;
+            }
 
             tl.to(cards, {
                 xPercent: -50,
@@ -3584,15 +3645,35 @@ class UIController {
                 stagger: 0.02
             });
 
-            // Phase 3: Tactile bounce on winner's badge
+            // Phase 3: Tactile bounce on winner's badge & floating trick points
             tl.add(() => {
-                const positions = ['bottom', 'right', 'top', 'left'];
-                const winnerBadge = document.getElementById(`player-${positions[visualPos]}`);
                 if (winnerBadge) {
                     gsap.fromTo(winnerBadge, 
                         { scale: 1.25 }, 
                         { scale: 1, duration: 0.35, ease: "back.out(2)" }
                     );
+
+                    let trickPts = this.engine._countPointsInTrick();
+                    if (trickPts > 0) {
+                        const floatBadge = document.createElement('div');
+                        floatBadge.innerText = `+${trickPts} pts`;
+                        floatBadge.style.cssText = `
+                            position: absolute; top: -16px; left: 50%;
+                            transform: translateX(-50%);
+                            font-size: 0.72rem; font-weight: 800; font-family: 'Cinzel', serif;
+                            color: ${isTeam1Winner ? '#38bdf8' : '#fb7185'};
+                            background: rgba(4, 18, 12, 0.95);
+                            border: 1.5px solid ${isTeam1Winner ? 'var(--team1-blue)' : 'var(--team2-coral)'};
+                            border-radius: 12px; padding: 1px 7px;
+                            box-shadow: 0 0 14px ${glowColor};
+                            pointer-events: none; z-index: 100; white-space: nowrap;
+                        `;
+                        winnerBadge.appendChild(floatBadge);
+                        gsap.fromTo(floatBadge, 
+                            { y: 0, opacity: 1, scale: 0.8 },
+                            { y: -26, opacity: 0, scale: 1.15, duration: 0.95, ease: "power2.out", onComplete: () => floatBadge.remove() }
+                        );
+                    }
                 }
             });
 
@@ -3989,7 +4070,25 @@ class UIController {
 
     dismissBidWonModal() {
         const modal = document.getElementById('bid-won-modal');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            if (window.gsap && modal.style.display !== 'none') {
+                gsap.to(modal, {
+                    scale: 0.88,
+                    opacity: 0,
+                    duration: 0.22,
+                    ease: "power2.in",
+                    onComplete: () => {
+                        modal.style.display = 'none';
+                        gsap.set(modal, { scale: 1, opacity: 1 });
+                        if (this.engine.phase === 'SET_TRUMP' && this.engine.currentTurn === mySeat && mySeat !== 99) {
+                            this.showTrumpModal();
+                        }
+                    }
+                });
+                return;
+            }
+            modal.style.display = 'none';
+        }
         if (this.engine.phase === 'SET_TRUMP' && this.engine.currentTurn === mySeat && mySeat !== 99) {
             this.showTrumpModal();
         }
