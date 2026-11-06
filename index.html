@@ -575,10 +575,9 @@ body::before {
     background: repeating-linear-gradient(45deg, rgba(229,193,88,0.2) 0px, rgba(229,193,88,0.2) 2px, transparent 2px, transparent 8px),
                 radial-gradient(circle, #7f1d1d 0%, #3b0707 100%);
     border: 1.5px solid #fff;
-    box-shadow: 2px 2px 0 #9e7818, 4px 4px 0 #0f172a, 6px 8px 22px rgba(0,0,0,0.88);
-    z-index: 38; pointer-events: none;
+    box-shadow: 1px 1px 0 #d4af37, 2px 2px 0 #fff, 3px 3px 0 #d4af37, 4px 4px 0 #fff, 6px 8px 24px rgba(0,0,0,0.85);
+    z-index: 130; pointer-events: none;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 .dealer-deck-badge {
     position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%);
@@ -588,13 +587,12 @@ body::before {
     box-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
 .dealing-card-flyer {
-    position: absolute; top: 42%; left: 50%;
+    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
     width: var(--card-w); height: var(--card-h);
-    border-radius: 7px; z-index: 140; pointer-events: none;
+    border-radius: 7px; z-index: 145; pointer-events: none;
     transform-origin: center center;
-    transform-style: preserve-3d;
-    perspective: 1000px;
     box-shadow: 0 10px 24px rgba(0,0,0,0.65);
+    will-change: transform, opacity;
 }
 
 /* Language Selector Pills */
@@ -3119,8 +3117,11 @@ class UIController {
                 bidBadge = `<div class="seat-bid-pill ${isP ? 'partner' : ''}">${isP ? '🤝 ' : ''}${badgeText}</div>`;
             }
 
+            let cardStartIndex = (this.engine.phase === 'DEALING_2') ? 4 : 0;
+            let displayedCount = this.isDealingState ? cardStartIndex : cardCount;
+
             const activeBubble = el.querySelector('.speech-bubble');
-            el.innerHTML = `<div class="${badgeClass}">${this.playerNames[actualPlayerIndex]}${bidderCrown} <span class="card-cnt">${cardCount}</span></div>${bidBadge}`; 
+            el.innerHTML = `<div class="${badgeClass}">${this.playerNames[actualPlayerIndex]}${bidderCrown} <span class="card-cnt" id="badge-cnt-${actualPlayerIndex}">${displayedCount}</span></div>${bidBadge}`; 
             if (activeBubble) el.appendChild(activeBubble);
             
             if (actualPlayerIndex === mySeat && mySeat !== 99) {
@@ -3136,6 +3137,8 @@ class UIController {
                     const isPlayable = isMyTurnToPlay && userValidPlays.includes(index);
                     const div = document.createElement('div');
                     div.className = `card ${card.suit === '♥' || card.suit === '♦' ? 'red' : 'black'}`;
+                    div.dataset.seat = actualPlayerIndex;
+                    div.dataset.cardIdx = index;
 
                     let offset = index - mid;
                     let deg = offset * (isMobile ? 1.2 : 2.5);
@@ -3176,6 +3179,8 @@ class UIController {
                 for(let c=0; c<cardCount; c++) {
                     const div = document.createElement('div');
                     div.className = `card card-back`; 
+                    div.dataset.seat = actualPlayerIndex;
+                    div.dataset.cardIdx = c;
                     if (this.isDealingState && this.engine.players[actualPlayerIndex][c] && this.engine.players[actualPlayerIndex][c].isNew) {
                         div.style.visibility = 'hidden';
                         div.style.opacity = '0';
@@ -3205,7 +3210,7 @@ class UIController {
         }
         dealLayer.innerHTML = '';
 
-        // 1. Spawn 3D Center Dealer Deck
+        // 1. Spawn 3D Center Dealer Deck (anchored with xPercent/yPercent)
         const deckEl = document.createElement('div');
         deckEl.className = 'dealer-deck';
         let badgeText = this.engine.phase === 'DEALING_2' ? 'Dealing Round 2' : 'Dealing 4 Cards';
@@ -3214,8 +3219,8 @@ class UIController {
 
         if (window.gsap) {
             gsap.fromTo(deckEl, 
-                { scale: 0.7, opacity: 0, rotation: -12 },
-                { scale: 1, opacity: 1, rotation: 0, duration: 0.28, ease: "back.out(1.6)" }
+                { xPercent: -50, yPercent: -50, scale: 0.6, opacity: 0, rotation: -8 },
+                { xPercent: -50, yPercent: -50, scale: 1, opacity: 1, rotation: 0, duration: 0.28, ease: "back.out(1.5)" }
             );
         }
 
@@ -3244,10 +3249,12 @@ class UIController {
         }
 
         // 3. Build human clockwise dealing sequence (4 rounds x 4 seats = 16 cards)
-        // In 28 card game, dealer deals 4 cards to each player
         let cardStartIndex = (this.engine.phase === 'DEALING_2') ? 4 : 0;
-        let cardInterval = 0.075; // 75ms rhythmic dealer cadence
-        let cardFlightDuration = 0.38;
+        let cardInterval = 0.08;
+        let cardFlightDuration = 0.32;
+        let isMobile = window.innerWidth <= 680;
+        let totalCardsInHand = (this.engine.phase === 'DEALING_2') ? 8 : 4;
+        let mid = (totalCardsInHand - 1) / 2;
 
         for (let round = 0; round < 4; round++) {
             for (let s = 0; s < 4; s++) {
@@ -3258,6 +3265,18 @@ class UIController {
                 setTimeout(() => {
                     const flyer = document.createElement('div');
                     let isMe = (seatInfo.actualPlayerIndex === mySeat && mySeat !== 99);
+
+                    // Locate destination card slot in the seat's DOM hand
+                    const targetCardEl = document.querySelector(`[data-seat="${seatInfo.actualPlayerIndex}"][data-card-idx="${cardIndex}"]`);
+                    let destX = seatInfo.destX;
+                    let destY = seatInfo.destY;
+                    let endRot = 0;
+
+                    if (targetCardEl) {
+                        const targetRect = targetCardEl.getBoundingClientRect();
+                        destX = (targetRect.left + targetRect.width / 2) - boardRect.left - centerOriginX;
+                        destY = (targetRect.top + targetRect.height / 2) - boardRect.top - centerOriginY;
+                    }
 
                     if (isMe) {
                         let myCards = this.engine.players[mySeat] || [];
@@ -3271,76 +3290,106 @@ class UIController {
                             <div class="card-center-suit">${cardData.suit}</div>
                             <div class="card-corner bottom"><span>${cardData.rank}</span><span class="corner-suit">${cardData.suit}</span></div>
                         `;
+                        let offset = cardIndex - mid;
+                        endRot = offset * (isMobile ? 1.2 : 2.5);
                     } else {
                         flyer.className = 'card card-back dealing-card-flyer';
+                        endRot = (seatInfo.visualPos === 1 ? 6 : (seatInfo.visualPos === 3 ? -6 : 0)) + (Math.random() - 0.5) * 4;
                     }
 
                     dealLayer.appendChild(flyer);
 
-                    // Soft deal slide audio
+                    // Soft deal slide audio & dealer deck recoil
                     playSound('deal');
+                    if (window.gsap) {
+                        gsap.fromTo(deckEl, 
+                            { xPercent: -50, yPercent: -50, scale: 0.96 }, 
+                            { xPercent: -50, yPercent: -50, scale: 1, duration: 0.08, ease: "power1.out" }
+                        );
+                    }
+
+                    // Seamless transition: reveal card in hand the instant flyer lands
+                    const onCardLanded = () => {
+                        if (targetCardEl) {
+                            targetCardEl.style.visibility = 'visible';
+                            targetCardEl.style.opacity = '1';
+                            if (window.gsap) {
+                                gsap.fromTo(targetCardEl,
+                                    { scale: 1.12 },
+                                    { scale: 1, duration: 0.18, ease: "back.out(2)" }
+                                );
+                            }
+                        }
+                        const badgeCnt = document.getElementById(`badge-cnt-${seatInfo.actualPlayerIndex}`);
+                        if (badgeCnt) badgeCnt.textContent = cardIndex + 1;
+                        flyer.remove();
+                    };
 
                     if (window.gsap) {
-                        let endRot = (seatInfo.visualPos === 1 ? 8 : (seatInfo.visualPos === 3 ? -8 : 0)) + (Math.random() - 0.5) * 6;
-                        if (isMe) {
-                            // 3D perspective flip: starts facedown, flips face-up into South's hand
-                            gsap.fromTo(flyer,
-                                { x: 0, y: 0, scale: 0.85, rotationY: 180, rotation: (Math.random() - 0.5) * 12, opacity: 0.9 },
-                                { 
-                                    x: seatInfo.destX, 
-                                    y: seatInfo.destY, 
-                                    scale: 1, 
-                                    rotationY: 0, 
-                                    rotation: endRot, 
-                                    opacity: 1, 
-                                    duration: cardFlightDuration, 
-                                    ease: "power2.out",
-                                    onComplete: () => {
-                                        flyer.remove();
-                                    }
-                                }
-                            );
-                        } else {
-                            // Smooth facedown glide into opponent's hand
-                            gsap.fromTo(flyer,
-                                { x: 0, y: 0, scale: 0.8, rotation: (Math.random() - 0.5) * 10, opacity: 0.9 },
-                                { 
-                                    x: seatInfo.destX, 
-                                    y: seatInfo.destY, 
-                                    scale: 0.88, 
-                                    rotation: endRot, 
-                                    opacity: 0.95, 
-                                    duration: cardFlightDuration, 
-                                    ease: "power2.out",
-                                    onComplete: () => {
-                                        flyer.remove();
-                                    }
-                                }
-                            );
-                        }
+                        gsap.fromTo(flyer,
+                            { 
+                                xPercent: -50, 
+                                yPercent: -50, 
+                                x: 0, 
+                                y: 0, 
+                                scale: 0.85, 
+                                rotation: (Math.random() - 0.5) * 8, 
+                                opacity: 0.95 
+                            },
+                            { 
+                                xPercent: -50, 
+                                yPercent: -50, 
+                                x: destX, 
+                                y: destY, 
+                                scale: 1, 
+                                rotation: endRot, 
+                                opacity: 1, 
+                                duration: cardFlightDuration, 
+                                ease: "power2.out",
+                                onComplete: onCardLanded
+                            }
+                        );
                     } else {
-                        setTimeout(() => flyer.remove(), 400);
+                        setTimeout(onCardLanded, 350);
                     }
                 }, dealDelay * 1000);
             }
         }
 
         // 4. Wrap up: Fade out dealer deck and settle cards in hand
-        let totalDuration = (16 * cardInterval + cardFlightDuration + 0.3) * 1000;
+        let totalDuration = (16 * cardInterval + cardFlightDuration + 0.25) * 1000;
         setTimeout(() => {
             if (window.gsap) {
                 gsap.to(deckEl, {
-                    scale: 0.85,
+                    xPercent: -50,
+                    yPercent: -50,
+                    scale: 0.7,
                     opacity: 0,
                     duration: 0.22,
                     ease: "power2.in",
                     onComplete: () => {
                         dealLayer.innerHTML = '';
+                        document.querySelectorAll('[data-seat]').forEach(c => {
+                            c.style.visibility = 'visible';
+                            c.style.opacity = '1';
+                        });
+                        for (let i = 0; i < 4; i++) {
+                            const b = document.getElementById(`badge-cnt-${i}`);
+                            if (b) b.textContent = (this.engine.players[i] || []).length;
+                        }
                         if (onComplete) onComplete();
                     }
                 });
             } else {
                 dealLayer.innerHTML = '';
+                document.querySelectorAll('[data-seat]').forEach(c => {
+                    c.style.visibility = 'visible';
+                    c.style.opacity = '1';
+                });
+                for (let i = 0; i < 4; i++) {
+                    const b = document.getElementById(`badge-cnt-${i}`);
+                    if (b) b.textContent = (this.engine.players[i] || []).length;
+                }
                 if (onComplete) onComplete();
             }
         }, totalDuration);
