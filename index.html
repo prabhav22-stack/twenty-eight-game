@@ -935,15 +935,11 @@ body::before {
     left: 50%;
     translate: -50% 0;
 }
-.floating-seat-bid.pos-left {
-    left: calc(100% + 14px);
-    top: 50%;
-    translate: 0 -50%;
-}
+.floating-seat-bid.pos-left,
 .floating-seat-bid.pos-right {
-    right: calc(100% + 14px);
-    top: 50%;
-    translate: 0 -50%;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    translate: -50% 0;
 }
 
 .floating-seat-bid .float-bid-sub {
@@ -1049,32 +1045,24 @@ body::before {
 
 /* ==================== 9. DYNAMIC TRICK WINNER HALO & HOVERING CROWN ==================== */
 @keyframes winnerHaloPulseFriend {
-    0% {
-        box-shadow: 0 0 14px rgba(56, 189, 248, 0.8), 0 0 32px rgba(56, 189, 248, 0.45), inset 0 0 10px rgba(56, 189, 248, 0.35);
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.75), 0 0 20px rgba(56, 189, 248, 0.35);
         border-color: #38bdf8;
     }
     50% {
-        box-shadow: 0 0 26px rgba(56, 189, 248, 1), 0 0 52px rgba(56, 189, 248, 0.65), inset 0 0 14px rgba(56, 189, 248, 0.55);
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.95), 0 0 28px rgba(56, 189, 248, 0.45);
         border-color: #bae6fd;
-    }
-    100% {
-        box-shadow: 0 0 14px rgba(56, 189, 248, 0.8), 0 0 32px rgba(56, 189, 248, 0.45), inset 0 0 10px rgba(56, 189, 248, 0.35);
-        border-color: #38bdf8;
     }
 }
 
 @keyframes winnerHaloPulseEnemy {
-    0% {
-        box-shadow: 0 0 14px rgba(251, 113, 133, 0.8), 0 0 32px rgba(251, 113, 133, 0.45), inset 0 0 10px rgba(251, 113, 133, 0.35);
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(251, 113, 133, 0.75), 0 0 20px rgba(251, 113, 133, 0.35);
         border-color: #fb7185;
     }
     50% {
-        box-shadow: 0 0 26px rgba(251, 113, 133, 1), 0 0 52px rgba(251, 113, 133, 0.65), inset 0 0 14px rgba(251, 113, 133, 0.55);
+        box-shadow: 0 0 16px rgba(251, 113, 133, 0.95), 0 0 28px rgba(251, 113, 133, 0.45);
         border-color: #fecdd3;
-    }
-    100% {
-        box-shadow: 0 0 14px rgba(251, 113, 133, 0.8), 0 0 32px rgba(251, 113, 133, 0.45), inset 0 0 10px rgba(251, 113, 133, 0.35);
-        border-color: #fb7185;
     }
 }
 
@@ -3604,16 +3592,10 @@ class UIController {
             this.triggerBidSplash(pIndex, winPrefix, displayVal, 'won');
             this.showSeatFloatingBid(pIndex, val, true);
         } else if (isPass) {
-            let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
-            let displayVal = `⏭️ ${t.passedSkipped || 'PASSED (SKIPPED)'}`;
             playSound('pass');
-            this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
             this.showSeatFloatingBid(pIndex, 'Pass', false);
         } else {
-            let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
-            let displayVal = `💰 ${t.bidding} ${val}`;
             playSound('bid');
-            this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
             this.showSeatFloatingBid(pIndex, val, false);
         }
 
@@ -4061,47 +4043,10 @@ class UIController {
     }
 
     updateSecretTrumpVault() {
+        // Vault token removed from board overlay to prevent covering player hand cards.
+        // Trump state is cleanly and prominently displayed in the top HUD bar.
         const vault = document.getElementById('secret-trump-vault');
-        if (!vault) return;
-        if (this.engine.phase === 'LOBBY' || this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1' || this.engine.highestBidder === -1) {
-            vault.style.display = 'none';
-            return;
-        }
-
-        const bidderIdx = this.engine.highestBidder;
-        const positions = ['bottom', 'right', 'top', 'left'];
-        let visualPos = (mySeat === 99) ? bidderIdx : (bidderIdx - mySeat + 4) % 4;
-        const seatEl = document.getElementById(`player-${positions[visualPos]}`);
-        const boardEl = document.getElementById('board');
-        if (!seatEl || !boardEl) { vault.style.display = 'none'; return; }
-
-        vault.style.display = 'block';
-        const isRevealed = this.engine.trumpRevealed;
-        const suit = this.engine.trumpSuit || '♠';
-        const isRed = (suit === '♥' || suit === '♦');
-        const isBidderMe = (bidderIdx === mySeat && mySeat !== 99);
-
-        const seatRect = seatEl.getBoundingClientRect();
-        const boardRect = boardEl.getBoundingClientRect();
-        let top = seatRect.top - boardRect.top + (visualPos === 0 ? -60 : (visualPos === 2 ? 40 : 10));
-        let left = seatRect.left - boardRect.left + (visualPos === 1 ? -46 : (visualPos === 3 ? seatRect.width + 8 : seatRect.width / 2 - 19));
-
-        vault.style.top = `${top}px`;
-        vault.style.left = `${left}px`;
-
-        let peekHint = isBidderMe && !isRevealed ? `<span style="font-size:0.42rem; opacity:0.8; margin-top:2px;">PEEK</span>` : '';
-        vault.innerHTML = `
-            <div class="vault-card-inner ${isRevealed ? 'flipped' : ''}">
-                <div class="vault-face vault-front">
-                    <span class="lock-icon">🔒</span>
-                    <span class="vault-label">TRUMP</span>
-                    ${peekHint}
-                </div>
-                <div class="vault-face vault-back ${isRed ? 'red' : 'black'}">
-                    <span class="v-suit">${suit}</span>
-                </div>
-            </div>
-        `;
+        if (vault) vault.style.display = 'none';
     }
 
     onVaultTokenClick() {
@@ -4248,31 +4193,18 @@ class UIController {
             const badge = el.querySelector('.player-badge');
             if (!badge) continue;
             const existingCrown = badge.querySelector('.seat-winner-crown');
+            if (existingCrown) existingCrown.remove();
 
             if (i === visualPos) {
                 if (!badge.classList.contains(haloClass)) {
                     badge.classList.remove('trick-winner-halo-friend', 'trick-winner-halo-enemy');
                     badge.classList.add(haloClass);
                     if (window.gsap) {
-                        gsap.fromTo(badge, { scale: 1.2 }, { scale: 1.08, duration: 0.32, ease: "back.out(2)" });
+                        gsap.fromTo(badge, { scale: 1.12 }, { scale: 1.04, duration: 0.28, ease: "back.out(1.8)" });
                     }
-                }
-                let leadLabel = currentLang === 'hi' ? 'आगे' : 'Leading';
-                if (!existingCrown) {
-                    const crown = document.createElement('div');
-                    crown.className = `seat-winner-crown crown-pos-${positions[i]} ${isFriend ? 'crown-friend' : 'crown-enemy'}`;
-                    crown.innerHTML = `<span class="crown-icon">👑</span> <span class="crown-label">${leadLabel}</span> <span style="font-weight:900;">(${winner.card.rank}${winner.card.suit})</span>`;
-                    badge.appendChild(crown);
-                    if (window.gsap) {
-                        gsap.fromTo(crown, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.28, ease: "back.out(2)" });
-                    }
-                } else {
-                    existingCrown.className = `seat-winner-crown crown-pos-${positions[i]} ${isFriend ? 'crown-friend' : 'crown-enemy'}`;
-                    existingCrown.innerHTML = `<span class="crown-icon">👑</span> <span class="crown-label">${leadLabel}</span> <span style="font-weight:900;">(${winner.card.rank}${winner.card.suit})</span>`;
                 }
             } else {
                 badge.classList.remove('trick-winner-halo-friend', 'trick-winner-halo-enemy');
-                if (existingCrown) existingCrown.remove();
             }
         }
     }
@@ -4282,7 +4214,19 @@ class UIController {
         const ptsPill = document.getElementById('trick-pts-pill');
         let t = I18N[currentLang];
 
-        if (this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
+        if (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
+            this.clearTrickWinnerHalo();
+            let isRound2 = (this.engine.phase === 'DEALING_2');
+            let dealText = isRound2 
+                ? (currentLang === 'hi' ? '🎴 राउंड 2 के पत्ते बांटे जा रहे हैं...' : '🎴 Dealing Round 2 (4 Cards)...')
+                : (currentLang === 'hi' ? '🎴 पहले 4 पत्ते बांटे जा रहे हैं...' : '🎴 Dealing 4 Cards...');
+            pill.className = '';
+            pill.innerHTML = `<span>${dealText}</span>`;
+            ptsPill.innerText = isRound2 ? (currentLang === 'hi' ? 'अंतिम राउंड' : 'Final Round') : (currentLang === 'hi' ? 'न्यूनतम बोली: 16' : 'Min Bid: 16');
+            return;
+        }
+
+        if (this.engine.phase === 'BIDDING') {
             this.clearTrickWinnerHalo();
             let currentTurnName = this.playerNames[this.engine.currentTurn] || COMPASS_FULL[this.engine.currentTurn];
             let partnerIdx = mySeat === 99 ? 2 : (mySeat + 2) % 4;
@@ -4349,10 +4293,8 @@ class UIController {
                 let isRed = (s === '♥' || s === '♦');
                 let hasTrumpCut = this.engine.trumpRevealed && this.engine.trickCards.some(tc => tc.card && tc.card.suit === this.engine.trumpSuit && tc.card.suit !== this.engine.leadSuit);
                 watermark.className = `visible ${hasTrumpCut ? 'trump-cut-active' : ''}`;
-                let cutBadge = hasTrumpCut ? `<div class="lead-watermark-pill" style="border-color:#ef4444; color:#fca5a5;">🔥 TRUMP CUT!</div>` : `<div class="lead-watermark-pill">LEAD: ${s}</div>`;
                 watermark.innerHTML = `
                     <div class="lead-watermark-symbol ${isRed ? 'red' : 'black'}">${s}</div>
-                    ${cutBadge}
                 `;
             } else {
                 watermark.className = '';
@@ -4387,7 +4329,12 @@ class UIController {
         }
 
         let t = I18N[currentLang];
-        if (this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1') {
+        if (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
+            document.getElementById('bid-status').innerText = (this.engine.phase === 'DEALING_2') 
+                ? (currentLang === 'hi' ? 'राउंड 2 वितरण' : 'Dealing Round 2') 
+                : (currentLang === 'hi' ? 'कार्ड वितरण' : 'Dealing 4 Cards');
+            document.getElementById('trump-status').innerText = (currentLang === 'hi' ? 'चरण 1' : 'Phase 1');
+        } else if (this.engine.phase === 'BIDDING') {
             document.getElementById('bid-status').innerText = this.engine.highestBidder === -1 ? t.bidding : `BID: ${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
             document.getElementById('trump-status').innerText = t.phase1;
         } else if (this.engine.highestBidder !== -1) {
@@ -4412,7 +4359,8 @@ class UIController {
             if (!el) continue;
             
             let badgeClass = (i === 2 && mySeat !== 99) ? 'player-badge partner' : (i === 0 ? 'player-badge' : 'player-badge enemy');
-            let isCurrent = (actualPlayerIndex === this.engine.currentTurn && this.engine.phase !== 'ROUND_OVER');
+            let isDealing = (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2');
+            let isCurrent = (actualPlayerIndex === this.engine.currentTurn && this.engine.phase !== 'ROUND_OVER' && !isDealing);
             if (isCurrent) badgeClass += ' active-turn'; 
 
             let bidderCrown = (actualPlayerIndex === this.engine.highestBidder) ? ' 🎯' : '';
@@ -4439,23 +4387,6 @@ class UIController {
             if (activeBubble) el.appendChild(activeBubble);
             if (activeFloatBid && badgeEl) badgeEl.appendChild(activeFloatBid);
             if (badgeEl) this.updateTurnUrgencyRing(badgeEl, isCurrent, actualPlayerIndex);
-
-            // Bidding or Trump Selection Deliberation Indicator on active player's badge
-            if (this.engine.phase === 'BIDDING' && isCurrent && badgeEl) {
-                let isMe = (actualPlayerIndex === mySeat && mySeat !== 99);
-                let thinkingText = isMe ? (currentLang === 'hi' ? 'आपकी बारी (बोली लगाएं)' : 'YOUR TURN TO BID') : (currentLang === 'hi' ? 'सोच रहे हैं...' : 'Thinking...');
-                let thinkDiv = document.createElement('div');
-                thinkDiv.className = `seat-bid-thinking pos-${positions[i]} ${isMe ? 'my-turn' : ''}`;
-                thinkDiv.innerHTML = `<span class="think-icon">${isMe ? '👉' : '💭'}</span> <span>${thinkingText}</span>`;
-                badgeEl.appendChild(thinkDiv);
-            } else if (this.engine.phase === 'SET_TRUMP' && actualPlayerIndex === this.engine.highestBidder && badgeEl) {
-                let isMe = (actualPlayerIndex === mySeat && mySeat !== 99);
-                let trumpThinkingText = isMe ? (currentLang === 'hi' ? 'गुप्त हुकुम चुनें' : 'SELECT SECRET TRUMP') : (currentLang === 'hi' ? 'हुकुम चुन रहे हैं...' : 'Selecting Trump...');
-                let thinkDiv = document.createElement('div');
-                thinkDiv.className = `seat-bid-thinking pos-${positions[i]} ${isMe ? 'my-turn' : ''}`;
-                thinkDiv.innerHTML = `<span class="think-icon">🔒</span> <span>${trumpThinkingText}</span>`;
-                badgeEl.appendChild(thinkDiv);
-            }
             
             if (actualPlayerIndex === mySeat && mySeat !== 99) {
                 const row = document.createElement('div');
