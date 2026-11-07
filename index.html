@@ -708,6 +708,206 @@ body::before {
         padding: 11px; font-size: 0.92rem; font-weight: 800;
     }
 }
+
+/* ==================== 1. CARD PHYSICS & DRAG-TO-PLAY ==================== */
+.my-cards-row {
+    touch-action: pan-x;
+    user-select: none;
+}
+.my-cards-row .card {
+    touch-action: none;
+    will-change: transform, box-shadow;
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) + var(--scrub-y, 0px))) translateX(var(--scrub-x, 0px));
+}
+.my-cards-row .card.dragging-card {
+    z-index: 280 !important;
+    cursor: grabbing !important;
+    filter: drop-shadow(0 20px 30px rgba(0,0,0,0.85)) brightness(1.06);
+    box-shadow: 0 24px 48px rgba(0,0,0,0.8), 0 0 24px var(--gold-glow) !important;
+    transition: none !important;
+}
+#center-table.drag-target-active {
+    box-shadow: 0 0 35px var(--gold-glow), inset 0 0 25px rgba(229, 193, 88, 0.35);
+    border-radius: 18px;
+    background: rgba(229, 193, 88, 0.08);
+    transition: all 0.2s ease;
+}
+
+/* ==================== 2. PRE-ROUND RIFFLE SHUFFLE ==================== */
+.shuffle-packet {
+    position: absolute; top: 42%; left: 50%;
+    width: var(--card-w); height: var(--card-h);
+    border-radius: 7px;
+    background: repeating-linear-gradient(45deg, rgba(229,193,88,0.14) 0px, rgba(229,193,88,0.14) 2px, transparent 2px, transparent 8px),
+                radial-gradient(circle, #7f1d1d 0%, #3b0707 100%);
+    border: 1.5px solid #f8fafc;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.7);
+    pointer-events: none; z-index: 130;
+    transform-origin: center center;
+}
+
+/* ==================== 3. LIVE TRICK POT & HONOR COUNTER ==================== */
+.pot-coin-float {
+    position: absolute; z-index: 150; pointer-events: none;
+    background: radial-gradient(circle, #fde047 0%, #eab308 60%, #ca8a04 100%);
+    color: #422006; font-family: 'Cinzel', serif; font-weight: 900;
+    font-size: 0.85rem; padding: 2px 7px; border-radius: 12px;
+    border: 1.5px solid #fff; box-shadow: 0 0 14px rgba(250, 204, 21, 0.9), 0 4px 10px rgba(0,0,0,0.6);
+    transform: translate(-50%, -50%);
+}
+#trick-pts-pill.pot-punch {
+    animation: potPulse 0.3s ease-out;
+}
+@keyframes potPulse {
+    0% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.22); filter: drop-shadow(0 0 14px var(--gold-bright)); }
+    100% { transform: translateX(-50%) scale(1); }
+}
+
+/* ==================== 4. LEAD SUIT TABLE WATERMARK ==================== */
+#lead-suit-watermark {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    pointer-events: none; z-index: 4; opacity: 0; transition: opacity 0.3s ease;
+}
+#lead-suit-watermark.visible { opacity: 1; }
+.lead-watermark-symbol {
+    font-size: clamp(3rem, 8vw, 4.4rem); font-family: 'Cinzel', serif; font-weight: 900;
+    line-height: 1; text-shadow: 0 0 25px rgba(229,193,88,0.4);
+}
+.lead-watermark-symbol.red { color: rgba(239, 68, 68, 0.28); text-shadow: 0 0 25px rgba(239, 68, 68, 0.45); }
+.lead-watermark-symbol.black { color: rgba(229, 193, 88, 0.25); text-shadow: 0 0 25px rgba(229, 193, 88, 0.45); }
+.lead-watermark-pill {
+    font-size: 0.6rem; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--gold-bright); background: rgba(5, 14, 9, 0.85); border: 1px solid rgba(229,193,88,0.3);
+    padding: 1px 8px; border-radius: 10px; margin-top: 2px;
+}
+#lead-suit-watermark.trump-cut-active .lead-watermark-symbol {
+    animation: trumpCutPulse 0.6s ease-out;
+}
+@keyframes trumpCutPulse {
+    0% { transform: scale(0.9); filter: drop-shadow(0 0 30px #ef4444); color: rgba(239, 68, 68, 0.7); }
+    50% { transform: scale(1.35); filter: drop-shadow(0 0 50px #f59e0b); color: rgba(245, 158, 11, 0.85); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(239, 68, 68, 0.4)); color: rgba(239, 68, 68, 0.35); }
+}
+
+/* ==================== 5. HONOR TRACKER & CARDS PLAYED DRAWER ==================== */
+#tracker-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: clamp(280px, 85vw, 360px);
+    background: rgba(6, 17, 11, 0.96); backdrop-filter: blur(16px);
+    border-left: 1.5px solid var(--gold-primary); box-shadow: -10px 0 40px rgba(0,0,0,0.85);
+    z-index: 2500; transform: translateX(105%); transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    display: flex; flex-direction: column; padding: 16px; color: #f8fafc;
+}
+#tracker-drawer.open { transform: translateX(0); }
+.tracker-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 12px; border-bottom: 1px solid rgba(229,193,88,0.25); margin-bottom: 12px;
+}
+.tracker-title {
+    font-family: 'Cinzel', serif; font-size: 1.05rem; font-weight: 800; color: var(--gold-bright);
+    display: flex; align-items: center; gap: 6px;
+}
+.tracker-close-btn {
+    background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #cbd5e1;
+    font-size: 1rem; width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.tracker-summary-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(0,0,0,0.45); border: 1px solid rgba(229,193,88,0.3); border-radius: 12px;
+    padding: 8px 12px; margin-bottom: 14px; font-size: 0.76rem;
+}
+.tracker-pts-badge {
+    font-family: 'Cinzel', serif; font-size: 1.15rem; font-weight: 900; color: var(--gold-bright);
+}
+.tracker-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: 1; overflow-y: auto;
+}
+.tracker-suit-col {
+    display: flex; flex-direction: column; gap: 6px; align-items: center;
+    background: rgba(255,255,255,0.03); border-radius: 10px; padding: 6px 4px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.tracker-suit-header {
+    font-size: 1.25rem; font-weight: 900; margin-bottom: 4px;
+}
+.tracker-suit-header.red { color: var(--suit-red); }
+.tracker-suit-header.black { color: var(--gold-bright); }
+.tracker-card-item {
+    width: 100%; height: 50px; border-radius: 6px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 800;
+    background: linear-gradient(145deg, #ffffff, #ede8dc); color: #0f172a; position: relative;
+    border: 1px solid rgba(0,0,0,0.15); box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: all 0.25s ease;
+}
+.tracker-card-item.red { color: var(--suit-red); }
+.tracker-card-item .t-rank { font-size: 0.95rem; line-height: 1; }
+.tracker-card-item .t-pts { font-size: 0.58rem; color: #713f12; font-family:'Plus Jakarta Sans',sans-serif; font-weight: 800; }
+.tracker-card-item.played {
+    background: rgba(20, 30, 24, 0.7); color: #64748b !important;
+    border: 1px dashed rgba(255,255,255,0.15); box-shadow: none; opacity: 0.45;
+}
+.tracker-card-item.played::after {
+    content: "✓"; position: absolute; font-size: 1.1rem; color: #94a3b8; font-weight: 900;
+}
+
+/* ==================== 6. SECRET TRUMP VAULT TOKEN ==================== */
+#secret-trump-vault {
+    position: absolute; z-index: 105; pointer-events: auto;
+    perspective: 800px; width: 38px; height: 54px;
+    transition: transform 0.4s ease, opacity 0.4s ease;
+    cursor: pointer;
+}
+.vault-card-inner {
+    width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 10px rgba(229,193,88,0.4);
+}
+.vault-card-inner.flipped {
+    transform: rotateY(180deg);
+}
+.vault-face {
+    position: absolute; inset: 0; backface-visibility: hidden; border-radius: 6px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.vault-front {
+    background: repeating-linear-gradient(45deg, rgba(229,193,88,0.14) 0px, rgba(229,193,88,0.14) 2px, transparent 2px, transparent 6px),
+                radial-gradient(circle, #7f1d1d 0%, #3b0707 100%);
+    border: 1.5px solid var(--gold-bright); color: var(--gold-bright); font-size: 0.95rem;
+}
+.vault-front .lock-icon { font-size: 1rem; filter: drop-shadow(0 0 6px var(--gold-glow)); animation: lockPulse 2s infinite ease-in-out; }
+.vault-front .vault-label { font-size: 0.45rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; }
+@keyframes lockPulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px var(--gold-glow)); }
+    50% { transform: scale(1.12); filter: drop-shadow(0 0 10px var(--gold-bright)); }
+}
+.vault-back {
+    background: linear-gradient(145deg, #ffffff, #ede8dc); border: 2px solid var(--gold-bright);
+    transform: rotateY(180deg); font-family: 'Cinzel', serif; font-weight: 900;
+}
+.vault-back .v-suit { font-size: 1.6rem; }
+.vault-back.red { color: var(--suit-red); }
+.vault-back.black { color: var(--suit-black); }
+
+/* ==================== 7. RADIAL TURN URGENCY RING ==================== */
+.player-badge {
+    position: relative;
+}
+.turn-urgency-svg {
+    position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px);
+    pointer-events: none; z-index: -1; overflow: visible;
+}
+.turn-urgency-rect {
+    fill: none; stroke: var(--gold-primary); stroke-width: 2.5; stroke-linecap: round;
+    rx: 18px; ry: 18px; stroke-dasharray: 260; stroke-dashoffset: 0;
+    filter: drop-shadow(0 0 6px var(--gold-glow));
+    transition: stroke-dashoffset 0.25s linear, stroke 0.3s ease;
+}
+.turn-urgency-rect.warning { stroke: #eab308; filter: drop-shadow(0 0 8px #eab308); }
+.turn-urgency-rect.critical { stroke: #ef4444; filter: drop-shadow(0 0 10px #ef4444); animation: critPulse 0.5s infinite alternate; }
+@keyframes critPulse { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+
 </style>
 </head>
 <body>
@@ -727,6 +927,7 @@ body::before {
         <button class="bar-icon-btn" onclick="openStatsModal()" id="stats-icon-btn" title="Career Stats & Elo" style="font-weight:700;">🏆 <span id="stats-btn-text">Stats</span></button>
         <button class="bar-icon-btn" onclick="toggleLanguage()" id="lang-toggle-btn" title="Language / भाषा">🌐 हिन्दी</button>
         <button class="bar-icon-btn" onclick="toggleLogModal()" id="log-icon-btn" title="Game History / Log">📜 <span id="log-btn-text">Log</span></button>
+        <button class="bar-icon-btn" onclick="ui.toggleTrackerDrawer()" id="tracker-icon-btn" title="Cards Played & Honor Tracker">🃏 <span id="tracker-btn-text">Tracker</span></button>
         <button class="bar-icon-btn" onclick="openShareModal()" id="share-icon-btn" title="Share Room Invite">🔗 Invite</button>
         <button class="bar-icon-btn" id="sound-btn" onclick="toggleAudio()" title="Sound On/Off">🔊</button>
         <button class="bar-icon-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶</button>
@@ -868,8 +1069,10 @@ body::before {
     <div id="trick-hud-pill">Waiting for lead...</div>
     <div id="casino-ring">
         <div style="font-family:'Cinzel',serif; font-size:1.3rem; color:rgba(229,193,88,0.15); font-weight:900;">♠ ♥ ♣ ♦</div>
+        <div id="lead-suit-watermark"></div>
     </div>
-    <div id="trick-pts-pill">Trick: 0 pts</div>
+    <div id="trick-pts-pill"><span id="trick-pts-icon">💰</span> <span id="trick-pts-val">Trick: 0 pts</span></div>
+    <div id="secret-trump-vault" style="display:none;" onclick="ui.onVaultTokenClick()" title="Secret Trump Vault"></div>
 
     <div id="player-top" class="hand"></div>
     <div id="player-left" class="hand"></div>
@@ -1240,6 +1443,45 @@ function playSound(type) {
             oscGain.connect(ctx.destination);
             osc.start(now);
             osc.stop(now + 0.04);
+        } else if (type === 'shuffle') {
+            // Realistic 3D Riffle Shuffle: 14 rapid micro card-snaps and deck squaring slap
+            const snapCount = 14;
+            const duration = 0.38;
+            for (let i = 0; i < snapCount; i++) {
+                const noteTime = now + (i / snapCount) * duration + (Math.random() - 0.5) * 0.01;
+                const noise = ctx.createBufferSource();
+                noise.buffer = getNoiseBuffer(ctx);
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(2200 + i * 40 + (Math.random() - 0.5) * 200, noteTime);
+                filter.Q.setValueAtTime(3.5, noteTime);
+
+                const gain = ctx.createGain();
+                gain.gain.setValueAtTime(0.001, noteTime);
+                gain.gain.exponentialRampToValueAtTime(0.14, noteTime + 0.002);
+                gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.025);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctx.destination);
+                noise.start(noteTime);
+                noise.stop(noteTime + 0.03);
+            }
+            const slapTime = now + duration + 0.12;
+            const slapNoise = ctx.createBufferSource();
+            slapNoise.buffer = getNoiseBuffer(ctx);
+            const highpass = ctx.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.setValueAtTime(2400, slapTime);
+            const slapGain = ctx.createGain();
+            slapGain.gain.setValueAtTime(0.001, slapTime);
+            slapGain.gain.exponentialRampToValueAtTime(0.2, slapTime + 0.003);
+            slapGain.gain.exponentialRampToValueAtTime(0.001, slapTime + 0.035);
+            slapNoise.connect(highpass);
+            highpass.connect(slapGain);
+            slapGain.connect(ctx.destination);
+            slapNoise.start(slapTime);
+            slapNoise.stop(slapTime + 0.04);
         } else if (type === 'play') {
             // Authentic card slap / snap on green felt casino table
             const noise = ctx.createBufferSource();
@@ -1681,6 +1923,9 @@ function applyLanguage() {
     if (el('close-share-btn')) el('close-share-btn').innerText = t.close;
     if (el('next-round-btn')) el('next-round-btn').innerText = t.dealNextRound;
     if (el('cfg-diff-label')) el('cfg-diff-label').innerText = t.diffLabel;
+    if (el('tracker-btn-text')) el('tracker-btn-text').innerText = currentLang === 'hi' ? 'ट्रैकर' : 'Tracker';
+    if (el('tracker-drawer-title')) el('tracker-drawer-title').innerText = currentLang === 'hi' ? 'खेले गए व शेष पत्ते' : 'CARDS PLAYED & REMAINING';
+    if (el('tracker-pts-label')) el('tracker-pts-label').innerText = currentLang === 'hi' ? 'शेष अंक' : 'POINTS REMAINING';
     if (el('diff-text-easy')) el('diff-text-easy').innerText = t.diffEasy;
     if (el('diff-text-medium')) el('diff-text-medium').innerText = t.diffMedium;
     if (el('diff-text-hard')) el('diff-text-hard').innerText = t.diffHard;
@@ -2181,6 +2426,8 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         document.getElementById('log-drawer').innerHTML = '';
         ui.uiTrumpRevealed = false;
         ui.animatingTrick = false;
+        const vault = document.getElementById('secret-trump-vault'); if (vault) vault.style.display = 'none';
+        const watermark = document.getElementById('lead-suit-watermark'); if (watermark) { watermark.className = ''; watermark.innerHTML = ''; }
     }
     else if (data.type === 'STATE_UPDATE') {
         if (!isHost && (data.target === mySeat || data.target === 'ALL' || mySeat === 99)) {
@@ -3086,6 +3333,7 @@ class UIController {
         this.playerNames = ["SOUTH", "EAST", "NORTH", "WEST"];
         this.isDealingState = false; this.uiTrumpRevealed = false; 
         this.aiTimer = null; this.animatingTrick = false;
+        this.isCardDragging = false;
     }
 
     handleRemoteBidUI(pIndex, val, won) {
@@ -3255,6 +3503,395 @@ class UIController {
         }
     }
 
+    playRiffleShuffleAnimation(dealLayer, callback) {
+        if (!dealLayer || !window.gsap) { callback(); return; }
+
+        const packetL = document.createElement('div');
+        packetL.className = 'shuffle-packet packet-left';
+        const packetR = document.createElement('div');
+        packetR.className = 'shuffle-packet packet-right';
+
+        dealLayer.appendChild(packetL);
+        dealLayer.appendChild(packetR);
+
+        gsap.set([packetL, packetR], { xPercent: -50, yPercent: -50, x: 0, y: 0, scale: 0.92 });
+        const tl = gsap.timeline({
+            onComplete: () => {
+                packetL.remove();
+                packetR.remove();
+                callback();
+            }
+        });
+
+        // 1. Packets split left and right with inwards tilt
+        tl.to(packetL, { x: -48, rotation: -12, scale: 1, duration: 0.22, ease: "power2.out" }, 0)
+          .to(packetR, { x: 48, rotation: 12, scale: 1, duration: 0.22, ease: "power2.out" }, 0);
+
+        // 2. Sound effect: rapid paper riffle
+        tl.add(() => { playSound('shuffle'); }, 0.18);
+
+        // 3. Interlace inwards
+        tl.to(packetL, { x: -6, rotation: -2, duration: 0.38, ease: "power1.inOut" }, 0.22)
+          .to(packetR, { x: 6, rotation: 2, duration: 0.38, ease: "power1.inOut" }, 0.22);
+
+        // 4. Square up
+        tl.to([packetL, packetR], { x: 0, rotation: 0, duration: 0.12, ease: "power2.out" }, 0.60);
+
+        // 5. Deck cut
+        tl.to(packetL, { y: -26, x: 30, rotation: 5, duration: 0.16, ease: "power1.out" }, 0.72)
+          .to(packetL, { y: 0, x: 0, rotation: 0, duration: 0.14, ease: "power2.in" }, 0.88);
+    }
+
+    attachDragAndFlick(cardEl, cardIndex, playerIndex) {
+        let startX = 0, startY = 0, startTime = 0;
+        let isDragging = false, hasMoved = false;
+        let baseRot = parseFloat(cardEl.style.getPropertyValue('--rot')) || 0;
+        const centerTable = document.getElementById('center-table');
+
+        const onPointerDown = (e) => {
+            if (uiLocked) return;
+            startX = e.clientX;
+            startY = e.clientY;
+            startTime = performance.now();
+            isDragging = true;
+            hasMoved = false;
+            this.isCardDragging = true;
+            try { cardEl.setPointerCapture(e.pointerId); } catch(err) {}
+            cardEl.classList.add('dragging-card');
+            cardEl.style.zIndex = '300';
+        };
+
+        const onPointerMove = (e) => {
+            if (!isDragging) return;
+            let dx = e.clientX - startX;
+            let dy = e.clientY - startY;
+            if (!hasMoved && Math.hypot(dx, dy) > 8) {
+                hasMoved = true;
+            }
+            if (hasMoved) {
+                dy = Math.min(dy, 12);
+                let dragRot = baseRot + dx * 0.12;
+                cardEl.style.transform = `translate(${dx}px, ${dy}px) rotate(${dragRot}deg) scale(1.12)`;
+                if (dy < -55) {
+                    if (centerTable) centerTable.classList.add('drag-target-active');
+                } else {
+                    if (centerTable) centerTable.classList.remove('drag-target-active');
+                }
+            }
+        };
+
+        const onPointerUp = (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            this.isCardDragging = false;
+            try { cardEl.releasePointerCapture(e.pointerId); } catch(err) {}
+            cardEl.classList.remove('dragging-card');
+            if (centerTable) centerTable.classList.remove('drag-target-active');
+
+            let dx = e.clientX - startX;
+            let dy = e.clientY - startY;
+            let dt = Math.max(1, performance.now() - startTime);
+            let vy = (dy / dt) * 1000;
+
+            if (hasMoved && (dy < -55 || vy < -220)) {
+                // Flick to play onto table
+                if (uiLocked) return;
+                uiLocked = true;
+                if (window.gsap) {
+                    gsap.to(cardEl, {
+                        y: dy - 90,
+                        opacity: 0.4,
+                        scale: 0.95,
+                        duration: 0.15,
+                        ease: "power2.in",
+                        onComplete: () => {
+                            if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
+                            else { game.playCard(mySeat, cardIndex); ui.gameLoop(); }
+                        }
+                    });
+                } else {
+                    if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
+                    else { game.playCard(mySeat, cardIndex); ui.gameLoop(); }
+                }
+            } else if (!hasMoved) {
+                // Click/tap to play
+                if (uiLocked) return;
+                uiLocked = true;
+                if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
+                else { game.playCard(mySeat, cardIndex); ui.gameLoop(); }
+            } else {
+                // Snap back into hand
+                if (window.gsap) {
+                    gsap.to(cardEl, {
+                        x: 0,
+                        y: 0,
+                        scale: 1,
+                        rotation: baseRot,
+                        duration: 0.28,
+                        ease: "back.out(2)",
+                        clearProps: "x,y",
+                        onComplete: () => {
+                            cardEl.style.transform = 'rotate(var(--rot)) translateY(var(--y-lift))';
+                            cardEl.style.zIndex = (cardIndex + 10).toString();
+                        }
+                    });
+                } else {
+                    cardEl.style.transform = 'rotate(var(--rot)) translateY(var(--y-lift))';
+                    cardEl.style.zIndex = (cardIndex + 10).toString();
+                }
+            }
+        };
+
+        cardEl.addEventListener('pointerdown', onPointerDown);
+        cardEl.addEventListener('pointermove', onPointerMove);
+        cardEl.addEventListener('pointerup', onPointerUp);
+        cardEl.addEventListener('pointercancel', onPointerUp);
+    }
+
+    attachMagneticScrub(row) {
+        if (!row) return;
+        row.addEventListener('pointermove', (e) => {
+            if (this.isCardDragging) return;
+            const cards = Array.from(row.querySelectorAll('.card:not(.dragging-card)'));
+            cards.forEach((c) => {
+                const r = c.getBoundingClientRect();
+                const cardCenter = r.left + r.width / 2;
+                const dist = e.clientX - cardCenter;
+                const maxDist = 65;
+                if (Math.abs(dist) < maxDist) {
+                    const factor = 1 - Math.abs(dist) / maxDist;
+                    const shiftX = dist < 0 ? -factor * 10 : factor * 10;
+                    const liftY = factor * 16;
+                    c.style.setProperty('--scrub-x', `${shiftX}px`);
+                    c.style.setProperty('--scrub-y', `-${liftY}px`);
+                } else {
+                    c.style.setProperty('--scrub-x', '0px');
+                    c.style.setProperty('--scrub-y', '0px');
+                }
+            });
+        });
+        row.addEventListener('pointerleave', () => {
+            const cards = Array.from(row.querySelectorAll('.card'));
+            cards.forEach((c) => {
+                c.style.setProperty('--scrub-x', '0px');
+                c.style.setProperty('--scrub-y', '0px');
+            });
+        });
+    }
+
+    toggleTrackerDrawer() {
+        const drawer = document.getElementById('tracker-drawer');
+        if (!drawer) return;
+        drawer.classList.toggle('open');
+        if (drawer.classList.contains('open')) {
+            this.updateTrackerUI();
+        }
+    }
+
+    updateTrackerUI() {
+        const grid = document.getElementById('tracker-cards-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        const suits = ['♠', '♥', '♣', '♦'];
+        const ranks = [
+            { r: 'J', pts: 3 },
+            { r: '9', pts: 2 },
+            { r: 'A', pts: 1 },
+            { r: '10', pts: 1 }
+        ];
+
+        let pointsRemaining = 28;
+        let jacksRemaining = 4;
+        let ninesRemaining = 4;
+
+        suits.forEach(s => {
+            const isRed = (s === '♥' || s === '♦');
+            const col = document.createElement('div');
+            col.className = 'tracker-suit-col';
+            col.innerHTML = `<div class="tracker-suit-header ${isRed ? 'red' : 'black'}">${s}</div>`;
+
+            ranks.forEach(item => {
+                const played = (this.engine.playedCardsHistory || []).some(c => c && c.suit === s && c.rank === item.r);
+                if (played) {
+                    pointsRemaining -= item.pts;
+                    if (item.r === 'J') jacksRemaining--;
+                    if (item.r === '9') ninesRemaining--;
+                }
+                const cardDiv = document.createElement('div');
+                cardDiv.className = `tracker-card-item ${isRed ? 'red' : 'black'} ${played ? 'played' : ''}`;
+                cardDiv.innerHTML = `
+                    <span class="t-rank">${item.r}</span>
+                    <span class="t-pts">+${item.pts}</span>
+                `;
+                col.appendChild(cardDiv);
+            });
+            grid.appendChild(col);
+        });
+
+        const ptsRemEl = document.getElementById('tracker-pts-rem');
+        if (ptsRemEl) ptsRemEl.innerText = Math.max(0, pointsRemaining);
+        const jRemEl = document.getElementById('tracker-jacks-rem');
+        if (jRemEl) jRemEl.innerText = `Jacks: ${jacksRemaining}/4`;
+        const nRemEl = document.getElementById('tracker-nines-rem');
+        if (nRemEl) nRemEl.innerText = `Nines: ${ninesRemaining}/4`;
+    }
+
+    updateSecretTrumpVault() {
+        const vault = document.getElementById('secret-trump-vault');
+        if (!vault) return;
+        if (this.engine.phase === 'LOBBY' || this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1' || this.engine.highestBidder === -1) {
+            vault.style.display = 'none';
+            return;
+        }
+
+        const bidderIdx = this.engine.highestBidder;
+        const positions = ['bottom', 'right', 'top', 'left'];
+        let visualPos = (mySeat === 99) ? bidderIdx : (bidderIdx - mySeat + 4) % 4;
+        const seatEl = document.getElementById(`player-${positions[visualPos]}`);
+        const boardEl = document.getElementById('board');
+        if (!seatEl || !boardEl) { vault.style.display = 'none'; return; }
+
+        vault.style.display = 'block';
+        const isRevealed = this.engine.trumpRevealed;
+        const suit = this.engine.trumpSuit || '♠';
+        const isRed = (suit === '♥' || suit === '♦');
+        const isBidderMe = (bidderIdx === mySeat && mySeat !== 99);
+
+        const seatRect = seatEl.getBoundingClientRect();
+        const boardRect = boardEl.getBoundingClientRect();
+        let top = seatRect.top - boardRect.top + (visualPos === 0 ? -60 : (visualPos === 2 ? 40 : 10));
+        let left = seatRect.left - boardRect.left + (visualPos === 1 ? -46 : (visualPos === 3 ? seatRect.width + 8 : seatRect.width / 2 - 19));
+
+        vault.style.top = `${top}px`;
+        vault.style.left = `${left}px`;
+
+        let peekHint = isBidderMe && !isRevealed ? `<span style="font-size:0.42rem; opacity:0.8; margin-top:2px;">PEEK</span>` : '';
+        vault.innerHTML = `
+            <div class="vault-card-inner ${isRevealed ? 'flipped' : ''}">
+                <div class="vault-face vault-front">
+                    <span class="lock-icon">🔒</span>
+                    <span class="vault-label">TRUMP</span>
+                    ${peekHint}
+                </div>
+                <div class="vault-face vault-back ${isRed ? 'red' : 'black'}">
+                    <span class="v-suit">${suit}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    onVaultTokenClick() {
+        if (this.engine.trumpRevealed) return;
+        if (this.engine.highestBidder !== mySeat) {
+            this.renderLog("🔒 Secret Trump is locked by the contract bidder!");
+            return;
+        }
+        const vault = document.getElementById('secret-trump-vault');
+        const inner = vault?.querySelector('.vault-card-inner');
+        if (inner && window.gsap) {
+            playSound('trump_select');
+            gsap.to(inner, {
+                rotationY: 180,
+                scale: 1.18,
+                duration: 0.35,
+                yoyo: true,
+                repeat: 1,
+                repeatDelay: 1.4,
+                ease: "back.out(1.5)"
+            });
+        }
+    }
+
+    animateVaultUnlock(suit) {
+        const vault = document.getElementById('secret-trump-vault');
+        const inner = vault?.querySelector('.vault-card-inner');
+        if (inner && window.gsap) {
+            gsap.to(inner, {
+                rotationY: 180,
+                scale: 1.35,
+                duration: 0.5,
+                ease: "back.out(2)",
+                onComplete: () => {
+                    const trumpPill = document.getElementById('trump-status');
+                    if (trumpPill) {
+                        const targetRect = trumpPill.getBoundingClientRect();
+                        const vaultRect = vault.getBoundingClientRect();
+                        gsap.to(vault, {
+                            x: targetRect.left - vaultRect.left,
+                            y: targetRect.top - vaultRect.top,
+                            scale: 0.4,
+                            opacity: 0,
+                            duration: 0.6,
+                            delay: 0.6,
+                            ease: "power2.in",
+                            onComplete: () => {
+                                vault.style.display = 'none';
+                                vault.style.transform = '';
+                            }
+                        });
+                    }
+                }
+            });
+        }
+    }
+
+    updateTurnUrgencyRing(badgeEl, isCurrent, actualPlayerIndex) {
+        if (!badgeEl) return;
+        let existingSvg = badgeEl.querySelector('.turn-urgency-svg');
+        if (!isCurrent) {
+            if (existingSvg) existingSvg.remove();
+            return;
+        }
+
+        if (!existingSvg) {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('class', 'turn-urgency-svg');
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('class', 'turn-urgency-rect');
+            rect.setAttribute('x', '2');
+            rect.setAttribute('y', '2');
+            rect.setAttribute('width', 'calc(100% - 4px)');
+            rect.setAttribute('height', 'calc(100% - 4px)');
+            svg.appendChild(rect);
+            badgeEl.appendChild(svg);
+            existingSvg = svg;
+        }
+
+        const rect = existingSvg.querySelector('.turn-urgency-rect');
+        if (!rect) return;
+
+        let isHuman = (actualPlayerIndex === mySeat && mySeat !== 99);
+        if (isHuman && (this.engine.phase === 'BIDDING' || this.engine.phase === 'PLAYING')) {
+            if (window.gsap) {
+                gsap.killTweensOf(rect);
+                rect.className.baseVal = 'turn-urgency-rect';
+                gsap.fromTo(rect, 
+                    { strokeDashoffset: 0 },
+                    { 
+                        strokeDashoffset: 260, 
+                        duration: 30, 
+                        ease: "linear",
+                        onUpdate: function() {
+                            let prog = this.progress();
+                            if (prog > 0.8) rect.className.baseVal = 'turn-urgency-rect critical';
+                            else if (prog > 0.6) rect.className.baseVal = 'turn-urgency-rect warning';
+                        }
+                    }
+                );
+            }
+        } else {
+            if (window.gsap) {
+                gsap.killTweensOf(rect);
+                rect.className.baseVal = 'turn-urgency-rect';
+                gsap.fromTo(rect,
+                    { strokeDashoffset: 0, opacity: 0.6 },
+                    { strokeDashoffset: 120, opacity: 1, duration: 1.2, repeat: -1, yoyo: true, ease: "sine.inOut" }
+                );
+            }
+        }
+    }
+
     updateTrickHUD() {
         const pill = document.getElementById('trick-hud-pill');
         const ptsPill = document.getElementById('trick-pts-pill');
@@ -3311,7 +3948,28 @@ class UIController {
             let winColor = isFriend ? '#86efac' : '#fca5a5';
 
             pill.innerHTML = `<span style="color:${leadColor}; font-weight:800;">${this.engine.leadSuit}</span> &bull; <b style="color:${winColor};">${winWho}</b> (${winner.card.rank}${winner.card.suit})`;
-            ptsPill.innerText = `${potLabel}: ${pts} ${ptsWord}`;
+            const ptsValEl = document.getElementById('trick-pts-val');
+            if (ptsValEl) ptsValEl.innerText = `${potLabel}: ${pts} ${ptsWord}`;
+            else ptsPill.innerText = `${potLabel}: ${pts} ${ptsWord}`;
+        }
+
+        // Update Lead Suit Watermark on center felt
+        const watermark = document.getElementById('lead-suit-watermark');
+        if (watermark) {
+            if (this.engine.trickCards.length > 0 && this.engine.leadSuit) {
+                let s = this.engine.leadSuit;
+                let isRed = (s === '♥' || s === '♦');
+                let hasTrumpCut = this.engine.trumpRevealed && this.engine.trickCards.some(tc => tc.card && tc.card.suit === this.engine.trumpSuit && tc.card.suit !== this.engine.leadSuit);
+                watermark.className = `visible ${hasTrumpCut ? 'trump-cut-active' : ''}`;
+                let cutBadge = hasTrumpCut ? `<div class="lead-watermark-pill" style="border-color:#ef4444; color:#fca5a5;">🔥 TRUMP CUT!</div>` : `<div class="lead-watermark-pill">LEAD: ${s}</div>`;
+                watermark.innerHTML = `
+                    <div class="lead-watermark-symbol ${isRed ? 'red' : 'black'}">${s}</div>
+                    ${cutBadge}
+                `;
+            } else {
+                watermark.className = '';
+                watermark.innerHTML = '';
+            }
         }
     }
 
@@ -3391,6 +4049,7 @@ class UIController {
             const activeBubble = el.querySelector('.speech-bubble');
             el.innerHTML = `<div class="${badgeClass}">${this.playerNames[actualPlayerIndex]}${bidderCrown} <span class="card-cnt" id="badge-cnt-${actualPlayerIndex}">${displayedCount}</span></div>${bidBadge}`; 
             if (activeBubble) el.appendChild(activeBubble);
+            this.updateTurnUrgencyRing(el.querySelector('.player-badge'), isCurrent, actualPlayerIndex);
             
             if (actualPlayerIndex === mySeat && mySeat !== 99) {
                 const row = document.createElement('div');
@@ -3434,14 +4093,11 @@ class UIController {
                     if (isMyTurnToPlay && !isPlayable) div.classList.add('unplayable');
                     if (isPlayable) {
                         div.classList.add('playable');
-                        div.onclick = () => {
-                            if(uiLocked) return; uiLocked = true;
-                            if(gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: index});
-                            else { game.playCard(mySeat, index); ui.gameLoop(); }
-                        };
+                        this.attachDragAndFlick(div, index, actualPlayerIndex);
                     }
                     row.appendChild(div);
                 });
+                this.attachMagneticScrub(row);
                 el.appendChild(row);
             } else {
                 const row = document.createElement('div');
@@ -3465,6 +4121,11 @@ class UIController {
         setTimeout(() => {
             initVanillaTilt();
         }, 50);
+
+        this.updateSecretTrumpVault();
+        if (document.getElementById('tracker-drawer')?.classList.contains('open')) {
+            this.updateTrackerUI();
+        }
     }
 
     playHumanDealAnimation(onComplete) {
@@ -3480,6 +4141,7 @@ class UIController {
         }
         dealLayer.innerHTML = '';
 
+        const startDealingFlyers = () => {
         // 1. Spawn 3D Center Dealer Deck (anchored with xPercent/yPercent)
         const deckEl = document.createElement('div');
         deckEl.className = 'dealer-deck';
@@ -3663,6 +4325,15 @@ class UIController {
                 if (onComplete) onComplete();
             }
         }, totalDuration);
+        };
+
+        if (this.engine.phase === 'DEALING_1') {
+            this.playRiffleShuffleAnimation(dealLayer, () => {
+                startDealingFlyers();
+            });
+        } else {
+            startDealingFlyers();
+        }
     }
 
     renderPlayedCard(card, pIndex) {
@@ -3767,7 +4438,48 @@ class UIController {
                 );
             }
         }
+        if (card.value > 0 && window.gsap) {
+            const board = document.getElementById('board');
+            const potPill = document.getElementById('trick-pts-pill');
+            if (board && potPill) {
+                const floatCoin = document.createElement('div');
+                floatCoin.className = 'pot-coin-float';
+                floatCoin.innerText = `+${card.value}`;
+                board.appendChild(floatCoin);
+
+                const cardRect = div.getBoundingClientRect();
+                const boardRect = board.getBoundingClientRect();
+                const potRect = potPill.getBoundingClientRect();
+
+                const startX = cardRect.left + cardRect.width / 2 - boardRect.left;
+                const startY = cardRect.top + cardRect.height / 2 - boardRect.top;
+                const endX = potRect.left + potRect.width / 2 - boardRect.left;
+                const endY = potRect.top + potRect.height / 2 - boardRect.top;
+
+                gsap.fromTo(floatCoin,
+                    { left: startX, top: startY, scale: 1.35, opacity: 1, xPercent: -50, yPercent: -50 },
+                    {
+                        left: endX,
+                        top: endY,
+                        scale: 0.75,
+                        opacity: 0,
+                        duration: 0.52,
+                        ease: "power2.in",
+                        delay: 0.22,
+                        onComplete: () => {
+                            floatCoin.remove();
+                            potPill.classList.add('pot-punch');
+                            setTimeout(() => potPill.classList.remove('pot-punch'), 300);
+                            this.updateTrickHUD();
+                        }
+                    }
+                );
+            }
+        }
         playSound('play');
+        if (document.getElementById('tracker-drawer')?.classList.contains('open')) {
+            this.updateTrackerUI();
+        }
     }
 
     syncTable() {
@@ -3807,6 +4519,7 @@ class UIController {
             });
         }
 
+        this.animateVaultUnlock(suit);
         if (window.gsap) {
             const icon = blast.querySelector('.trump-big-icon');
             if (icon) {
@@ -4381,6 +5094,8 @@ class UIController {
         document.getElementById('log-drawer').innerHTML = '';
         this.uiTrumpRevealed = false;
         this.animatingTrick = false;
+        const vault = document.getElementById('secret-trump-vault'); if (vault) vault.style.display = 'none';
+        const watermark = document.getElementById('lead-suit-watermark'); if (watermark) { watermark.className = ''; watermark.innerHTML = ''; }
         if(isHost) {
             if(gameMode === 'multi') broadcastNetMessage({type:'NEW_ROUND_RESET'});
             game.startRound();
@@ -4473,5 +5188,23 @@ window.addEventListener('DOMContentLoaded', () => {
     refreshLucideIcons();
 });
 </script>
+<!-- ==================== HONOR TRACKER DRAWER ==================== -->
+<div id="tracker-drawer">
+    <div class="tracker-header">
+        <div class="tracker-title">🃏 <span id="tracker-drawer-title">CARDS PLAYED & REMAINING</span></div>
+        <button class="tracker-close-btn" onclick="ui.toggleTrackerDrawer()">✕</button>
+    </div>
+    <div class="tracker-summary-bar">
+        <div>
+            <span style="font-size:0.65rem; color:#94a3b8; display:block;" id="tracker-pts-label">POINTS REMAINING</span>
+            <span class="tracker-pts-badge" id="tracker-pts-rem">28</span> <small style="color:#94a3b8;">/ 28 PTS</small>
+        </div>
+        <div style="text-align:right;">
+            <div style="color:var(--gold-bright); font-weight:700; font-size:0.75rem;" id="tracker-jacks-rem">Jacks: 4/4</div>
+            <div style="color:#bae6fd; font-weight:700; font-size:0.75rem;" id="tracker-nines-rem">Nines: 4/4</div>
+        </div>
+    </div>
+    <div class="tracker-grid" id="tracker-cards-grid"></div>
+</div>
 </body>
 </html>
