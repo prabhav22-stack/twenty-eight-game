@@ -420,13 +420,18 @@ body::before {
 .modal-reshuffle-btn:hover, .modal-reshuffle-btn:active { transform: scale(1.03); box-shadow: 0 0 16px var(--gold-glow); }
 
 /* MODALS */
-@keyframes modalPop { 0% { opacity: 0; transform: translate(-50%, -44%) scale(0.88); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes modalPop { 0% { opacity: 0; transform: translate(-50%, -46%) scale(0.92); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 .modal {
     animation: modalPop 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
     background: rgba(6, 16, 10, 0.96); backdrop-filter: blur(18px);
     border: 1.5px solid var(--gold-primary); padding: clamp(10px, 2vh, 16px); border-radius: 18px;
-    text-align: center; display: none; z-index: 110; width: clamp(260px, min(86vw, 360px), 360px);
+    text-align: center; display: none; z-index: 1500; width: clamp(270px, min(90vw, 380px), 380px);
+    max-height: min(90vh, 90dvh, 520px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
     box-shadow: 0 20px 50px rgba(0,0,0,0.9);
 }
 .modal h2 { font-family: 'Cinzel', serif; color: var(--gold-bright); font-size: clamp(1.1rem, 2.4vh, 1.3rem); margin: 0 0 3px 0; }
@@ -510,11 +515,11 @@ body::before {
     100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
 }
 #partner-bid-splash {
-    position: fixed; top: 28%; left: 50%; transform: translate(-50%, -50%) scale(0);
+    position: fixed; top: var(--table-center-y, 44%); left: 50%; transform: translate(-50%, -50%) scale(0);
     background: linear-gradient(135deg, rgba(10, 25, 40, 0.96), rgba(4, 12, 22, 0.98));
-    border: 2px solid var(--team1-blue); border-radius: 16px; padding: 10px 22px;
+    border: 2px solid var(--team1-blue); border-radius: 16px; padding: clamp(8px, 1.8vh, 12px) clamp(14px, 4vw, 22px);
     text-align: center; z-index: 2500; opacity: 0; transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-    pointer-events: none; min-width: clamp(230px, 80vw, 340px);
+    pointer-events: none; max-width: calc(100vw - 24px); width: clamp(210px, 82vw, 320px);
     box-shadow: 0 10px 35px rgba(0,0,0,0.85);
 }
 #partner-bid-splash.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
@@ -701,26 +706,47 @@ body::before {
         bottom: calc(var(--card-h) + clamp(26px, 5vh, 42px));
     }
     .modal {
-        width: clamp(280px, 94vw, 380px);
-        max-height: calc(100dvh - 36px);
+        width: clamp(270px, 92vw, 380px);
+        max-height: min(90vh, 90dvh, 500px);
         overflow-y: auto;
-        padding: 14px 12px;
-        top: var(--table-center-y, 48%);
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        padding: clamp(10px, 2vh, 14px) clamp(8px, 2.5vw, 12px);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
     }
     .bid-options-grid {
         grid-template-columns: repeat(4, 1fr);
-        gap: 8px; margin: 8px 0 12px 0;
+        gap: clamp(4px, 1.2vh, 8px); margin: 6px 0 10px 0;
     }
     .bid-chip {
-        width: clamp(48px, 13vw, 56px);
-        height: clamp(48px, 13vw, 56px);
-        font-size: 1.15rem; font-weight: 800;
+        width: clamp(38px, min(12vw, 5.5vh), 50px);
+        height: clamp(38px, min(12vw, 5.5vh), 50px);
+        font-size: clamp(0.85rem, 1.8vh, 1.05rem); font-weight: 800;
     }
     .modal-pass-btn {
-        padding: 11px; font-size: 0.92rem; font-weight: 800;
+        padding: clamp(8px, 1.4vh, 11px); font-size: clamp(0.78rem, 1.4vh, 0.92rem); font-weight: 800;
     }
 }
 
+
+/* Modal Compactness for Short Screen Heights */
+@media (max-height: 620px) {
+    .modal {
+        padding: 6px 10px;
+        max-height: calc(100dvh - 12px);
+        top: 50%;
+    }
+    .modal h2 { font-size: 0.95rem; margin: 0 0 2px 0; }
+    .modal-sub { font-size: 0.68rem; margin: 0 0 3px 0; }
+    .modal-partner-box { padding: 2px 6px; margin: 2px 0; font-size: 0.68rem; }
+    .modal-bid-history-row { padding: 2px 4px; margin: 2px 0 4px 0; }
+    .hand-eval-pill { padding: 1px 6px; margin-bottom: 3px; font-size: 0.62rem; }
+    .bid-options-grid { gap: 4px; margin: 3px 0 6px 0; }
+    .bid-chip { width: clamp(32px, 8vh, 40px); height: clamp(32px, 8vh, 40px); font-size: 0.85rem; }
+    .modal-pass-btn { padding: 6px; font-size: 0.72rem; }
+}
 /* ==================== ADAPTIVE SHORT / LANDSCAPE SCREEN OPTIMIZATION ==================== */
 @media (orientation: landscape) and (max-height: 580px) {
     #top-hud {
@@ -963,29 +989,35 @@ body::before {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 6px 14px;
+    padding: 5px 12px;
     border-radius: 14px;
     font-family: 'Cinzel', serif;
     white-space: nowrap;
     box-shadow: 0 10px 28px rgba(0,0,0,0.85);
     backdrop-filter: blur(10px);
     transition: transform 0.2s ease, opacity 0.25s ease;
+    max-width: clamp(110px, 34vw, 160px);
 }
 .floating-seat-bid.pos-bottom {
-    bottom: calc(100% + 14px);
+    bottom: calc(100% + 10px);
     left: 50%;
     translate: -50% 0;
 }
 .floating-seat-bid.pos-top {
-    top: calc(100% + 14px);
+    top: calc(100% + 10px);
     left: 50%;
     translate: -50% 0;
 }
-.floating-seat-bid.pos-left,
+.floating-seat-bid.pos-left {
+    bottom: calc(100% + 6px);
+    left: 0;
+    translate: 0 0;
+}
 .floating-seat-bid.pos-right {
-    bottom: calc(100% + 8px);
-    left: 50%;
-    translate: -50% 0;
+    bottom: calc(100% + 6px);
+    right: 0;
+    left: auto;
+    translate: 0 0;
 }
 
 .floating-seat-bid .float-bid-sub {
@@ -1398,7 +1430,7 @@ body::before {
     <div id="trump-suit-options" style="display:flex; justify-content:center; gap:8px; margin-top:8px;"></div>
 </div>
 
-<div id="bid-won-modal" class="modal" style="top:40%; z-index:1600; text-align:center;">
+<div id="bid-won-modal" class="modal" style="z-index:1600; text-align:center;">
     <div id="bid-won-icon" style="font-size:clamp(2.5rem, 5.5vh, 3.4rem); margin-bottom:4px;">👑</div>
     <h2 id="bid-won-title" style="font-size:clamp(1.1rem, 2.4vh, 1.4rem); margin-bottom:6px; color:var(--gold-bright);">YOU WON THE BID!</h2>
     <div id="bid-won-badge" style="display:inline-block; padding:4px 14px; border-radius:20px; font-weight:800; font-size:clamp(0.85rem, 1.8vh, 1rem); margin-bottom:8px; background:rgba(229,193,88,0.2); border:1.5px solid var(--gold-primary); color:var(--gold-bright);">
@@ -3879,8 +3911,8 @@ class UIController {
         badgeEl.appendChild(floatEl);
 
         let pos = positions[visualPos];
-        let startY = (pos === 'bottom') ? 14 : (pos === 'top' ? -14 : 0);
-        let startX = (pos === 'right') ? 14 : (pos === 'left' ? -14 : 0);
+        let startY = (pos === 'bottom') ? 12 : (pos === 'top' ? -12 : 0);
+        let startX = (pos === 'right') ? -12 : (pos === 'left' ? 12 : 0);
 
         if (window.gsap) {
             gsap.fromTo(floatEl,
@@ -3899,9 +3931,9 @@ class UIController {
                     gsap.to(floatEl, {
                         scale: 0.8,
                         opacity: 0,
-                        y: (pos === 'bottom' ? -18 : (pos === 'top' ? 18 : 0)),
-                        x: (pos === 'right' ? -18 : (pos === 'left' ? 18 : 0)),
-                        duration: 0.38,
+                        y: (pos === 'bottom' ? -12 : (pos === 'top' ? 12 : 0)),
+                        x: (pos === 'right' ? -12 : (pos === 'left' ? 12 : 0)),
+                        duration: 0.35,
                         ease: "power2.in",
                         onComplete: () => floatEl.remove()
                     });
