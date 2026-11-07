@@ -93,7 +93,7 @@ def call_groq(messages, timeout=1.8):
         "User-Agent": "TwentyEightGame/1.0"
     }
     # Fast lightweight model pipeline
-    for model_name in ["qwen/qwen3.8-27b", "openai/gpt-oss-20b"]:
+    for model_name in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]:
         payload = {
             "model": model_name,
             "response_format": {"type": "json_object"},
@@ -873,6 +873,440 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
     return {'verdict': verdict, 'recap': fallback_recap}
 
 
+
+# ==================== HYBRID "BRAIN + PERSONA" BOT BACKEND ====================
+
+SUIT_CHAR_MAP = {'S': '♠', 'H': '♥', 'C': '♣', 'D': '♦', '♠': '♠', '♥': '♥', '♣': '♣', '♦': '♦'}
+SEAT_MAP = {'SOUTH': 0, 'EAST': 1, 'NORTH': 2, 'WEST': 3, 0: 0, 1: 1, 2: 2, 3: 3}
+SEAT_NAMES_LOOKUP = {0: 'SOUTH', 1: 'EAST', 2: 'NORTH', 3: 'WEST'}
+BOT_ROLES = {
+    1: {'name': 'Striker', 'role': 'Aggressive Opponent', 'seat': 'EAST'},
+    2: {'name': 'Wingman', 'role': 'Loyal Partner', 'seat': 'NORTH'},
+    3: {'name': 'Saboteur', 'role': 'Calculating Opponent', 'seat': 'WEST'}
+}
+
+def normalize_card_item(c):
+    if not c:
+        return None
+    if isinstance(c, str):
+        c = c.strip().upper()
+        s_char = c[-1]
+        r_str = c[:-1]
+        suit = SUIT_CHAR_MAP.get(s_char, '♠')
+        val = CARD_VALUES.get(r_str, 0)
+        pwr = CARD_POWER.get(r_str, 0)
+        return {'suit': suit, 'rank': r_str, 'value': val, 'power': pwr, 'raw': c}
+    elif isinstance(c, dict):
+        suit = SUIT_CHAR_MAP.get(c.get('suit', '♠'), c.get('suit', '♠'))
+        rank = c.get('rank', '7')
+        val = c.get('value', CARD_VALUES.get(rank, 0))
+        pwr = c.get('power', CARD_POWER.get(rank, 0))
+        return {'suit': suit, 'rank': rank, 'value': val, 'power': pwr, 'raw': f"{rank}{suit}"}
+    return None
+
+def generate_bot_table_talk(bot_name, bot_role, context_desc, language='en'):
+    """Generates authentic, punchy in-game table talk on pivotal moments using Groq LLM or fast fallback."""
+    key = get_groq_api_key()
+    if key:
+        system_prompt = (
+            f"You are {bot_name} ({bot_role}), playing the competitive card game Twenty-Eight (28). "
+            f"South is the human player. Give an authentic, human single-sentence reaction (under 10 words) matching your personality. "
+            'Return JSON strictly in format: {"dialogue": "...", "emote": "..."}.'
+        )
+        user_prompt = f"Moment: {context_desc}. Language: {language}."
+        try:
+            res = call_groq([
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ], timeout=1.4)
+            if res and isinstance(res, dict) and 'dialogue' in res:
+                return res.get('dialogue', ''), res.get('emote', 'thinking_face')
+        except Exception:
+            pass
+
+    # Fast contextual fallback templates
+    fallbacks = {
+        'Striker': {
+            'trump_drain': ("Bleeding your trumps out, South!", "fire"),
+            'high_cut': ("That trick is mine!", "crossed_swords"),
+            'lead_attack': ("Let's see what you've got.", "sunglasses"),
+            'bid': ("Pushing the stakes up!", "moneybag"),
+            'generic': ("Bring it on.", "fire")
+        },
+        'Wingman': {
+            'smear': ("Feeding you the points, partner!", "handshake"),
+            'trump_reveal': ("Time to bring out the secret weapon!", "shield"),
+            'desperation': ("I've got your back on this one.", "muscle"),
+            'bid': ("Backing you up all the way.", "thumbsup"),
+            'generic': ("Solid play, partner.", "sparkles")
+        },
+        'Saboteur': {
+            'ambush': ("Right into my trap...", "smirk"),
+            'contract_break': ("Contract broken. Game over.", "checkered_flag"),
+            'duck': ("Take the bait...", "face_with_monocle"),
+            'trump_reveal': ("Did you really think that was safe?", "eyes"),
+            'generic': ("Patience is a virtue.", "chess_pawn")
+        }
+    }
+    role_dict = fallbacks.get(bot_name, fallbacks['Saboteur'])
+    for k in role_dict:
+        if k in context_desc.lower():
+            return role_dict[k]
+    return role_dict['generic']
+
+def evaluate_bot_brain(data):
+    """
+    Hybrid "Brain + Persona" Bot Decision Engine.
+    Executes:
+    - Layer 1: Mathematical Brain (EV Bidding, 4-Seat Positional ISMCTS, Boss Promotion)
+    - Layer 2: Human Timing Engine (Snap-plays for forced cards, Tanking on high entropy)
+    - Layer 3: Persona & Table-Talk Engine (Groq LLM on pivotal moments)
+    - Layer 4: Opponent Profiling (Adapts to South's overbidding and baiting)
+    """
+    seat_val = data.get('seat', data.get('player_idx', 3))
+    player_idx = SEAT_MAP.get(seat_val if isinstance(seat_val, str) else seat_val, 3)
+    personality_name = data.get('personality', 'Saboteur')
+    if player_idx == 1: personality_name = 'Striker'
+    elif player_idx == 2: personality_name = 'Wingman'
+    elif player_idx == 3: personality_name = 'Saboteur'
+
+    phase = data.get('phase', 'PLAYING').upper()
+    raw_hand = data.get('botHand', data.get('hand', []))
+    hand = [normalize_card_item(c) for c in raw_hand if normalize_card_item(c)]
+
+    raw_trick = data.get('currentTrick', data.get('trick_cards', []))
+    trick_cards = []
+    for tc in raw_trick:
+        if isinstance(tc, dict):
+            c = normalize_card_item(tc.get('card', tc))
+            s = tc.get('seat', tc.get('player', 0))
+            p_seat = SEAT_MAP.get(s if isinstance(s, str) else s, 0)
+            trick_cards.append({'seat': SEAT_NAMES_LOOKUP.get(p_seat, 'SOUTH'), 'player': p_seat, 'card': c})
+
+    bid_state = data.get('bidState', {})
+    contract_bid = int(bid_state.get('target', data.get('current_bid', 16)))
+    highest_bidder_seat = bid_state.get('winner', data.get('highest_bidder', -1))
+    highest_bidder = SEAT_MAP.get(highest_bidder_seat if isinstance(highest_bidder_seat, str) else highest_bidder_seat, -1)
+    trump_revealed = bool(bid_state.get('trumpRevealed', data.get('trump_revealed', False)))
+    trump_suit = bid_state.get('trumpSuit', data.get('trump_suit', None))
+    if trump_suit:
+        trump_suit = SUIT_CHAR_MAP.get(trump_suit, trump_suit)
+
+    raw_history = data.get('playedCardsHistory', data.get('played_history', []))
+    played_history = [normalize_card_item(c) for c in raw_history if normalize_card_item(c)]
+
+    team_points = data.get('teamPoints', {})
+    t1_pts = int(team_points.get('NS', data.get('t1_pts', 0)))
+    t2_pts = int(team_points.get('EW', data.get('t2_pts', 0)))
+
+    session_mem = data.get('sessionMemory', {})
+    human_overbids = int(session_mem.get('humanOverbids', 0))
+    human_baits_jacks = float(session_mem.get('humanBaitsJacks', 0.0))
+    language = data.get('language', 'en')
+
+    # ==================== PHASE: BIDDING ====================
+    if phase == 'BIDDING':
+        suit_counts = {'♥':0, '♦':0, '♣':0, '♠':0}
+        suit_jacks = {'♥':0, '♦':0, '♣':0, '♠':0}
+        suit_nines = {'♥':0, '♦':0, '♣':0, '♠':0}
+        total_jacks = 0
+        for c in hand:
+            suit_counts[c['suit']] += 1
+            if c['rank'] == 'J': suit_jacks[c['suit']] = 1; total_jacks += 1
+            if c['rank'] == '9': suit_nines[c['suit']] = 1
+
+        best_ev = -1
+        best_suit = '♠'
+        for s in SUITS:
+            trump_len = suit_counts[s]
+            has_tj = suit_jacks[s]
+            has_t9 = suit_nines[s]
+            side_j = total_jacks - has_tj
+            side_a = len([c for c in hand if c['suit'] != s and c['rank'] == 'A'])
+            ev = 12 + (trump_len * 1.8) + (has_tj * 3.5) + (has_t9 * 2.5) + (side_j * 2.0) + (side_a * 0.8)
+            if all(cnt <= 1 for cnt in suit_counts.values()):
+                ev -= 3.0
+            if ev > best_ev:
+                best_ev = ev
+                best_suit = s
+
+        partner_idx = (player_idx + 2) % 4
+        is_partner_high = (highest_bidder == partner_idx)
+
+        # Cross-Round Opponent Profiling: If South overbids frequently, opponents let South hang
+        if human_overbids >= 2 and player_idx in [1, 3]:
+            best_ev -= 1.5
+
+        max_willing = round(best_ev)
+        if player_idx == 1 and best_ev >= 18: max_willing += 1
+        elif player_idx == 2: max_willing = min(22, max_willing)
+
+        chosen_bid = 'Pass'
+        if not is_partner_high and contract_bid < max_willing:
+            chosen_bid = max(16, contract_bid + 1)
+
+        win_prob = round(min(0.95, max(0.25, 0.45 + (best_ev - 16) * 0.05)), 2)
+
+        # Human Timing & Table Talk
+        is_contested = (isinstance(chosen_bid, int) and chosen_bid >= 18)
+        pre_think_ms = random.randint(1800, 2600) if is_contested else (random.randint(550, 950) if chosen_bid == 'Pass' else random.randint(1100, 1600))
+        
+        dialogue = ""
+        emote = "thinking_face"
+        if is_contested:
+            context = f"{personality_name} placing high bid of {chosen_bid}"
+            dialogue, emote = generate_bot_table_talk(personality_name, BOT_ROLES[player_idx]['role'], context, language)
+        elif chosen_bid == 'Pass' and human_overbids >= 2 and player_idx == 3:
+            dialogue, emote = ("All yours, South. Don't slip.", "smirk")
+
+        return {
+            "chosenAction": { "type": "PLACE_BID", "bid": chosen_bid, "suit": best_suit },
+            "winProbability": win_prob,
+            "humanBehavior": {
+                "preThinkDelayMs": pre_think_ms,
+                "hoverFakeoutCard": None,
+                "emote": emote,
+                "tableTalk": dialogue,
+                "highDecisionEntropy": False
+            },
+            "sessionMemory": session_mem
+        }
+
+    # ==================== PHASE: SET_TRUMP ====================
+    elif phase == 'SET_TRUMP':
+        suit_scores = {s: 0 for s in SUITS}
+        suit_lengths = {s: 0 for s in SUITS}
+        for c in hand:
+            suit_scores[c['suit']] += c['power'] + (c['value'] * 2)
+            suit_lengths[c['suit']] += 1
+
+        avail = list(set(c['suit'] for c in hand))
+        multi_suits = [s for s in avail if suit_lengths[s] >= 2]
+        candidates = multi_suits if multi_suits else avail
+
+        best_suit = candidates[0]
+        best_sc = -1
+        for s in candidates:
+            sc = (suit_lengths[s] * 12) + suit_scores[s]
+            if sc > best_sc:
+                best_sc = sc
+                best_suit = s
+
+        pre_think_ms = random.randint(1900, 2600)
+        dialogue, emote = generate_bot_table_talk(personality_name, BOT_ROLES[player_idx]['role'], "Setting secret trump", language)
+
+        return {
+            "chosenAction": { "type": "SET_TRUMP", "suit": best_suit },
+            "winProbability": 0.72,
+            "humanBehavior": {
+                "preThinkDelayMs": pre_think_ms,
+                "hoverFakeoutCard": None,
+                "emote": emote,
+                "tableTalk": dialogue,
+                "highDecisionEntropy": False
+            },
+            "sessionMemory": session_mem
+        }
+
+    # ==================== PHASE: PLAYING ====================
+    lead_suit = trick_cards[0]['card']['suit'] if trick_cards else None
+    seat_in_trick = len(trick_cards) # 0=Lead, 1=2nd, 2=3rd, 3=4th
+
+    # Determine legal card indices
+    if not trick_cards:
+        # Leader: if secret trump bidder before reveal, cannot lead secret trump unless void in all other suits
+        if not trump_revealed and player_idx == highest_bidder and trump_suit:
+            non_trumps = [i for i, c in enumerate(hand) if c['suit'] != trump_suit]
+            valid_indices = non_trumps if non_trumps else list(range(len(hand)))
+        else:
+            valid_indices = list(range(len(hand)))
+    else:
+        has_lead = any(c['suit'] == lead_suit for c in hand)
+        if has_lead:
+            valid_indices = [i for i, c in enumerate(hand) if c['suit'] == lead_suit]
+        else:
+            valid_indices = list(range(len(hand)))
+
+    # Evaluate CardMemory Matrix: unplayed cards by suit
+    unplayed_by_suit = {s: ['J', '9', 'A', '10', 'K', 'Q', '8', '7'] for s in SUITS}
+    for c in played_history:
+        if c['rank'] in unplayed_by_suit.get(c['suit'], []):
+            unplayed_by_suit[c['suit']].remove(c['rank'])
+    for tc in trick_cards:
+        if tc['card']['rank'] in unplayed_by_suit.get(tc['card']['suit'], []):
+            unplayed_by_suit[tc['card']['suit']].remove(tc['card']['rank'])
+
+    def is_boss(card):
+        rem = unplayed_by_suit.get(card['suit'], [])
+        return len(rem) > 0 and rem[0] == card['rank']
+
+    # Current trick winner
+    current_winner_player = -1
+    winning_card = None
+    trick_points = sum(tc['card']['value'] for tc in trick_cards)
+    for tc in trick_cards:
+        c = tc['card']
+        p = tc['player']
+        if winning_card is None:
+            current_winner_player, winning_card = p, c
+        else:
+            is_c_trump = trump_revealed and trump_suit and (c['suit'] == trump_suit)
+            is_w_trump = trump_revealed and trump_suit and (winning_card['suit'] == trump_suit)
+            if is_c_trump and not is_w_trump:
+                current_winner_player, winning_card = p, c
+            elif is_c_trump and is_w_trump and c['power'] > winning_card['power']:
+                current_winner_player, winning_card = p, c
+            elif not is_c_trump and not is_w_trump and c['suit'] == lead_suit and c['power'] > winning_card['power']:
+                current_winner_player, winning_card = p, c
+
+    partner_idx = (player_idx + 2) % 4
+    is_partner_winning = (current_winner_player == partner_idx)
+
+    my_team = 1 if player_idx in [0, 2] else 2
+    defending_needed = (29 - contract_bid) - (t1_pts if my_team == 1 else t2_pts)
+
+    # Tactical Anti-Reveal Logic
+    reveal_trump = False
+    if not trump_revealed and trick_cards and not any(c['suit'] == lead_suit for c in hand):
+        # Void in lead suit
+        is_partner_boss = winning_card and is_boss(winning_card)
+        is_partner_honor = winning_card and winning_card['rank'] in ['J', '9']
+        is_last_seat = (seat_in_trick == 3)
+
+        if is_partner_winning and (is_partner_boss or is_partner_honor or is_last_seat):
+            reveal_trump = False # Anti-Reveal: Slough points onto partner!
+        elif trick_points == 0 and len(played_history) <= 8:
+            reveal_trump = False # Zero-point junk trick: save secret trump!
+        elif player_idx == 3 and defending_needed <= 3 and trick_points >= 2:
+            reveal_trump = True # Saboteur contract breaker threshold!
+        elif trick_points >= 2 or (winning_card and winning_card['rank'] in ['J', '9', 'A']):
+            reveal_trump = True
+
+    # Score each legal move with 28 tactical heuristics
+    move_scores = []
+    for idx in valid_indices:
+        card = hand[idx]
+        score = 0
+
+        # Positional awareness
+        if seat_in_trick == 0:
+            # Seat 1: Boss cashing vs Probing
+            if is_boss(card):
+                score += 35
+            elif card['rank'] == '9':
+                score -= 15 # Probing rule: don't lead unprotected 9!
+            elif card['rank'] in ['7', '8']:
+                score += 10 # Smoke out honors
+            
+            # Striker trump drain
+            if personality_name == 'Striker' and trump_revealed and trump_suit and card['suit'] == trump_suit:
+                if card['rank'] in ['J', '9']: score += 40
+            
+            # Saboteur baiting
+            if personality_name == 'Saboteur' and not trump_revealed and card['rank'] in ['7', '8']:
+                if any(c['suit'] == card['suit'] and c['rank'] == 'J' for c in hand):
+                    score += 30
+
+        elif seat_in_trick == 1:
+            # Seat 2: Second Hand Low
+            lead_c = trick_cards[0]['card']
+            if lead_c['rank'] in ['7', '8']:
+                boss_r = unplayed_by_suit.get(lead_c['suit'], ['J'])[0]
+                if boss_r == 'J' and card['rank'] in ['9', 'A', '10']:
+                    # Adaptive profiling: if South baits Jacks, Saboteur strictly ducks low!
+                    penalty = 35 if (personality_name == 'Saboteur' and human_baits_jacks >= 0.5) else 25
+                    score -= penalty
+                elif card['rank'] in ['7', '8', 'Q']:
+                    score += 18
+
+        elif seat_in_trick == 2:
+            # Seat 3: Third Hand High
+            lead_c = trick_cards[0]['card']
+            if trick_cards[0]['player'] == partner_idx and lead_c['rank'] in ['7', '8'] and card['power'] >= 6:
+                score += 30
+
+        elif seat_in_trick == 3:
+            # Seat 4: Maximum Greed
+            if is_partner_winning:
+                # Fatten trick with points
+                if card['value'] > 0:
+                    score += card['value'] * 25
+                    if card['rank'] != 'J': score += 10
+            else:
+                # Win as cheaply as possible
+                beats_winner = False
+                is_c_trump = (trump_revealed or reveal_trump) and trump_suit and (card['suit'] == trump_suit)
+                is_w_trump = trump_revealed and trump_suit and (winning_card['suit'] == trump_suit)
+                if is_c_trump and not is_w_trump: beats_winner = True
+                elif is_c_trump and is_w_trump and card['power'] > winning_card['power']: beats_winner = True
+                elif not is_c_trump and not is_w_trump and card['suit'] == lead_suit and card['power'] > winning_card['power']: beats_winner = True
+
+                if beats_winner:
+                    score += 40 - (card['power'] * 3) # Prefers lowest winner e.g. 10 over Jack!
+                else:
+                    score -= card['value'] * 20
+                    if card['power'] <= 2: score += 15
+
+        # Personality bonus
+        if personality_name == 'Wingman' and is_partner_winning:
+            score += card['value'] * 20
+        elif personality_name == 'Saboteur' and defending_needed <= 3 and trick_points >= 2:
+            score += 45
+
+        # Royal pair protection in Phase 1
+        if not trump_revealed and card['rank'] in ['K', 'Q']:
+            has_mate = any(c['suit'] == card['suit'] and c['rank'] in ['K', 'Q'] and c['rank'] != card['rank'] for c in hand)
+            if has_mate: score -= 30
+
+        move_scores.append({'index': idx, 'card': card, 'score': score})
+
+    move_scores.sort(key=lambda m: m['score'], reverse=True)
+    best_move = move_scores[0]
+    runner_up = move_scores[1] if len(move_scores) > 1 else None
+
+    # Calculate Decision Entropy & Win Probability
+    score_gap = (best_move['score'] - runner_up['score']) if runner_up else 999
+    is_high_entropy = (len(valid_indices) > 1 and score_gap <= 8)
+    win_prob = round(min(0.96, max(0.24, 0.52 + best_move['score'] * 0.015)), 2)
+
+    # Human Timing Engine
+    if len(valid_indices) == 1:
+        pre_think_ms = random.randint(280, 420) # Forced Snap-Play!
+        hover_fakeout = None
+    elif is_high_entropy or reveal_trump or trick_points >= 4:
+        pre_think_ms = random.randint(1850, 2800) # The Tank!
+        hover_fakeout = runner_up['card']['raw'] if runner_up else None
+    else:
+        pre_think_ms = random.randint(750, 1350)
+        hover_fakeout = None
+
+    # Persona & Table Talk Engine on Pivotal Moments
+    dialogue = ""
+    emote = ""
+    is_pivotal = reveal_trump or (trick_points >= 4) or (personality_name == 'Saboteur' and defending_needed <= 3) or is_high_entropy
+    if is_pivotal:
+        ctx = "trump_reveal" if reveal_trump else ("ambush" if trick_points >= 4 else "high_decision")
+        dialogue, emote = generate_bot_table_talk(personality_name, BOT_ROLES[player_idx]['role'], ctx, language)
+
+    return {
+        "chosenAction": {
+            "type": "PLAY_CARD",
+            "card": best_move['card']['raw'],
+            "cardIndex": best_move['index'],
+            "revealTrump": reveal_trump
+        },
+        "winProbability": win_prob,
+        "humanBehavior": {
+            "preThinkDelayMs": pre_think_ms,
+            "hoverFakeoutCard": hover_fakeout,
+            "emote": emote,
+            "tableTalk": dialogue,
+            "highDecisionEntropy": is_high_entropy
+        },
+        "sessionMemory": session_mem
+    }
+
+
 class handler(BaseHTTPRequestHandler):
     """Vercel Serverless Function Handler"""
 
@@ -900,7 +1334,7 @@ class handler(BaseHTTPRequestHandler):
             'version': '2.3.0',
             'groq_active': bool(get_groq_api_key()),
             'received_path': raw_path,
-            'endpoints': ['/api/deal', '/api/bid', '/api/trump', '/api/play', '/api/recap', '/api/health']
+            'endpoints': ['/api/bot-brain', '/api/deal', '/api/bid', '/api/trump', '/api/play', '/api/recap', '/api/health']
         })
 
     def do_POST(self):
@@ -917,7 +1351,11 @@ class handler(BaseHTTPRequestHandler):
 
         route_str = f"{raw_path} {data.get('action', '')}".lower()
 
-        if 'deal' in route_str:
+        if any(k in route_str for k in ['bot-brain', 'bot_brain', 'bot-turn', 'bot_turn']):
+            res = evaluate_bot_brain(data)
+            self._send_json(200, res)
+
+        elif 'deal' in route_str:
             res = deal_cards()
             self._send_json(200, res)
 

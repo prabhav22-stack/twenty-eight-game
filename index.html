@@ -2897,6 +2897,23 @@ function hostStartGame() {
 
 // ==================== BACKEND API CLIENT ====================
 const BackendAPI = {
+    async getBotBrain(payload) {
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 2800);
+            const res = await fetch('/api/bot-brain', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: ctrl.signal
+            });
+            clearTimeout(timer);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch(e) {
+            return null;
+        }
+    },
     async getBid(hand, currentBid, highestBidder, playerIdx, passCount) {
         try {
             const ctrl = new AbortController();
@@ -3384,6 +3401,23 @@ class ISMCTS {
 
 // ==================== 28 GAME ENGINE ====================
 class TwentyEightEngine {
+    getSessionMemory() {
+        try {
+            let data = localStorage.getItem('28_session_memory');
+            return data ? JSON.parse(data) : { humanOverbids: 0, humanBaitsJacks: 0, roundsPlayed: 0 };
+        } catch (e) {
+            return { humanOverbids: 0, humanBaitsJacks: 0, roundsPlayed: 0 };
+        }
+    }
+
+    updateSessionMemory(update) {
+        try {
+            let mem = this.getSessionMemory();
+            Object.assign(mem, update);
+            localStorage.setItem('28_session_memory', JSON.stringify(mem));
+        } catch (e) {}
+    }
+
     constructor() {
         this.suits = ['♥', '♦', '♣', '♠'];
         this.ranks = ['J', '9', 'A', '10', 'K', 'Q', '8', '7'];
@@ -3573,70 +3607,102 @@ class TwentyEightEngine {
 
 
     async getAIBidAsync() {
+        let pIndex = this.currentTurn;
+        this.lastBotBehavior = null;
         try {
-            if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getBid) {
-                let pIndex = this.currentTurn;
-                let remoteRes = await BackendAPI.getBid(
-                    this.players[pIndex],
-                    this.currentBid,
-                    this.highestBidder,
-                    pIndex,
-                    this.passCount
-                );
-                if (remoteRes !== null && remoteRes !== undefined) {
-                    if (typeof remoteRes === 'object') {
-                        if (remoteRes.bid !== undefined) return remoteRes.bid;
-                    } else {
-                        return remoteRes;
-                    }
+            if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getBotBrain) {
+                let payload = {
+                    seat: COMPASS_FULL[pIndex],
+                    player_idx: pIndex,
+                    personality: pIndex === 2 ? 'Wingman' : (pIndex === 1 ? 'Striker' : 'Saboteur'),
+                    phase: 'BIDDING',
+                    botHand: (this.players[pIndex] || []).map(c => `${c.rank}${c.suit}`),
+                    current_bid: this.currentBid,
+                    highest_bidder: this.highestBidder,
+                    sessionMemory: this.getSessionMemory(),
+                    language: typeof currentLang !== 'undefined' ? currentLang : 'en'
+                };
+                let brainRes = await BackendAPI.getBotBrain(payload);
+                if (brainRes && brainRes.chosenAction && brainRes.chosenAction.bid !== undefined) {
+                    this.lastBotBehavior = brainRes.humanBehavior;
+                    return brainRes.chosenAction.bid;
                 }
             }
         } catch (e) {
-            console.warn('Backend bid fetch error, using local AI:', e);
+            console.warn('Backend bot-brain bid error, using local AI:', e);
         }
         return this.getAIBid();
     }
 
     async getAITrumpAsync() {
+        let pIndex = this.highestBidder;
+        this.lastBotBehavior = null;
         try {
-            if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getTrump) {
-                let pIndex = this.highestBidder;
-                let remoteTrump = await BackendAPI.getTrump(this.players[pIndex], pIndex);
-                if (remoteTrump && this.suits.includes(remoteTrump)) {
-                    return remoteTrump;
+            if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getBotBrain) {
+                let payload = {
+                    seat: COMPASS_FULL[pIndex],
+                    player_idx: pIndex,
+                    personality: pIndex === 2 ? 'Wingman' : (pIndex === 1 ? 'Striker' : 'Saboteur'),
+                    phase: 'SET_TRUMP',
+                    botHand: (this.players[pIndex] || []).map(c => `${c.rank}${c.suit}`),
+                    sessionMemory: this.getSessionMemory(),
+                    language: typeof currentLang !== 'undefined' ? currentLang : 'en'
+                };
+                let brainRes = await BackendAPI.getBotBrain(payload);
+                if (brainRes && brainRes.chosenAction && brainRes.chosenAction.suit) {
+                    this.lastBotBehavior = brainRes.humanBehavior;
+                    return brainRes.chosenAction.suit;
                 }
             }
         } catch (e) {
-            console.warn('Backend trump fetch error, using local AI:', e);
+            console.warn('Backend bot-brain trump error, using local AI:', e);
         }
         return this.getAITrump();
     }
 
     async getAIPlayAsync() {
+        let pIndex = this.currentTurn;
+        this.lastBotBehavior = null;
         try {
-            if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getPlay) {
-                let pIndex = this.currentTurn;
-                // Strict imperfect information: only bidder knows secret trump until revealed!
+            if (typeof BackendAPI !== 'undefined' && BackendAPI && BackendAPI.getBotBrain) {
                 let knownTrumpSuit = (this.trumpRevealed || pIndex === this.highestBidder) ? this.trumpSuit : null;
-                let remotePlay = await BackendAPI.getPlay(
-                    this.players[pIndex],
-                    this.trickCards,
-                    this.leadSuit,
-                    knownTrumpSuit,
-                    this.trumpRevealed,
-                    pIndex,
-                    this.playedCardsHistory,
-                    this.voidInSuit[pIndex] || {}
-                );
-                if (remotePlay && typeof remotePlay.card_index === 'number') {
+                let payload = {
+                    seat: COMPASS_FULL[pIndex],
+                    player_idx: pIndex,
+                    personality: pIndex === 2 ? 'Wingman' : (pIndex === 1 ? 'Striker' : 'Saboteur'),
+                    phase: 'PLAYING',
+                    botHand: (this.players[pIndex] || []).map(c => `${c.rank}${c.suit}`),
+                    currentTrick: (this.trickCards || []).map(tc => ({
+                        seat: COMPASS_FULL[tc.player],
+                        card: `${tc.card.rank}${tc.card.suit}`
+                    })),
+                    bidState: {
+                        winner: COMPASS_FULL[this.highestBidder],
+                        target: this.currentBid,
+                        trumpRevealed: this.trumpRevealed,
+                        trumpSuit: knownTrumpSuit
+                    },
+                    playedCardsHistory: (this.playedCardsHistory || []).map(c => `${c.rank}${c.suit}`),
+                    knownVoids: this.voidInSuit,
+                    teamPoints: { NS: this.t1TrickPts, EW: this.t2TrickPts },
+                    sessionMemory: this.getSessionMemory(),
+                    language: typeof currentLang !== 'undefined' ? currentLang : 'en'
+                };
+                let brainRes = await BackendAPI.getBotBrain(payload);
+                if (brainRes && brainRes.chosenAction && typeof brainRes.chosenAction.cardIndex === 'number') {
                     let valids = this.getValidPlayIndices(pIndex);
-                    if (valids.includes(remotePlay.card_index)) {
-                        return { reveal: !!remotePlay.reveal_trump, index: remotePlay.card_index };
+                    if (valids.includes(brainRes.chosenAction.cardIndex)) {
+                        this.lastBotBehavior = brainRes.humanBehavior;
+                        return {
+                            reveal: !!brainRes.chosenAction.revealTrump,
+                            index: brainRes.chosenAction.cardIndex,
+                            behavior: brainRes.humanBehavior
+                        };
                     }
                 }
             }
         } catch (e) {
-            console.warn('Backend play fetch error, using local AI:', e);
+            console.warn('Backend bot-brain play error, using local AI:', e);
         }
         return this.getAIPlay();
     }
@@ -4408,9 +4474,53 @@ class UIController {
         l.insertBefore(div, l.firstChild);
     }
 
-    showSpeechBubble(pIndex, text) {
-        // In-game dialogue disabled for focused, grandmaster gameplay
-        return;
+    showSpeechBubble(pIndex, text, emote = '') {
+        if (!text) return;
+        const positions = ['bottom', 'right', 'top', 'left'];
+        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
+        const seatEl = document.getElementById(`player-${positions[visualPos]}`);
+        if (!seatEl) return;
+
+        let existing = seatEl.querySelector('.speech-bubble');
+        if (!existing) {
+            existing = document.createElement('div');
+            existing.className = `speech-bubble bubble-${positions[visualPos]}`;
+            seatEl.appendChild(existing);
+        }
+
+        const emoteIcons = {
+            'sweat_smile': '😅', 'smirk': '😏', 'thinking_face': '🤔', 'sunglasses': '😎',
+            'fire': '🔥', 'shield': '🛡️', 'handshake': '🤝', 'crossed_swords': '⚔️',
+            'chess_pawn': '♟️', 'thumbsup': '👍', 'muscle': '💪', 'sparkles': '✨',
+            'checkered_flag': '🏁', 'eyes': '👀', 'lock': '🔒', 'moneybag': '💰'
+        };
+        let iconHtml = emote ? `<span style="margin-right:4px;">${emoteIcons[emote] || '💬'}</span>` : '';
+        existing.innerHTML = `${iconHtml}<span>${text}</span>`;
+        existing.classList.add('show');
+
+        if (seatEl.speechBubbleTimer) clearTimeout(seatEl.speechBubbleTimer);
+        seatEl.speechBubbleTimer = setTimeout(() => {
+            existing.classList.remove('show');
+        }, 3200);
+    }
+
+    async animateCardHoverFakeout(pIndex, cardRaw) {
+        const positions = ['bottom', 'right', 'top', 'left'];
+        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
+        const seatEl = document.getElementById(`player-${positions[visualPos]}`);
+        if (!seatEl) return;
+
+        const cards = seatEl.querySelectorAll('.card, .player-card-item, .card-item');
+        if (!cards || cards.length === 0) return;
+
+        const targetCard = cards[Math.floor(Math.random() * cards.length)];
+        if (window.gsap && targetCard) {
+            let pos = positions[visualPos];
+            let move = (pos === 'top') ? { y: 14 } : (pos === 'left' ? { x: 14 } : (pos === 'right' ? { x: -14 } : { y: -14 }));
+            await gsap.to(targetCard, { ...move, duration: 0.22, ease: "power2.out" });
+            await new Promise(r => setTimeout(r, 360));
+            await gsap.to(targetCard, { x: 0, y: 0, duration: 0.18, ease: "power2.in" });
+        }
     }
 
     generateGamePointsHTML(pts) {
@@ -5718,81 +5828,63 @@ class UIController {
         }
 
         if (isAITurn && (gameMode === 'ai' || (gameMode === 'multi' && isHost))) {
+            let turnPlayer = this.engine.currentTurn;
+
             if (this.engine.phase === 'BIDDING') {
-                // Paced human thinking pause for bidding: 3.4s - 4.2s
-                let bidDelay = 3400 + Math.floor(Math.random() * 800);
-                this.aiTimer = setTimeout(async () => {
-                    try {
-                        let val = await this.engine.getAIBidAsync();
-                        if(gameMode === 'multi') broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex:this.engine.currentTurn, val:val, won:false}});
-                        this.engine.submitBid(this.engine.currentTurn, val);
-                    } catch (err) {
-                        console.error('Error in AI bid turn, using local fallback:', err);
-                        let fallbackVal = this.engine.getAIBid();
-                        this.engine.submitBid(this.engine.currentTurn, fallbackVal);
-                    } finally {
+                (async () => {
+                    let val = await this.engine.getAIBidAsync();
+                    let beh = this.engine.lastBotBehavior;
+                    let delay = (beh && beh.preThinkDelayMs) ? beh.preThinkDelayMs : (1200 + Math.floor(Math.random() * 600));
+                    if (beh && beh.tableTalk) this.showSpeechBubble(turnPlayer, beh.tableTalk, beh.emote);
+
+                    this.aiTimer = setTimeout(() => {
+                        if (gameMode === 'multi') broadcastNetMessage({ type: 'UI_EVENT', bidEvent: { pIndex: turnPlayer, val: val, won: false } });
+                        this.engine.submitBid(turnPlayer, val);
                         this.gameLoop();
-                    }
-                }, bidDelay); 
+                    }, delay);
+                })();
             } 
             else if (this.engine.phase === 'SET_TRUMP') {
-                // Thoughtful deliberation for secret trump selection: 2.4s - 3.0s
-                let trumpDelay = 2400 + Math.floor(Math.random() * 600);
-                this.aiTimer = setTimeout(async () => {
-                    try {
-                        let suit = await this.engine.getAITrumpAsync();
+                (async () => {
+                    let suit = await this.engine.getAITrumpAsync();
+                    let beh = this.engine.lastBotBehavior;
+                    let delay = (beh && beh.preThinkDelayMs) ? beh.preThinkDelayMs : (1800 + Math.floor(Math.random() * 500));
+                    if (beh && beh.tableTalk) this.showSpeechBubble(turnPlayer, beh.tableTalk, beh.emote);
+
+                    this.aiTimer = setTimeout(() => {
                         this.engine.setTrump(suit);
-                    } catch (err) {
-                        console.error('Error in AI trump turn, using local fallback:', err);
-                        let fallbackSuit = this.engine.getAITrump();
-                        this.engine.setTrump(fallbackSuit);
-                    } finally {
                         this.gameLoop();
-                    }
-                }, trumpDelay); 
+                    }, delay);
+                })();
             }
             else if (this.engine.phase === 'PLAYING') {
-                let team = (this.engine.currentTurn === 0 || this.engine.currentTurn === 2) ? 0 : 1;
-                if (!this.engine.pairDeclared && this.engine.hasPair(this.engine.currentTurn) && this.engine.tricksWonByTeam[team] > 0) {
-                    this.engine.declarePair(this.engine.currentTurn);
+                let team = (turnPlayer === 0 || turnPlayer === 2) ? 0 : 1;
+                if (!this.engine.pairDeclared && this.engine.hasPair(turnPlayer) && this.engine.tricksWonByTeam[team] > 0) {
+                    this.engine.declarePair(turnPlayer);
                 }
 
-                // Authentic human play pacing:
-                // - Forced plays (1 legal card): 1.5s - 1.8s
-                // - Leading a trick (opening decision): 2.3s - 2.9s
-                // - Normal follow/smear decisions: 2.0s - 2.6s
-                let valids = this.engine.getValidPlayIndices(this.engine.currentTurn);
-                let isLeading = (this.engine.trickCards.length === 0);
-                let playDelay;
-                if (valids.length <= 1) {
-                    playDelay = 1500 + Math.floor(Math.random() * 350);
-                } else if (isLeading) {
-                    playDelay = 2300 + Math.floor(Math.random() * 600);
-                } else {
-                    playDelay = 2000 + Math.floor(Math.random() * 600);
-                }
+                (async () => {
+                    let aiDecision = await this.engine.getAIPlayAsync();
+                    let beh = aiDecision.behavior || this.engine.lastBotBehavior;
+                    let delay = (beh && beh.preThinkDelayMs) ? beh.preThinkDelayMs : 1000;
 
-                this.aiTimer = setTimeout(async () => {
-                    try {
-                        let aiDecision = await this.engine.getAIPlayAsync();
-                        let turnPlayer = this.engine.currentTurn;
+                    if (beh && beh.hoverFakeoutCard) {
+                        await this.animateCardHoverFakeout(turnPlayer, beh.hoverFakeoutCard);
+                    }
+
+                    if (beh && beh.tableTalk) {
+                        this.showSpeechBubble(turnPlayer, beh.tableTalk, beh.emote);
+                    }
+
+                    this.aiTimer = setTimeout(() => {
                         if (aiDecision.reveal) {
                             this.engine.revealTrump(turnPlayer);
                         } else {
                             this.engine.playCard(turnPlayer, aiDecision.index);
                         }
-                    } catch (err) {
-                        console.error('Error in AI play turn, using local fallback:', err);
-                        let fallback = this.engine.getAIPlay();
-                        if (fallback.reveal) {
-                            this.engine.revealTrump(this.engine.currentTurn);
-                        } else {
-                            this.engine.playCard(this.engine.currentTurn, fallback.index);
-                        }
-                    } finally {
                         this.gameLoop();
-                    }
-                }, playDelay); 
+                    }, Math.max(250, delay));
+                })();
             }
         }
 
