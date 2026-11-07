@@ -3097,6 +3097,13 @@ class InferenceMatrix {
             { '♠': false, '♥': false, '♣': false, '♦': false }
         ];
         this.playedCards = [];
+        this.bidderExcludedTrumps = new Set();
+        this.remainingBySuit = {
+            '♠': ['J', '9', 'A', '10', 'K', 'Q', '8', '7'],
+            '♥': ['J', '9', 'A', '10', 'K', 'Q', '8', '7'],
+            '♣': ['J', '9', 'A', '10', 'K', 'Q', '8', '7'],
+            '♦': ['J', '9', 'A', '10', 'K', 'Q', '8', '7']
+        };
         this.allCards = [];
         const suits = ['♠', '♥', '♣', '♦'];
         const ranks = ['7', '8', 'Q', 'K', '10', 'A', '9', 'J'];
@@ -3108,12 +3115,39 @@ class InferenceMatrix {
             }
         }
     }
+
+    recordBidderLead(suit) {
+        if (suit) this.bidderExcludedTrumps.add(suit);
+    }
+
     recordCardPlay(playerIndex, card, leadSuit) {
         this.playedCards.push({ suit: card.suit, rank: card.rank });
         if (leadSuit && card.suit !== leadSuit && this.voidInSuit[playerIndex]) {
             this.voidInSuit[playerIndex][leadSuit] = true;
         }
+        if (this.remainingBySuit[card.suit]) {
+            let idx = this.remainingBySuit[card.suit].indexOf(card.rank);
+            if (idx !== -1) this.remainingBySuit[card.suit].splice(idx, 1);
+        }
     }
+
+    isBossCard(card) {
+        if (!card || !this.remainingBySuit[card.suit]) return false;
+        let rem = this.remainingBySuit[card.suit];
+        if (rem.length === 0) return true;
+        return rem[0] === card.rank;
+    }
+
+    getBossRank(suit) {
+        if (!suit || !this.remainingBySuit[suit] || this.remainingBySuit[suit].length === 0) return null;
+        return this.remainingBySuit[suit][0];
+    }
+
+    isProbableTrump(suit) {
+        if (!suit) return false;
+        return !this.bidderExcludedTrumps.has(suit);
+    }
+
     sampleHypotheticalWorld(mySeat, myHand, handCounts) {
         const seen = new Set();
         for (let c of this.playedCards) seen.add(`${c.rank}${c.suit}`);
@@ -3148,11 +3182,38 @@ class InferenceMatrix {
 
 class ISMCTS {
     static selectBestPlay(params) {
-        const { hand, validIndices, trickCards, leadSuit, trumpSuit, trumpRevealed, playerIdx, personality, inference, numRollouts = 50 } = params;
+        const {
+            hand,
+            validIndices,
+            trickCards,
+            leadSuit,
+            trumpSuit,
+            trumpRevealed,
+            playerIdx,
+            personality = 'wingman',
+            inference,
+            currentBid = 16,
+            t1Points = 0,
+            t2Points = 0,
+            highestBidder = -1,
+            numRollouts = 60
+        } = params;
+
         if (!validIndices || validIndices.length === 0) return 0;
         if (validIndices.length === 1) return validIndices[0];
 
+        const myTeam = (playerIdx === 0 || playerIdx === 2) ? 1 : 2;
+        const contractorTeam = (highestBidder === 0 || highestBidder === 2) ? 1 : 2;
+        const isContractorSide = (myTeam === contractorTeam);
         const partnerSeat = (playerIdx + 2) % 4;
+        const opp1 = (playerIdx + 1) % 4;
+        const opp2 = (playerIdx + 3) % 4;
+        const seatInTrick = (trickCards || []).length;
+
+        const myTeamPts = (myTeam === 1) ? t1Points : t2Points;
+        const oppTeamPts = (myTeam === 1) ? t2Points : t1Points;
+        const defendingNeeded = (29 - currentBid) - (isContractorSide ? oppTeamPts : myTeamPts);
+
         const scores = {};
         for (let idx of validIndices) scores[idx] = 0;
 
@@ -3172,23 +3233,120 @@ class ISMCTS {
                 const isTrickOver = (simTrick.length === 4);
                 const trickPts = simTrick.reduce((sum, tc) => sum + (tc.card.value || 0), 0);
                 const isWinnerUs = (trickWinner.player === playerIdx || trickWinner.player === partnerSeat);
+                const isWinnerPartner = (trickWinner.player === partnerSeat);
+                const isWinnerMe = (trickWinner.player === playerIdx);
 
                 if (isTrickOver) {
-                    rolloutScore += isWinnerUs ? (trickPts * 12) : (-trickPts * 12);
+                    rolloutScore += isWinnerUs ? (trickPts * 14) : (-trickPts * 14);
                 } else {
-                    rolloutScore += isWinnerUs ? 4 : -4;
+                    rolloutScore += isWinnerUs ? 5 : -5;
                 }
 
-                if (personality === 'wingman') {
-                    if (trickWinner.player === partnerSeat) rolloutScore += (card.value * 8) + 6;
-                    if (card.rank === 'J' && !isTrickOver) rolloutScore -= 6;
-                } else if (personality === 'striker') {
-                    if (card.power >= 6) rolloutScore += 8;
-                    if (isWinnerUs && trickPts >= 2) rolloutScore += 10;
-                } else if (personality === 'saboteur') {
-                    if ((card.rank === 'J' || card.rank === '9') && trickPts < 3 && !isTrickOver) rolloutScore -= 14;
-                    if (!isWinnerUs && trickPts >= 4 && (card.rank === 'J' || card.rank === '9')) rolloutScore += 18;
+                // Positional Awareness Logic (Seats 1 - 4)
+                if (seatInTrick === 0) {
+                    // SEAT 1 (Leader): Boss card cashing vs Probing
+                    const isBoss = inference ? inference.isBossCard(card) : (card.rank === 'J');
+                    const isTrump = trumpRevealed && trumpSuit && (card.suit === trumpSuit);
+
+                    // Trump Pull Cessation: If both opponents void in trumps, save trumps to ruff!
+                    if (isTrump && inference && inference.voidInSuit[opp1][trumpSuit] && inference.voidInSuit[opp2][trumpSuit]) {
+                        rolloutScore -= 30;
+                    }
+
+                    if (isBoss) {
+                        const oppBehind = (playerIdx + 1) % 4;
+                        const oppBehindVoid = inference && inference.voidInSuit[oppBehind][card.suit];
+                        const oppHasTrump = !trumpRevealed || (inference && !inference.voidInSuit[oppBehind][trumpSuit]);
+                        if (oppBehindVoid && oppHasTrump && !isTrump) {
+                            rolloutScore -= 25; // Defensive: don't feed boss card into opponent's trump void
+                        } else {
+                            rolloutScore += 16; // Cash guaranteed boss card!
+                        }
+                    } else if (card.rank === '9') {
+                        rolloutScore -= 12; // Probing rule: don't lead 9 without Jack!
+                    } else if (card.rank === '7' || card.rank === '8') {
+                        rolloutScore += 6; // Probe low to smoke out opponent's Jack
+                    }
+                } else if (seatInTrick === 1) {
+                    // SEAT 2 (Second Hand Low)
+                    const leadPlay = trickCards[0];
+                    const isLeadByOpponent = (leadPlay.player === opp1 || leadPlay.player === opp2);
+                    const isLeadLow = (leadPlay.card.rank === '7' || leadPlay.card.rank === '8');
+
+                    if (isLeadByOpponent && isLeadLow) {
+                        const bossRank = inference ? inference.getBossRank(leadPlay.card.suit) : 'J';
+                        if (bossRank === 'J' && (card.rank === '9' || card.rank === 'A' || card.rank === '10')) {
+                            rolloutScore -= 18; // Don't waste vulnerable honors into Seat 4!
+                        } else if (card.rank === '7' || card.rank === '8' || card.rank === 'Q') {
+                            rolloutScore += 10;
+                        }
+                    }
+                } else if (seatInTrick === 2) {
+                    // SEAT 3 (Third Hand High / Finesse)
+                    const leadPlay = trickCards[0];
+                    const isLeadByPartner = (leadPlay.player === partnerSeat);
+                    const isLeadLow = (leadPlay.card.rank === '7' || leadPlay.card.rank === '8');
+
+                    if (isLeadByPartner && isLeadLow && card.power >= 6) {
+                        rolloutScore += 16; // Finesse: play high to force Seat 4 to spend boss card
+                    }
+                } else if (seatInTrick === 3) {
+                    // SEAT 4 (Last to Play - Maximum Greed)
+                    if (isWinnerPartner) {
+                        // Fatten trick with riskiest points
+                        if (card.value > 0) {
+                            rolloutScore += (card.value * 16);
+                            if (card.rank !== 'J') rolloutScore += 6;
+                        }
+                    } else {
+                        // Win as cheaply as possible
+                        if (isWinnerMe) {
+                            rolloutScore += 18;
+                            rolloutScore -= (card.power * 2);
+                        } else {
+                            rolloutScore -= (card.value * 12);
+                            if (card.power <= 2) rolloutScore += 8;
+                        }
+                    }
                 }
+
+                // Personality Weaponization
+                if (personality === 'wingman') {
+                    if (isWinnerPartner) rolloutScore += (card.value * 14) + 8;
+                    if (isContractorSide && (currentBid - t1Points >= 5) && handCounts[playerIdx] <= 3) {
+                        if (isWinnerMe && trickPts >= 1) rolloutScore += 20; // Desperation mode
+                    }
+                    if (card.rank === 'J' && !isTrickOver && !isWinnerPartner) rolloutScore -= 8;
+                } else if (personality === 'striker') {
+                    const isDefending = !isContractorSide;
+                    if (seatInTrick === 0 && trumpRevealed && isDefending && trumpSuit && card.suit === trumpSuit) {
+                        if (card.rank === 'J' || card.rank === '9') rolloutScore += 22; // Trump-drain gambit
+                    }
+                    if (seatInTrick === 0 && !trumpRevealed) {
+                        if (card.rank === 'A' || card.rank === '10' || card.rank === '9') rolloutScore += 12; // Punish bidder
+                    }
+                    if (card.power >= 6 && isWinnerMe) rolloutScore += 10;
+                } else if (personality === 'saboteur') {
+                    if (seatInTrick === 0 && !trumpRevealed) {
+                        const hasJackInSuit = hand.some(c => c.suit === card.suit && c.rank === 'J');
+                        if (hasJackInSuit && (card.rank === '7' || card.rank === '8')) rolloutScore += 18; // Baiting
+                    }
+                    if (!isContractorSide && defendingNeeded <= 3) {
+                        if (isWinnerMe && trickPts >= 2) rolloutScore += 35; // Contract-breaker threshold
+                    } else {
+                        if ((card.rank === 'J' || card.rank === '9') && trickPts < 2 && !isTrickOver) rolloutScore -= 16;
+                    }
+                }
+
+                // Royal Pair (K-Q) Protection in Phase 1
+                if (!trumpRevealed && (card.rank === 'K' || card.rank === 'Q')) {
+                    const hasMate = hand.some(c => c.suit === card.suit && (c.rank === 'K' || c.rank === 'Q') && c.rank !== card.rank);
+                    const isProbable = inference ? inference.isProbableTrump(card.suit) : true;
+                    if (hasMate && isProbable) {
+                        rolloutScore -= 24;
+                    }
+                }
+
                 scores[moveIdx] += rolloutScore;
             }
         }
@@ -3271,6 +3429,13 @@ class TwentyEightEngine {
             {'♥':false, '♦':false, '♣':false, '♠':false},
             {'♥':false, '♦':false, '♣':false, '♠':false}
         ];
+        this.bidderExcludedTrumps = new Set();
+        this.remainingBySuit = {
+            '♥': [...this.ranks],
+            '♦': [...this.ranks],
+            '♣': [...this.ranks],
+            '♠': [...this.ranks]
+        };
         this.inference = new InferenceMatrix();
     }
 
@@ -3480,49 +3645,73 @@ class TwentyEightEngine {
         let pIndex = this.currentTurn;
         let partnerIndex = (pIndex + 2) % 4;
         let hand = this.players[pIndex];
-        let points = hand.reduce((sum, c) => sum + c.value, 0);
+
         let suitCounts = {'♥':0, '♦':0, '♣':0, '♠':0};
-        let honorCount = {'♥':0, '♦':0, '♣':0, '♠':0};
-        let suitPower = {'♥':0, '♦':0, '♣':0, '♠':0};
+        let suitJacks = {'♥':0, '♦':0, '♣':0, '♠':0};
+        let suitNines = {'♥':0, '♦':0, '♣':0, '♠':0};
+        let totalJacks = 0;
 
         hand.forEach(c => {
             suitCounts[c.suit]++;
-            suitPower[c.suit] += c.power;
-            if(c.rank === 'J') honorCount[c.suit] += 3;
-            else if(c.rank === '9') honorCount[c.suit] += 2;
-            else if(c.rank === 'A') honorCount[c.suit] += 1;
+            if (c.rank === 'J') { suitJacks[c.suit] = 1; totalJacks++; }
+            if (c.rank === '9') suitNines[c.suit] = 1;
         });
 
+        // Expected Value (EV) 4-Card Bidding Formula:
+        // BidEV = 12 + (TrumpLength * 1.8) + (HasTrumpJack * 3.5) + (HasTrumpNine * 2.5) + (SideJacks * 2.0)
         let bestSuit = this.suits[0];
-        let bestEval = -1;
+        let bestEV = -1;
+
         for (let s of this.suits) {
-            let ev = (suitCounts[s] * 4) + (honorCount[s] * 3) + (suitPower[s] * 0.5);
-            if (ev > bestEval) { bestEval = ev; bestSuit = s; }
+            let trumpLen = suitCounts[s];
+            let hasTrumpJ = suitJacks[s];
+            let hasTrump9 = suitNines[s];
+            let sideJacks = totalJacks - hasTrumpJ;
+            let sideAces = hand.filter(c => c.suit !== s && c.rank === 'A').length;
+
+            let ev = 12 + (trumpLen * 1.8) + (hasTrumpJ * 3.5) + (hasTrump9 * 2.5) + (sideJacks * 2.0) + (sideAces * 0.8);
+
+            // Penalty for scattered 1-1-1-1 distribution (lacks concentrated trump power)
+            let isScattered = Object.values(suitCounts).every(cnt => cnt <= 1);
+            if (isScattered) ev -= 3.0;
+
+            if (ev > bestEV) {
+                bestEV = ev;
+                bestSuit = s;
+            }
         }
 
+        // Partner Support & Signaling:
         if (this.highestBidder === partnerIndex) {
+            // Partner already holds a firm bid (>=16). Support partner by passing!
             return 'Pass';
         }
 
-        // Difficulty adjustment for offline/local AI fallback
         let isEnemy = (pIndex === 1 || pIndex === 3);
         if (currentDifficulty === 'easy' && isEnemy) {
             if (this.highestBidder === -1 && this.passCount === 3) return 16;
             return 'Pass';
         }
 
-        let maxWilling = 14 + Math.floor(points * 0.8);
-        if (honorCount[bestSuit] >= 3) maxWilling += 3;
-        if (honorCount[bestSuit] >= 5) maxWilling += 2;
-        if (suitCounts[bestSuit] === 3) maxWilling += 2;
-        if (suitCounts[bestSuit] === 4) maxWilling += 4;
-
+        let maxWilling = Math.round(bestEV);
         if (currentDifficulty === 'medium') {
-            if (points < 4 && honorCount[bestSuit] < 3) return 'Pass';
-            maxWilling = Math.min(19, 15 + points);
+            maxWilling = Math.min(19, maxWilling - 1);
+        }
+
+        // Personality Weaponization in Bidding:
+        if (pIndex === 1) {
+            // Striker (East): Aggressive bidder, pushes limits by +1 on strong EV hands
+            if (bestEV >= 18) maxWilling += 1;
+        } else if (pIndex === 3) {
+            // Saboteur (West): Opportunistic bidder
+            if (bestEV >= 17 && bestEV < 20) maxWilling += 1;
+        } else if (pIndex === 2) {
+            // Wingman (North): Disciplined team player
+            maxWilling = Math.min(22, maxWilling);
         }
 
         if (maxWilling > 24) maxWilling = 24;
+
         let aiBid = 'Pass';
         if (this.currentBid < maxWilling) {
             aiBid = Math.max(16, this.currentBid + 1);
@@ -3566,16 +3755,23 @@ class TwentyEightEngine {
     }
 
     getAITrump() {
+        let pIndex = this.highestBidder;
+        let hand = this.players[pIndex];
         let suitScores = {'♥':0, '♦':0, '♣':0, '♠':0};
         let suitLengths = {'♥':0, '♦':0, '♣':0, '♠':0};
-        this.players[this.highestBidder].forEach(c => {
+        hand.forEach(c => {
             suitScores[c.suit] += c.power + (c.value * 2);
             suitLengths[c.suit]++;
         });
-        let avail = this.getAvailableSuits(this.highestBidder);
-        let bestSuit = avail[0];
+        let avail = this.getAvailableSuits(pIndex);
+
+        // Rule 3 (Single-Trump Trap Avoidance): Avoid picking a 1-card suit if multi-card suit exists
+        let multiCardSuits = avail.filter(s => suitLengths[s] >= 2);
+        let candidates = multiCardSuits.length > 0 ? multiCardSuits : avail;
+
+        let bestSuit = candidates[0];
         let bestScore = -1;
-        for (let s of avail) {
+        for (let s of candidates) {
             let score = (suitLengths[s] * 12) + suitScores[s];
             if (score > bestScore) { bestScore = score; bestSuit = s; }
         }
@@ -3650,11 +3846,20 @@ class TwentyEightEngine {
         let card = this.players[pIndex].splice(cardIndex, 1)[0];
         if (this.trickCards.length === 0) {
             this.leadSuit = card.suit;
+            // Secret Trump Deduction: Bidder cannot lead secret trump in Phase 1
+            if (!this.trumpRevealed && pIndex === this.highestBidder) {
+                if (this.bidderExcludedTrumps) this.bidderExcludedTrumps.add(card.suit);
+                if (this.inference) this.inference.recordBidderLead(card.suit);
+            }
         } else if (card.suit !== this.leadSuit) {
             this.voidInSuit[pIndex][this.leadSuit] = true;
         }
 
-        // Trump card does not auto-reveal before explicit player request
+        // CardMemory Matrix: Remove played card from remainingBySuit for dynamic boss promotion
+        if (this.remainingBySuit && this.remainingBySuit[card.suit]) {
+            let rIdx = this.remainingBySuit[card.suit].indexOf(card.rank);
+            if (rIdx !== -1) this.remainingBySuit[card.suit].splice(rIdx, 1);
+        }
 
         this.justRevealedBy = -1;
         this.trickCards.push({ card, player: pIndex });
@@ -3667,6 +3872,12 @@ class TwentyEightEngine {
     }
 
     _isCardHighestRemaining(card) {
+        if (!card) return false;
+        if (this.remainingBySuit && this.remainingBySuit[card.suit]) {
+            let remaining = this.remainingBySuit[card.suit];
+            if (remaining.length === 0) return true;
+            return card.rank === remaining[0]; // Remaining ranks are sorted J -> 9 -> A -> 10 -> ...
+        }
         if (card.rank === 'J') return true;
         let higherRanks = this.ranks.filter(r => this.power[r] > this.power[card.rank]);
         for (let r of higherRanks) {
@@ -3675,6 +3886,13 @@ class TwentyEightEngine {
             if (!played && !inTrick) return false;
         }
         return true;
+    }
+
+    _getBossCardOfSuit(suit) {
+        if (this.remainingBySuit && this.remainingBySuit[suit] && this.remainingBySuit[suit].length > 0) {
+            return this.remainingBySuit[suit][0];
+        }
+        return null;
     }
 
     _countPointsInTrick() { return this.trickCards.reduce((sum, tc) => sum + tc.card.value, 0); }
@@ -3720,46 +3938,47 @@ class TwentyEightEngine {
             hand.some(c => c.suit === knownTrumpSuit && c.rank === 'K') &&
             hand.some(c => c.suit === knownTrumpSuit && c.rank === 'Q');
 
+        // Tactical Secret Trump Deduction & The "Anti-Reveal" Trap
         if (this.canRevealTrump(pIndex)) {
             let currentWinner = this._getCurrentTrickWinner();
-            let partnerWinning = (currentWinner.player === partnerIndex);
+            let partnerWinning = (currentWinner && currentWinner.player === partnerIndex);
             let trickPts = this._countPointsInTrick();
-            let hasTrump = hand.some(c => c.suit === this.trumpSuit);
-            let highWinningCard = currentWinner.card && ['J', '9', 'A'].includes(currentWinner.card.rank);
-            if (hasTrump && !partnerWinning && (trickPts >= 2 || highWinningCard)) {
+            let isLastPlayer = (this.trickCards.length === 3);
+
+            let isPartnerBoss = currentWinner && currentWinner.card && this._isCardHighestRemaining(currentWinner.card);
+            let isPartnerHighHonor = currentWinner && currentWinner.card && (currentWinner.card.rank === 'J' || currentWinner.card.rank === '9');
+
+            let defendingNeeded = (29 - this.currentBid) - this.t2TrickPts;
+
+            // Check Anti-Reveal conditions:
+            // 1. Partner is already winning (especially with Jack/9 or Boss card): NEVER reveal!
+            if (partnerWinning && (isPartnerBoss || isPartnerHighHonor || isLastPlayer)) {
+                // Do NOT reveal trump: slough / fatten points onto partner instead!
+            }
+            // 2. Zero-Point Junk Trick early in the round (<= 3 tricks): don't expose secret trump for 0 pts!
+            else if (trickPts === 0 && this.roundTricks.length <= 2) {
+                // Do NOT reveal trump: discard low trash (7 or 8) to create secondary void!
+            }
+            // 3. Saboteur Contract-Breaker Check: If defending team needs <= 3 pts, reveal and cut trick >= 2 pts!
+            else if (pIndex === 3 && defendingNeeded <= 3 && trickPts >= 2) {
                 return { reveal: true, index: 0 };
+            }
+            // 4. Reveal Criteria: Only reveal if trick has >= 2 points at stake, or opponent played high honor,
+            // or bot holds strong trumps to seize control of the board.
+            else {
+                let hasStrongTrumps = hand.some(c => c.suit === this.trumpSuit && (c.rank === 'J' || c.rank === '9'));
+                let highOpponentCard = currentWinner && currentWinner.card && ['J', '9', 'A', '10'].includes(currentWinner.card.rank);
+                if (trickPts >= 2 || highOpponentCard || hasStrongTrumps) {
+                    return { reveal: true, index: 0 };
+                }
             }
         }
 
         let validIndices = this.getValidPlayIndices(pIndex);
         if (validIndices.length === 0) validIndices = hand.map((_, i) => i);
+        if (validIndices.length === 1) return { reveal: false, index: validIndices[0] };
 
-        const dumpCost = (idx) => {
-            let c = hand[idx];
-            let cost = c.value * 20 + c.power;
-            if (knownTrumpSuit && c.suit === knownTrumpSuit) cost += 100;
-            if (holdsUndeclaredPair && c.suit === knownTrumpSuit && (c.rank === 'K' || c.rank === 'Q')) cost += 80;
-            return cost;
-        };
-
-        if (this.trickCards.length === 0) {
-            let masterIndices = validIndices.filter(i => this._isCardHighestRemaining(hand[i]));
-            let safeMasters = masterIndices.filter(i => {
-                let s = hand[i].suit;
-                if (knownTrumpSuit && s === knownTrumpSuit) return true;
-                return !this.voidInSuit[opp1][s] && !this.voidInSuit[opp2][s];
-            });
-
-            let pool = safeMasters.length > 0 ? safeMasters : masterIndices;
-            if (pool.length > 0) {
-                pool.sort((a, b) => hand[b].value - hand[a].value || hand[b].power - hand[a].power);
-                return { reveal: false, index: pool[0] };
-            }
-            validIndices.sort((a, b) => dumpCost(a) - dumpCost(b));
-            return { reveal: false, index: validIndices[0] };
-        }
-
-        // ISMCTS Monte Carlo Tree Search with personality heuristics
+        // Information Set Monte Carlo Tree Search (ISMCTS) with 6 tactical upgrades
         let botRole = pIndex === 2 ? 'wingman' : (pIndex === 1 ? 'striker' : 'saboteur');
         let rollouts = currentDifficulty === 'hard' ? 70 : (currentDifficulty === 'medium' ? 40 : 20);
         let bestIdx = ISMCTS.selectBestPlay({
@@ -3772,6 +3991,10 @@ class TwentyEightEngine {
             playerIdx: pIndex,
             personality: botRole,
             inference: this.inference,
+            currentBid: this.currentBid,
+            t1Points: this.t1TrickPts,
+            t2Points: this.t2TrickPts,
+            highestBidder: this.highestBidder,
             numRollouts: rollouts
         });
         return { reveal: false, index: bestIdx };
