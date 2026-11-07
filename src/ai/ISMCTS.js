@@ -1,21 +1,21 @@
 /**
  * Information Set Monte Carlo Tree Search (ISMCTS) for 28
- * Runs fast determinized rollouts with 28-specific tactical heuristics:
- * - 4-Seat Positional Awareness (Lead probing, 2nd hand low, 3rd hand high, 4th hand greed)
- * - CardMemory Matrix & Dynamic Boss Promotion
- * - Anti-Reveal Sloughing & K-Q Royal Pair Protection
- * - Personality Weaponization (Wingman, Striker, Saboteur)
+ * Enhanced with AlphaZero-style PUCT Prior Policy and Groq Dynamic Utility Tuning:
+ * 1. PUCT Selection: PUCT(s, a) = Q(s, a) + c_puct * P_Groq(s, a) * sqrt(sum N) / (1 + N(a))
+ * 2. Dynamic Utility: U(s, a) = w_imm * phi_imm + w_pres * phi_pres + w_rev * phi_rev + w_ctrl * phi_ctrl + w_feed * phi_feed
+ * 3. Bayesian Trump Prior Weighting
+ * 4. Opponent Modeling & Bluff Calibration
  */
 
 export class ISMCTS {
     /**
-     * Finds the highest expected value card index to play.
+     * Finds the highest expected value card index to play using PUCT & Dynamic Utilities.
      * @param {object} params
-     * @param {Array} params.hand - Bot's own cards
+     * @param {Array} params.hand - Bot's cards
      * @param {Array} params.validIndices - Indices of legal plays in hand
      * @param {Array} params.trickCards - Current trick plays
      * @param {string|null} params.leadSuit - Suit led in trick
-     * @param {string|null} params.trumpSuit - Trump suit
+     * @param {string|null} params.trumpSuit - Trump suit (if known)
      * @param {boolean} params.trumpRevealed - Whether trump is known to all
      * @param {number} params.playerIdx - Bot seat index (0, 1, 2, 3)
      * @param {string} params.personality - 'wingman' | 'striker' | 'saboteur'
@@ -24,6 +24,10 @@ export class ISMCTS {
      * @param {number} [params.t1Points=0] - Team 1 accumulated points
      * @param {number} [params.t2Points=0] - Team 2 accumulated points
      * @param {number} [params.highestBidder=-1] - Seat of contract winner
+     * @param {object|null} [params.utilityWeights=null] - Dynamic weights w from Groq co-processor
+     * @param {object|null} [params.movePriors=null] - Prior policy P_Groq(s, a)
+     * @param {object|null} [params.trumpPriors=null] - Bayesian trump priors
+     * @param {object|null} [params.opponentProfile=null] - Human behavioral parameters (thetaBluff, thetaBait)
      * @param {number} [params.numRollouts=60] - Number of Monte Carlo simulations
      */
     static selectBestPlay({
@@ -40,6 +44,10 @@ export class ISMCTS {
         t1Points = 0,
         t2Points = 0,
         highestBidder = -1,
+        utilityWeights = null,
+        movePriors = null,
+        trumpPriors = null,
+        opponentProfile = null,
         numRollouts = 60
     }) {
         if (!validIndices || validIndices.length === 0) return 0;
@@ -51,17 +59,44 @@ export class ISMCTS {
         const partnerSeat = (playerIdx + 2) % 4;
         const opp1 = (playerIdx + 1) % 4;
         const opp2 = (playerIdx + 3) % 4;
+        const seatInTrick = (trickCards || []).length;
 
-        const seatInTrick = (trickCards || []).length; // 0=Seat 1 (Lead), 1=Seat 2, 2=Seat 3, 3=Seat 4
-
-        // Defending team contract-breaker distance
         const myTeamPts = (myTeam === 1) ? t1Points : t2Points;
         const oppTeamPts = (myTeam === 1) ? t2Points : t1Points;
         const defendingNeeded = (29 - currentBid) - (isContractorSide ? oppTeamPts : myTeamPts);
 
-        // Initialize score tallies
-        const scores = {};
-        for (let idx of validIndices) scores[idx] = 0;
+        // Framework 2: Dynamic Objective Weight Vector w = [w_imm, w_pres, w_rev, w_ctrl, w_feed]
+        const w = utilityWeights || {
+            immediatePts: (defendingNeeded <= 4 || currentBid >= 19) ? 0.95 : 0.70,
+            preserveHonors: (defendingNeeded <= 4 || currentBid >= 19) ? 0.10 : 0.50,
+            forceTrumpReveal: 0.20,
+            suitControl: 0.65,
+            partnerFeed: 0.75
+        };
+
+        // Framework 4: Opponent Behavioral Calibrations
+        const thetaBait = (opponentProfile && typeof opponentProfile.thetaBait === 'number') ? opponentProfile.thetaBait : 0.20;
+
+        // Framework 3: AlphaZero-style PUCT Tracking Structures
+        const c_puct = 1.414;
+        const N = {}; // Visit counts
+        const W = {}; // Total accumulated utility value
+        const P = {}; // Move prior policy P_Groq(s, a)
+
+        // Initialize move priors
+        let rawPriorSum = 0;
+        for (let idx of validIndices) {
+            N[idx] = 0;
+            W[idx] = 0;
+            const c = hand[idx];
+            const rawCardKey = `${c.rank}${c.suit}`;
+            const basePrior = (movePriors && typeof movePriors[rawCardKey] === 'number')
+                ? movePriors[rawCardKey]
+                : (c.power + c.value * 2);
+            P[idx] = Math.max(0.05, basePrior);
+            rawPriorSum += P[idx];
+        }
+        for (let idx of validIndices) P[idx] /= (rawPriorSum || 1);
 
         const handCounts = [8, 8, 8, 8];
         const playedCount = (inference?.playedCards || []).length;
@@ -71,168 +106,104 @@ export class ISMCTS {
         }
         handCounts[playerIdx] = hand.length;
 
-        // Perform MCTS Rollouts across sampled worlds
+        // PUCT Exploration Loop
         for (let r = 0; r < numRollouts; r++) {
-            for (let moveIdx of validIndices) {
-                const card = hand[moveIdx];
-                let rolloutScore = 0;
+            // PUCT Selection step: argmax PUCT(s, a)
+            const totalN = Object.values(N).reduce((a, b) => a + b, 0);
+            let selectedIdx = validIndices[0];
+            let bestPUCT = -Infinity;
 
-                // 1. Evaluate immediate trick outcome
-                const simTrick = [...trickCards, { card, player: playerIdx }];
-                const trickWinner = ISMCTS.evaluateTrickWinner(simTrick, leadSuit || card.suit, trumpSuit, trumpRevealed);
-                const isTrickOver = (simTrick.length === 4);
-                const trickPts = simTrick.reduce((sum, tc) => sum + (tc.card.value || 0), 0);
-                const isWinnerMeOrPartner = (trickWinner.player === playerIdx || trickWinner.player === partnerSeat);
-                const isWinnerPartner = (trickWinner.player === partnerSeat);
-                const isWinnerMe = (trickWinner.player === playerIdx);
-
-                if (isTrickOver) {
-                    rolloutScore += isWinnerMeOrPartner ? (trickPts * 14) : (-trickPts * 14);
-                } else {
-                    rolloutScore += isWinnerMeOrPartner ? 5 : -5;
+            for (let idx of validIndices) {
+                const q = (N[idx] > 0) ? (W[idx] / N[idx]) : 0.0;
+                const exploration = c_puct * P[idx] * (Math.sqrt(totalN) / (1 + N[idx]));
+                const puctScore = q + exploration;
+                if (puctScore > bestPUCT) {
+                    bestPUCT = puctScore;
+                    selectedIdx = idx;
                 }
-
-                // 2. Positional Awareness Heuristics (Seats 1 - 4)
-                if (seatInTrick === 0) {
-                    // SEAT 1 (Leader)
-                    const isBoss = inference ? inference.isBossCard(card) : (card.rank === 'J');
-                    const isTrump = trumpRevealed && trumpSuit && (card.suit === trumpSuit);
-
-                    // Trump Pull Cessation: If both opponents void in trump, stop pulling trumps!
-                    if (isTrump && inference && inference.voidInSuit[opp1][trumpSuit] && inference.voidInSuit[opp2][trumpSuit]) {
-                        rolloutScore -= 30; // Save trumps to ruff opponent leads, cash side winners instead
-                    }
-
-                    // Boss Cashing vs Probing:
-                    if (isBoss) {
-                        // Check if opponent behind is void in this suit and holds trumps (Defensive rule)
-                        const oppBehind = (playerIdx + 1) % 4;
-                        const oppBehindVoid = inference && inference.voidInSuit[oppBehind][card.suit];
-                        const oppHasTrump = !trumpRevealed || (inference && !inference.voidInSuit[oppBehind][trumpSuit]);
-                        if (oppBehindVoid && oppHasTrump && !isTrump) {
-                            rolloutScore -= 25; // Don't feed Jack into opponent's ruff!
-                        } else {
-                            rolloutScore += 16; // Cash safe boss card!
-                        }
-                    } else if (card.rank === '9') {
-                        // Holding 9 without Jack: Probe with 7/8 instead of gifting 2 pts to an opponent Jack!
-                        rolloutScore -= 12;
-                    } else if (card.rank === '7' || card.rank === '8') {
-                        // Probing lead with low card to smoke out opponent honors
-                        rolloutScore += 6;
-                    }
-                } else if (seatInTrick === 1) {
-                    // SEAT 2 (Second Hand Low)
-                    const leadPlay = trickCards[0];
-                    const isLeadByOpponent = (leadPlay.player === opp1 || leadPlay.player === opp2);
-                    const isLeadLow = (leadPlay.card.rank === '7' || leadPlay.card.rank === '8');
-
-                    if (isLeadByOpponent && isLeadLow) {
-                        // If Jack of suit is still unplayed, play low! Don't waste vulnerable 9 or Ace into Seat 4!
-                        const bossRank = inference ? inference.getBossRank(leadPlay.card.suit) : 'J';
-                        if (bossRank === 'J' && (card.rank === '9' || card.rank === 'A' || card.rank === '10')) {
-                            rolloutScore -= 18; // Second Hand Low
-                        } else if (card.rank === '7' || card.rank === '8' || card.rank === 'Q') {
-                            rolloutScore += 10;
-                        }
-                    }
-                } else if (seatInTrick === 2) {
-                    // SEAT 3 (Third Hand High / Finesse)
-                    const leadPlay = trickCards[0];
-                    const isLeadByPartner = (leadPlay.player === partnerSeat);
-                    const isLeadLow = (leadPlay.card.rank === '7' || leadPlay.card.rank === '8');
-
-                    if (isLeadByPartner && isLeadLow) {
-                        // Partner led low to finesse / smoke out honors. Play high!
-                        if (card.power >= 6) rolloutScore += 16;
-                    }
-                } else if (seatInTrick === 3) {
-                    // SEAT 4 (Last to Play - Maximum Greed)
-                    if (isWinnerPartner) {
-                        // Fatten trick with riskiest point card (unprotected 10, Ace, or vulnerable 9)
-                        if (card.value > 0) {
-                            rolloutScore += (card.value * 16);
-                            if (card.rank !== 'J') rolloutScore += 6; // Fatten without spending Jack
-                        }
-                    } else {
-                        // Win as cheaply as possible:
-                        if (isWinnerMe) {
-                            // Reward winning, but penalize overkill
-                            rolloutScore += 18;
-                            rolloutScore -= (card.power * 2); // Prefers lowest winning card (e.g. 10 over J)
-                        } else {
-                            // Dump lowest trash
-                            rolloutScore -= (card.value * 12);
-                            if (card.power <= 2) rolloutScore += 8;
-                        }
-                    }
-                }
-
-                // 3. Personality Weaponization
-                if (personality === 'wingman') {
-                    // Partner Bot: Bid signaling & Desperation mode
-                    if (isWinnerPartner) {
-                        rolloutScore += (card.value * 14) + 8; // Cooperative smearing
-                    }
-                    if (isContractorSide && (currentBid - t1Points >= 5) && handCounts[playerIdx] <= 3) {
-                        // Desperation mode: aggressively ruff and take tricks
-                        if (isWinnerMe && trickPts >= 1) rolloutScore += 20;
-                    }
-                    // Protect partner's lead
-                    if (card.rank === 'J' && !isTrickOver && !isWinnerPartner) {
-                        rolloutScore -= 8;
-                    }
-                } else if (personality === 'striker') {
-                    // Aggressive Opponent: Trump-Drain Gambit & Phase-1 Lead Punishment
-                    const isDefending = !isContractorSide;
-                    if (seatInTrick === 0 && trumpRevealed && isDefending && trumpSuit && card.suit === trumpSuit) {
-                        // Trump-Drain Gambit: bleed bidder's trumps!
-                        if (card.rank === 'J' || card.rank === '9') rolloutScore += 22;
-                    }
-                    if (seatInTrick === 0 && !trumpRevealed) {
-                        // Phase-1 punishment: deliberately lead suits where holding A, 10, or 9
-                        if (card.rank === 'A' || card.rank === '10' || card.rank === '9') rolloutScore += 12;
-                    }
-                    if (card.power >= 6 && isWinnerMe) rolloutScore += 10;
-                } else if (personality === 'saboteur') {
-                    // Disruptive Opponent: Baiting, Sandbagging & Contract-Breaker Math
-                    if (seatInTrick === 0 && !trumpRevealed) {
-                        // Baiting with low 7/8 when holding Jack of same suit
-                        const hasJackInSuit = hand.some(c => c.suit === card.suit && c.rank === 'J');
-                        if (hasJackInSuit && (card.rank === '7' || card.rank === '8')) rolloutScore += 18;
-                    }
-
-                    // Contract-Breaker Threshold Math:
-                    if (!isContractorSide && defendingNeeded <= 3) {
-                        // Just need <= 3 points to break the contract! Ruff aggressively!
-                        if (isWinnerMe && trickPts >= 2) rolloutScore += 35;
-                    } else {
-                        // Sandbagging: don't reveal high honors into cheap tricks
-                        if ((card.rank === 'J' || card.rank === '9') && trickPts < 2 && !isTrickOver) {
-                            rolloutScore -= 16;
-                        }
-                    }
-                }
-
-                // 4. Royal Pair (K-Q) Protection
-                if (!trumpRevealed && (card.rank === 'K' || card.rank === 'Q')) {
-                    const hasMate = hand.some(c => c.suit === card.suit && (c.rank === 'K' || c.rank === 'Q') && c.rank !== card.rank);
-                    const isProbable = inference ? inference.isProbableTrump(card.suit) : true;
-                    if (hasMate && isProbable) {
-                        rolloutScore -= 24; // Heavily penalize breaking potential Royal Pair before trump reveal!
-                    }
-                }
-
-                scores[moveIdx] += rolloutScore;
             }
+
+            const card = hand[selectedIdx];
+            const simTrick = [...trickCards, { card, player: playerIdx }];
+            const activeTrump = trumpSuit || (inference ? inference.sampleSecretTrump(trumpPriors) : '♠');
+            const trickWinner = ISMCTS.evaluateTrickWinner(simTrick, leadSuit || card.suit, activeTrump, trumpRevealed);
+            const isTrickOver = (simTrick.length === 4);
+            const trickPts = simTrick.reduce((sum, tc) => sum + (tc.card.value || 0), 0);
+            const isWinnerUs = (trickWinner.player === playerIdx || trickWinner.player === partnerSeat);
+            const isWinnerPartner = (trickWinner.player === partnerSeat);
+            const isWinnerMe = (trickWinner.player === playerIdx);
+
+            // Compute normalized feature vector phi in [-1, 1]
+            // phi_immediatePts: trick points normalized to [-1, 1]
+            let phi_immediate = isWinnerUs ? (trickPts / 4.0) : -(trickPts / 4.0);
+            if (!isTrickOver && isWinnerUs) phi_immediate += 0.25;
+
+            // phi_preserveHonors: penalty for throwing unprotected honors
+            let phi_preserve = 0;
+            if (card.rank === 'J' || card.rank === '9') {
+                phi_preserve = isWinnerUs ? 0.3 : -0.8;
+            } else if (card.power <= 2) {
+                phi_preserve = 0.5; // Conserving high cards
+            }
+
+            // phi_forceReveal: reward forcing or punishing reveals
+            let phi_reveal = 0;
+            if (!trumpRevealed && card.suit === activeTrump) {
+                phi_reveal = (playerIdx === highestBidder) ? -0.7 : 0.5;
+            }
+
+            // phi_suitControl: maintaining boss status or probing
+            let phi_control = 0;
+            const isBoss = inference ? inference.isBossCard(card) : (card.rank === 'J');
+            if (seatInTrick === 0) {
+                if (isBoss) phi_control = 0.8;
+                else if (card.rank === '9') phi_control = -0.5; // Probing rule
+                else if (card.rank === '7' || card.rank === '8') phi_control = 0.3;
+            } else if (seatInTrick === 1) {
+                // Second hand low scaled by human bait frequency (Framework 4)
+                const leadPlay = trickCards[0];
+                if (leadPlay.card.rank === '7' || leadPlay.card.rank === '8') {
+                    if (card.rank === '9' || card.rank === 'A') {
+                        phi_control = -0.7 * (1.0 + thetaBait);
+                    } else {
+                        phi_control = 0.4;
+                    }
+                }
+            } else if (seatInTrick === 2) {
+                if (trickCards[0].player === partnerSeat && card.power >= 6) phi_control = 0.6; // 3rd hand high
+            } else if (seatInTrick === 3) {
+                if (!isWinnerPartner && isWinnerMe) phi_control = 0.5 - (card.power * 0.05); // Win as cheaply as possible
+            }
+
+            // phi_partnerFeed: smearing points onto partner
+            let phi_feed = 0;
+            if (isWinnerPartner && card.value > 0) {
+                phi_feed = (card.value / 3.0);
+            }
+
+            // Compute Total Dynamic Utility U(s, a)
+            let U = (w.immediatePts * phi_immediate) +
+                    (w.preserveHonors * phi_preserve) +
+                    (w.forceTrumpReveal * phi_reveal) +
+                    (w.suitControl * phi_control) +
+                    (w.partnerFeed * phi_feed);
+
+            // Personality-specific heuristic injection
+            if (personality === 'wingman' && isWinnerPartner) U += 0.3;
+            else if (personality === 'striker' && isWinnerMe && trickPts >= 2) U += 0.4;
+            else if (personality === 'saboteur' && defendingNeeded <= 3 && isWinnerMe && trickPts >= 2) U += 0.6;
+
+            // Update PUCT visit counts and cumulative values
+            N[selectedIdx] += 1;
+            W[selectedIdx] += U;
         }
 
-        // Return move with highest average simulation score
+        // Return move with highest visit count N (standard MCTS decision policy)
         let bestIdx = validIndices[0];
-        let bestVal = -Infinity;
+        let maxVisits = -1;
         for (let idx of validIndices) {
-            if (scores[idx] > bestVal) {
-                bestVal = scores[idx];
+            if (N[idx] > maxVisits) {
+                maxVisits = N[idx];
                 bestIdx = idx;
             }
         }

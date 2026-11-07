@@ -2,7 +2,7 @@
  * InferenceMatrix
  * Tracks played cards, deduces hard void constraints, maintains dynamic Boss-Card
  * promotion table (CardMemory Matrix), infers hidden secret trumps from bidder leads,
- * and samples valid hypothetical worlds for ISMCTS.
+ * and samples valid hypothetical worlds for ISMCTS using Bayesian Suit Priors P(T = s | H_hard, B_Groq).
  */
 
 const SUITS = ['♠', '♥', '♣', '♦'];
@@ -34,10 +34,35 @@ export class InferenceMatrix {
             '♣': [...RANK_ORDER],
             '♦': [...RANK_ORDER]
         };
+        // Framework 1: Bayesian Prior Distribution over Trump Suits
+        this.trumpSuitPriors = { '♠': 0.25, '♥': 0.25, '♦': 0.25, '♣': 0.25 };
     }
 
     recordBidderLead(suit) {
-        if (suit) this.bidderExcludedTrumps.add(suit);
+        if (suit) {
+            this.bidderExcludedTrumps.add(suit);
+            // Posterior update: Hard constraint I_legal(s) = 0
+            if (this.trumpSuitPriors) {
+                this.trumpSuitPriors[suit] = 0.0;
+                let tot = Object.values(this.trumpSuitPriors).reduce((a, b) => a + b, 0);
+                if (tot > 0) {
+                    for (let s of SUITS) this.trumpSuitPriors[s] /= tot;
+                }
+            }
+        }
+    }
+
+    setTrumpSuitPriors(priors) {
+        if (!priors) return;
+        this.trumpSuitPriors = { ...priors };
+        // Apply hard negative constraints
+        for (let s of this.bidderExcludedTrumps) {
+            this.trumpSuitPriors[s] = 0.0;
+        }
+        let tot = Object.values(this.trumpSuitPriors).reduce((a, b) => a + b, 0);
+        if (tot > 0) {
+            for (let s of SUITS) this.trumpSuitPriors[s] /= tot;
+        }
     }
 
     recordCardPlay(playerIndex, card, leadSuit) {
@@ -55,10 +80,6 @@ export class InferenceMatrix {
         }
     }
 
-    /**
-     * Dynamic Boss-Card Promotion:
-     * A card is the Boss of its suit if no unplayed card in that suit has higher power.
-     */
     isBossCard(card) {
         if (!card || !this.remainingBySuit[card.suit]) return false;
         let rem = this.remainingBySuit[card.suit];
@@ -76,6 +97,20 @@ export class InferenceMatrix {
         return !this.bidderExcludedTrumps.has(suit);
     }
 
+    sampleSecretTrump(priorsOverride) {
+        let priors = priorsOverride || this.trumpSuitPriors || { '♠': 0.25, '♥': 0.25, '♦': 0.25, '♣': 0.25 };
+        let weights = SUITS.map(s => this.bidderExcludedTrumps.has(s) ? 0 : (priors[s] || 0.05));
+        let total = weights.reduce((a, b) => a + b, 0);
+        if (total <= 0) return SUITS[Math.floor(Math.random() * SUITS.length)];
+        let r = Math.random() * total;
+        let cumulative = 0;
+        for (let i = 0; i < SUITS.length; i++) {
+            cumulative += weights[i];
+            if (r <= cumulative) return SUITS[i];
+        }
+        return SUITS[0];
+    }
+
     getRemainingUnseenCards(myHand) {
         const seen = new Set();
         for (let c of this.playedCards) seen.add(`${c.rank}${c.suit}`);
@@ -86,11 +121,10 @@ export class InferenceMatrix {
 
     /**
      * Determinization: Sample a valid hypothetical distribution of remaining unseen cards
-     * among the other 3 players respecting all known void constraints.
+     * among the other 3 players respecting all known void constraints and Bayesian Trump Priors.
      */
-    sampleHypotheticalWorld(mySeat, myHand, handCounts) {
+    sampleHypotheticalWorld(mySeat, myHand, handCounts, trumpPriors) {
         const unseen = [...this.getRemainingUnseenCards(myHand)];
-        // Fisher-Yates shuffle unseen cards
         for (let i = unseen.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [unseen[i], unseen[j]] = [unseen[j], unseen[i]];
@@ -103,7 +137,6 @@ export class InferenceMatrix {
         const targetCounts = {};
         for (let s of otherSeats) targetCounts[s] = handCounts[s] || 0;
 
-        // Assign cards to other seats respecting void constraints
         const unassigned = [];
         for (let card of unseen) {
             let candidates = otherSeats.filter(s =>
@@ -119,7 +152,6 @@ export class InferenceMatrix {
             }
         }
 
-        // Fallback for tight constraints
         for (let card of unassigned) {
             let openSeats = otherSeats.filter(s => simulatedHands[s].length < targetCounts[s]);
             if (openSeats.length > 0) {

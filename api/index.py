@@ -1307,6 +1307,151 @@ def evaluate_bot_brain(data):
     }
 
 
+
+# ==================== MATHEMATICAL GROQ CO-PROCESSOR (/api/bot-math) ====================
+def evaluate_bot_math(data):
+    """
+    Mathematical Bayesian Prior Generator & Dynamic Objective Weight Tuner (Groq LPUs).
+    Feeds mathematical parameters directly into local JavaScript ISMCTS:
+    1. Bayesian Prior Distribution over secret trump suits P(T = s | H_hard, B_Groq)
+    2. Dynamic Utility Weight Vector w = [w_immediate, w_preserve, w_forceReveal, w_suitControl, w_partnerFeed]
+    3. AlphaZero-style PUCT Prior Policy P_Groq(s, a) over legal cards
+    """
+    state = data.get('state', data)
+    bid_target = int(state.get('bidTarget', state.get('current_bid', 16)))
+    highest_bidder = state.get('highestBidder', state.get('highest_bidder', 'SOUTH'))
+    trump_revealed = bool(state.get('trumpRevealed', state.get('trump_revealed', False)))
+    trump_suit = state.get('trumpSuit', state.get('trump_suit', None))
+    excluded_trumps = state.get('excludedTrumps', state.get('excluded_trumps', []))
+    bot_hand = state.get('botHand', state.get('hand', []))
+    legal_cards = state.get('legalCards', state.get('legal_cards', []))
+    current_trick = state.get('currentTrick', state.get('trick_cards', []))
+    team_points = state.get('teamPoints', state.get('team_points', {}))
+    t1_pts = int(team_points.get('NS', state.get('t1_pts', 0)))
+    t2_pts = int(team_points.get('EW', state.get('t2_pts', 0)))
+    opp_profile = state.get('opponentProfile', state.get('opponent_profile', {}))
+
+    norm_excluded = set(SUIT_CHAR_MAP.get(s, s) for s in excluded_trumps)
+
+    groq_success = False
+    trump_priors = {}
+    move_priors = {}
+    utility_weights = {}
+
+    key = get_groq_api_key()
+    if key:
+        system_prompt = (
+            "You are a mathematical game-theory co-processor for the South Asian card game Twenty-Eight (28). "
+            "Card hierarchy: J(3pts) > 9(2pts) > A(1pt) > 10(1pt) > K(0) > Q(0) > 8(0) > 7(0). Total points = 28. "
+            "Output ONLY a valid JSON object containing: "
+            "1. 'trumpSuitPriors': probability distribution {'♠': float, '♥': float, '♦': float, '♣': float} summing to 1.0. "
+            "2. 'movePriors': probability distribution over legalCards summing to 1.0. "
+            "3. 'utilityWeights': {'immediatePts': 0..1, 'preserveHonors': 0..1, 'forceTrumpReveal': -1..1, 'suitControl': 0..1, 'partnerFeed': 0..1}."
+        )
+        user_prompt = json.dumps({
+            "bidTarget": bid_target,
+            "highestBidder": highest_bidder,
+            "trumpRevealed": trump_revealed,
+            "trumpSuit": trump_suit,
+            "excludedTrumps": list(norm_excluded),
+            "botHand": [c if isinstance(c, str) else f"{c.get('rank')}{c.get('suit')}" for c in bot_hand],
+            "legalCards": [c if isinstance(c, str) else f"{c.get('rank')}{c.get('suit')}" for c in legal_cards],
+            "trickLength": len(current_trick),
+            "teamPoints": {"NS": t1_pts, "EW": t2_pts},
+            "opponentProfile": opp_profile
+        })
+        try:
+            res = call_groq([
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ], timeout=1.4)
+            if res and isinstance(res, dict):
+                raw_tp = res.get('trumpSuitPriors', {})
+                raw_mp = res.get('movePriors', {})
+                raw_uw = res.get('utilityWeights', {})
+                if raw_tp and raw_uw:
+                    trump_priors = {SUIT_CHAR_MAP.get(k, k): float(v) for k, v in raw_tp.items()}
+                    move_priors = {k: float(v) for k, v in raw_mp.items()}
+                    utility_weights = {k: float(v) for k, v in raw_uw.items()}
+                    groq_success = True
+        except Exception:
+            pass
+
+    # Bayesian Posterior Normalization:
+    # P(T = s | H_hard, B_Groq) = I_legal(s) * pi_Groq(s) / sum(I_legal(s') * pi_Groq(s'))
+    if trump_revealed and trump_suit:
+        norm_ts = SUIT_CHAR_MAP.get(trump_suit, trump_suit)
+        trump_priors = {s: (1.0 if s == norm_ts else 0.0) for s in SUITS}
+    else:
+        if not groq_success or not trump_priors:
+            trump_priors = {'♠': 0.25, '♥': 0.25, '♦': 0.25, '♣': 0.25}
+
+        for s in norm_excluded:
+            trump_priors[s] = 0.0
+
+        total_p = sum(trump_priors.get(s, 0.0) for s in SUITS)
+        if total_p > 0:
+            trump_priors = {s: round(trump_priors.get(s, 0.0) / total_p, 3) for s in SUITS}
+        else:
+            avail = [s for s in SUITS if s not in norm_excluded]
+            prob = 1.0 / len(avail) if avail else 0.25
+            trump_priors = {s: (prob if s in avail else 0.0) for s in SUITS}
+
+    # Dynamic Utility Weights w = [w_immediate, w_preserve, w_forceReveal, w_suitControl, w_partnerFeed]
+    if not groq_success or not utility_weights:
+        defending_needed = (29 - bid_target) - t2_pts
+        is_panic = (defending_needed <= 4 or bid_target >= 19)
+        is_stranglehold = (bid_target <= 15 and not is_panic)
+
+        if is_panic:
+            utility_weights = {
+                "immediatePts": 0.95,
+                "preserveHonors": 0.10,
+                "forceTrumpReveal": 0.85,
+                "suitControl": 0.70,
+                "partnerFeed": 0.90
+            }
+        elif is_stranglehold:
+            utility_weights = {
+                "immediatePts": 0.35,
+                "preserveHonors": 0.85,
+                "forceTrumpReveal": -0.60,
+                "suitControl": 0.80,
+                "partnerFeed": 0.60
+            }
+        else:
+            utility_weights = {
+                "immediatePts": 0.70,
+                "preserveHonors": 0.50,
+                "forceTrumpReveal": 0.20,
+                "suitControl": 0.65,
+                "partnerFeed": 0.75
+            }
+
+    # AlphaZero-style PUCT Move Prior P_Groq(s, a):
+    norm_legal = [c if isinstance(c, str) else f"{c.get('rank')}{c.get('suit')}" for c in legal_cards]
+    if not groq_success or not move_priors:
+        raw_priors = {}
+        for c_str in norm_legal:
+            card_obj = normalize_card_item(c_str)
+            pwr = card_obj.get('power', 1) if card_obj else 1
+            pts = card_obj.get('value', 0) if card_obj else 0
+            raw_priors[c_str] = pwr + (pts * 2)
+        total_mp = sum(raw_priors.values()) or 1
+        move_priors = {c: round(raw_priors[c] / total_mp, 3) for c in norm_legal}
+    else:
+        filtered_mp = {c: float(move_priors.get(c, 0.1)) for c in norm_legal}
+        total_mp = sum(filtered_mp.values()) or 1
+        move_priors = {c: round(filtered_mp[c] / total_mp, 3) for c in norm_legal}
+
+    return {
+        "trumpSuitPriors": trump_priors,
+        "movePriors": move_priors,
+        "utilityWeights": utility_weights,
+        "source": "groq_bayesian" if groq_success else "local_game_theoretic"
+    }
+
+
 class handler(BaseHTTPRequestHandler):
     """Vercel Serverless Function Handler"""
 
@@ -1334,7 +1479,7 @@ class handler(BaseHTTPRequestHandler):
             'version': '2.3.0',
             'groq_active': bool(get_groq_api_key()),
             'received_path': raw_path,
-            'endpoints': ['/api/bot-brain', '/api/deal', '/api/bid', '/api/trump', '/api/play', '/api/recap', '/api/health']
+            'endpoints': ['/api/bot-math', '/api/bot-brain', '/api/deal', '/api/bid', '/api/trump', '/api/play', '/api/recap', '/api/health']
         })
 
     def do_POST(self):
@@ -1351,7 +1496,11 @@ class handler(BaseHTTPRequestHandler):
 
         route_str = f"{raw_path} {data.get('action', '')}".lower()
 
-        if any(k in route_str for k in ['bot-brain', 'bot_brain', 'bot-turn', 'bot_turn']):
+        if any(k in route_str for k in ['bot-math', 'bot_math']):
+            res = evaluate_bot_math(data)
+            self._send_json(200, res)
+
+        elif any(k in route_str for k in ['bot-brain', 'bot_brain', 'bot-turn', 'bot_turn']):
             res = evaluate_bot_brain(data)
             self._send_json(200, res)
 

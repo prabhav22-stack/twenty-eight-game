@@ -2897,6 +2897,23 @@ function hostStartGame() {
 
 // ==================== BACKEND API CLIENT ====================
 const BackendAPI = {
+    async getBotMath(state) {
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 1800);
+            const res = await fetch('/api/bot-math', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ state }),
+                signal: ctrl.signal
+            });
+            clearTimeout(timer);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch(e) {
+            return null;
+        }
+    },
     async getBotBrain(payload) {
         try {
             const ctrl = new AbortController();
@@ -3121,6 +3138,8 @@ class InferenceMatrix {
             '♣': ['J', '9', 'A', '10', 'K', 'Q', '8', '7'],
             '♦': ['J', '9', 'A', '10', 'K', 'Q', '8', '7']
         };
+        // Framework 1: Bayesian Prior Distribution over Trump Suits
+        this.trumpSuitPriors = { '♠': 0.25, '♥': 0.25, '♦': 0.25, '♣': 0.25 };
         this.allCards = [];
         const suits = ['♠', '♥', '♣', '♦'];
         const ranks = ['7', '8', 'Q', 'K', '10', 'A', '9', 'J'];
@@ -3134,7 +3153,41 @@ class InferenceMatrix {
     }
 
     recordBidderLead(suit) {
-        if (suit) this.bidderExcludedTrumps.add(suit);
+        if (suit) {
+            this.bidderExcludedTrumps.add(suit);
+            if (this.trumpSuitPriors) {
+                this.trumpSuitPriors[suit] = 0.0;
+                let tot = Object.values(this.trumpSuitPriors).reduce((a, b) => a + b, 0);
+                if (tot > 0) {
+                    for (let s of ['♠', '♥', '♣', '♦']) this.trumpSuitPriors[s] /= tot;
+                }
+            }
+        }
+    }
+
+    setTrumpSuitPriors(priors) {
+        if (!priors) return;
+        this.trumpSuitPriors = { ...priors };
+        for (let s of this.bidderExcludedTrumps) this.trumpSuitPriors[s] = 0.0;
+        let tot = Object.values(this.trumpSuitPriors).reduce((a, b) => a + b, 0);
+        if (tot > 0) {
+            for (let s of ['♠', '♥', '♣', '♦']) this.trumpSuitPriors[s] /= tot;
+        }
+    }
+
+    sampleSecretTrump(priorsOverride) {
+        let priors = priorsOverride || this.trumpSuitPriors || { '♠': 0.25, '♥': 0.25, '♦': 0.25, '♣': 0.25 };
+        let suits = ['♠', '♥', '♣', '♦'];
+        let weights = suits.map(s => this.bidderExcludedTrumps.has(s) ? 0 : (priors[s] || 0.05));
+        let total = weights.reduce((a, b) => a + b, 0);
+        if (total <= 0) return suits[Math.floor(Math.random() * suits.length)];
+        let r = Math.random() * total;
+        let cumulative = 0;
+        for (let i = 0; i < suits.length; i++) {
+            cumulative += weights[i];
+            if (r <= cumulative) return suits[i];
+        }
+        return suits[0];
     }
 
     recordCardPlay(playerIndex, card, leadSuit) {
@@ -3213,6 +3266,10 @@ class ISMCTS {
             t1Points = 0,
             t2Points = 0,
             highestBidder = -1,
+            utilityWeights = null,
+            movePriors = null,
+            trumpPriors = null,
+            opponentProfile = null,
             numRollouts = 60
         } = params;
 
@@ -3223,16 +3280,43 @@ class ISMCTS {
         const contractorTeam = (highestBidder === 0 || highestBidder === 2) ? 1 : 2;
         const isContractorSide = (myTeam === contractorTeam);
         const partnerSeat = (playerIdx + 2) % 4;
-        const opp1 = (playerIdx + 1) % 4;
-        const opp2 = (playerIdx + 3) % 4;
         const seatInTrick = (trickCards || []).length;
 
         const myTeamPts = (myTeam === 1) ? t1Points : t2Points;
         const oppTeamPts = (myTeam === 1) ? t2Points : t1Points;
         const defendingNeeded = (29 - currentBid) - (isContractorSide ? oppTeamPts : myTeamPts);
 
-        const scores = {};
-        for (let idx of validIndices) scores[idx] = 0;
+        // Framework 2: Dynamic Objective Weight Vector w = [w_imm, w_pres, w_rev, w_ctrl, w_feed]
+        const w = utilityWeights || {
+            immediatePts: (defendingNeeded <= 4 || currentBid >= 19) ? 0.95 : 0.70,
+            preserveHonors: (defendingNeeded <= 4 || currentBid >= 19) ? 0.10 : 0.50,
+            forceTrumpReveal: 0.20,
+            suitControl: 0.65,
+            partnerFeed: 0.75
+        };
+
+        // Framework 4: Opponent Behavioral Calibrations (Bait Frequency)
+        const thetaBait = (opponentProfile && typeof opponentProfile.thetaBait === 'number') ? opponentProfile.thetaBait : 0.20;
+
+        // Framework 3: AlphaZero-style PUCT structures
+        const c_puct = 1.414;
+        const N = {};
+        const W = {};
+        const P = {};
+
+        let rawPriorSum = 0;
+        for (let idx of validIndices) {
+            N[idx] = 0;
+            W[idx] = 0;
+            const c = hand[idx];
+            const rawCardKey = `${c.rank}${c.suit}`;
+            const basePrior = (movePriors && typeof movePriors[rawCardKey] === 'number')
+                ? movePriors[rawCardKey]
+                : (c.power + c.value * 2);
+            P[idx] = Math.max(0.05, basePrior);
+            rawPriorSum += P[idx];
+        }
+        for (let idx of validIndices) P[idx] /= (rawPriorSum || 1);
 
         const handCounts = [8, 8, 8, 8];
         const currentTricks = Math.floor(((inference?.playedCards || []).length) / 4);
@@ -3241,138 +3325,94 @@ class ISMCTS {
         }
         handCounts[playerIdx] = hand.length;
 
+        // PUCT Selection Loop
         for (let r = 0; r < numRollouts; r++) {
-            for (let moveIdx of validIndices) {
-                const card = hand[moveIdx];
-                let rolloutScore = 0;
-                const simTrick = [...trickCards, { card, player: playerIdx }];
-                const trickWinner = ISMCTS.evaluateWinner(simTrick, leadSuit || card.suit, trumpSuit, trumpRevealed);
-                const isTrickOver = (simTrick.length === 4);
-                const trickPts = simTrick.reduce((sum, tc) => sum + (tc.card.value || 0), 0);
-                const isWinnerUs = (trickWinner.player === playerIdx || trickWinner.player === partnerSeat);
-                const isWinnerPartner = (trickWinner.player === partnerSeat);
-                const isWinnerMe = (trickWinner.player === playerIdx);
+            const totalN = Object.values(N).reduce((a, b) => a + b, 0);
+            let selectedIdx = validIndices[0];
+            let bestPUCT = -Infinity;
 
-                if (isTrickOver) {
-                    rolloutScore += isWinnerUs ? (trickPts * 14) : (-trickPts * 14);
-                } else {
-                    rolloutScore += isWinnerUs ? 5 : -5;
+            for (let idx of validIndices) {
+                const q = (N[idx] > 0) ? (W[idx] / N[idx]) : 0.0;
+                const exploration = c_puct * P[idx] * (Math.sqrt(totalN) / (1 + N[idx]));
+                const puctScore = q + exploration;
+                if (puctScore > bestPUCT) {
+                    bestPUCT = puctScore;
+                    selectedIdx = idx;
                 }
-
-                // Positional Awareness Logic (Seats 1 - 4)
-                if (seatInTrick === 0) {
-                    // SEAT 1 (Leader): Boss card cashing vs Probing
-                    const isBoss = inference ? inference.isBossCard(card) : (card.rank === 'J');
-                    const isTrump = trumpRevealed && trumpSuit && (card.suit === trumpSuit);
-
-                    // Trump Pull Cessation: If both opponents void in trumps, save trumps to ruff!
-                    if (isTrump && inference && inference.voidInSuit[opp1][trumpSuit] && inference.voidInSuit[opp2][trumpSuit]) {
-                        rolloutScore -= 30;
-                    }
-
-                    if (isBoss) {
-                        const oppBehind = (playerIdx + 1) % 4;
-                        const oppBehindVoid = inference && inference.voidInSuit[oppBehind][card.suit];
-                        const oppHasTrump = !trumpRevealed || (inference && !inference.voidInSuit[oppBehind][trumpSuit]);
-                        if (oppBehindVoid && oppHasTrump && !isTrump) {
-                            rolloutScore -= 25; // Defensive: don't feed boss card into opponent's trump void
-                        } else {
-                            rolloutScore += 16; // Cash guaranteed boss card!
-                        }
-                    } else if (card.rank === '9') {
-                        rolloutScore -= 12; // Probing rule: don't lead 9 without Jack!
-                    } else if (card.rank === '7' || card.rank === '8') {
-                        rolloutScore += 6; // Probe low to smoke out opponent's Jack
-                    }
-                } else if (seatInTrick === 1) {
-                    // SEAT 2 (Second Hand Low)
-                    const leadPlay = trickCards[0];
-                    const isLeadByOpponent = (leadPlay.player === opp1 || leadPlay.player === opp2);
-                    const isLeadLow = (leadPlay.card.rank === '7' || leadPlay.card.rank === '8');
-
-                    if (isLeadByOpponent && isLeadLow) {
-                        const bossRank = inference ? inference.getBossRank(leadPlay.card.suit) : 'J';
-                        if (bossRank === 'J' && (card.rank === '9' || card.rank === 'A' || card.rank === '10')) {
-                            rolloutScore -= 18; // Don't waste vulnerable honors into Seat 4!
-                        } else if (card.rank === '7' || card.rank === '8' || card.rank === 'Q') {
-                            rolloutScore += 10;
-                        }
-                    }
-                } else if (seatInTrick === 2) {
-                    // SEAT 3 (Third Hand High / Finesse)
-                    const leadPlay = trickCards[0];
-                    const isLeadByPartner = (leadPlay.player === partnerSeat);
-                    const isLeadLow = (leadPlay.card.rank === '7' || leadPlay.card.rank === '8');
-
-                    if (isLeadByPartner && isLeadLow && card.power >= 6) {
-                        rolloutScore += 16; // Finesse: play high to force Seat 4 to spend boss card
-                    }
-                } else if (seatInTrick === 3) {
-                    // SEAT 4 (Last to Play - Maximum Greed)
-                    if (isWinnerPartner) {
-                        // Fatten trick with riskiest points
-                        if (card.value > 0) {
-                            rolloutScore += (card.value * 16);
-                            if (card.rank !== 'J') rolloutScore += 6;
-                        }
-                    } else {
-                        // Win as cheaply as possible
-                        if (isWinnerMe) {
-                            rolloutScore += 18;
-                            rolloutScore -= (card.power * 2);
-                        } else {
-                            rolloutScore -= (card.value * 12);
-                            if (card.power <= 2) rolloutScore += 8;
-                        }
-                    }
-                }
-
-                // Personality Weaponization
-                if (personality === 'wingman') {
-                    if (isWinnerPartner) rolloutScore += (card.value * 14) + 8;
-                    if (isContractorSide && (currentBid - t1Points >= 5) && handCounts[playerIdx] <= 3) {
-                        if (isWinnerMe && trickPts >= 1) rolloutScore += 20; // Desperation mode
-                    }
-                    if (card.rank === 'J' && !isTrickOver && !isWinnerPartner) rolloutScore -= 8;
-                } else if (personality === 'striker') {
-                    const isDefending = !isContractorSide;
-                    if (seatInTrick === 0 && trumpRevealed && isDefending && trumpSuit && card.suit === trumpSuit) {
-                        if (card.rank === 'J' || card.rank === '9') rolloutScore += 22; // Trump-drain gambit
-                    }
-                    if (seatInTrick === 0 && !trumpRevealed) {
-                        if (card.rank === 'A' || card.rank === '10' || card.rank === '9') rolloutScore += 12; // Punish bidder
-                    }
-                    if (card.power >= 6 && isWinnerMe) rolloutScore += 10;
-                } else if (personality === 'saboteur') {
-                    if (seatInTrick === 0 && !trumpRevealed) {
-                        const hasJackInSuit = hand.some(c => c.suit === card.suit && c.rank === 'J');
-                        if (hasJackInSuit && (card.rank === '7' || card.rank === '8')) rolloutScore += 18; // Baiting
-                    }
-                    if (!isContractorSide && defendingNeeded <= 3) {
-                        if (isWinnerMe && trickPts >= 2) rolloutScore += 35; // Contract-breaker threshold
-                    } else {
-                        if ((card.rank === 'J' || card.rank === '9') && trickPts < 2 && !isTrickOver) rolloutScore -= 16;
-                    }
-                }
-
-                // Royal Pair (K-Q) Protection in Phase 1
-                if (!trumpRevealed && (card.rank === 'K' || card.rank === 'Q')) {
-                    const hasMate = hand.some(c => c.suit === card.suit && (c.rank === 'K' || c.rank === 'Q') && c.rank !== card.rank);
-                    const isProbable = inference ? inference.isProbableTrump(card.suit) : true;
-                    if (hasMate && isProbable) {
-                        rolloutScore -= 24;
-                    }
-                }
-
-                scores[moveIdx] += rolloutScore;
             }
+
+            const card = hand[selectedIdx];
+            const simTrick = [...trickCards, { card, player: playerIdx }];
+            const activeTrump = trumpSuit || (inference ? inference.sampleSecretTrump(trumpPriors) : '♠');
+            const trickWinner = ISMCTS.evaluateWinner(simTrick, leadSuit || card.suit, activeTrump, trumpRevealed);
+            const isTrickOver = (simTrick.length === 4);
+            const trickPts = simTrick.reduce((sum, tc) => sum + (tc.card.value || 0), 0);
+            const isWinnerUs = (trickWinner.player === playerIdx || trickWinner.player === partnerSeat);
+            const isWinnerPartner = (trickWinner.player === partnerSeat);
+            const isWinnerMe = (trickWinner.player === playerIdx);
+
+            // Normalized feature vector phi in [-1, 1]
+            let phi_immediate = isWinnerUs ? (trickPts / 4.0) : -(trickPts / 4.0);
+            if (!isTrickOver && isWinnerUs) phi_immediate += 0.25;
+
+            let phi_preserve = 0;
+            if (card.rank === 'J' || card.rank === '9') {
+                phi_preserve = isWinnerUs ? 0.3 : -0.8;
+            } else if (card.power <= 2) {
+                phi_preserve = 0.5;
+            }
+
+            let phi_reveal = 0;
+            if (!trumpRevealed && card.suit === activeTrump) {
+                phi_reveal = (playerIdx === highestBidder) ? -0.7 : 0.5;
+            }
+
+            let phi_control = 0;
+            const isBoss = inference ? inference.isBossCard(card) : (card.rank === 'J');
+            if (seatInTrick === 0) {
+                if (isBoss) phi_control = 0.8;
+                else if (card.rank === '9') phi_control = -0.5;
+                else if (card.rank === '7' || card.rank === '8') phi_control = 0.3;
+            } else if (seatInTrick === 1) {
+                const leadPlay = trickCards[0];
+                if (leadPlay.card.rank === '7' || leadPlay.card.rank === '8') {
+                    if (card.rank === '9' || card.rank === 'A') {
+                        phi_control = -0.7 * (1.0 + thetaBait);
+                    } else {
+                        phi_control = 0.4;
+                    }
+                }
+            } else if (seatInTrick === 2) {
+                if (trickCards[0].player === partnerSeat && card.power >= 6) phi_control = 0.6;
+            } else if (seatInTrick === 3) {
+                if (!isWinnerPartner && isWinnerMe) phi_control = 0.5 - (card.power * 0.05);
+            }
+
+            let phi_feed = 0;
+            if (isWinnerPartner && card.value > 0) {
+                phi_feed = (card.value / 3.0);
+            }
+
+            // Total Dynamic Utility
+            let U = (w.immediatePts * phi_immediate) +
+                    (w.preserveHonors * phi_preserve) +
+                    (w.forceTrumpReveal * phi_reveal) +
+                    (w.suitControl * phi_control) +
+                    (w.partnerFeed * phi_feed);
+
+            if (personality === 'wingman' && isWinnerPartner) U += 0.3;
+            else if (personality === 'striker' && isWinnerMe && trickPts >= 2) U += 0.4;
+            else if (personality === 'saboteur' && defendingNeeded <= 3 && isWinnerMe && trickPts >= 2) U += 0.6;
+
+            N[selectedIdx] += 1;
+            W[selectedIdx] += U;
         }
 
         let bestIdx = validIndices[0];
-        let bestVal = -Infinity;
+        let maxVisits = -1;
         for (let idx of validIndices) {
-            if (scores[idx] > bestVal) {
-                bestVal = scores[idx];
+            if (N[idx] > maxVisits) {
+                maxVisits = N[idx];
                 bestIdx = idx;
             }
         }
@@ -3401,6 +3441,34 @@ class ISMCTS {
 
 // ==================== 28 GAME ENGINE ====================
 class TwentyEightEngine {
+    getOpponentProfile() {
+        try {
+            let p = localStorage.getItem('28_opponent_profile');
+            return p ? JSON.parse(p) : { thetaBluff: 0.20, thetaBait: 0.20, thetaTrumpHoard: 0.20, roundsCount: 0 };
+        } catch(e) {
+            return { thetaBluff: 0.20, thetaBait: 0.20, thetaTrumpHoard: 0.20, roundsCount: 0 };
+        }
+    }
+
+    updateOpponentProfile(observed) {
+        let p = this.getOpponentProfile();
+        const alpha = 0.25;
+        if (typeof observed.bluffObserved === 'number') {
+            p.thetaBluff = Math.round((alpha * observed.bluffObserved + (1 - alpha) * p.thetaBluff) * 1000) / 1000;
+        }
+        if (typeof observed.baitObserved === 'number') {
+            p.thetaBait = Math.round((alpha * observed.baitObserved + (1 - alpha) * p.thetaBait) * 1000) / 1000;
+        }
+        if (typeof observed.trumpHoardObserved === 'number') {
+            p.thetaTrumpHoard = Math.round((alpha * observed.trumpHoardObserved + (1 - alpha) * p.thetaTrumpHoard) * 1000) / 1000;
+        }
+        p.roundsCount = (p.roundsCount || 0) + 1;
+        try {
+            localStorage.setItem('28_opponent_profile', JSON.stringify(p));
+        } catch(e) {}
+        return p;
+    }
+
     getSessionMemory() {
         try {
             let data = localStorage.getItem('28_session_memory');
@@ -3764,10 +3832,12 @@ class TwentyEightEngine {
             maxWilling = Math.min(19, maxWilling - 1);
         }
 
-        // Personality Weaponization in Bidding:
+        // Personality Weaponization in Bidding & Opponent Bluff Calibration:
+        const oppProf = this.getOpponentProfile();
         if (pIndex === 1) {
-            // Striker (East): Aggressive bidder, pushes limits by +1 on strong EV hands
-            if (bestEV >= 18) maxWilling += 1;
+            // Striker (East): Scale overbid aggression against human bluff frequency (Framework 4)
+            let bluffScale = (1.0 - 0.3 * oppProf.thetaBluff);
+            if (bestEV * bluffScale >= 16.5) maxWilling += 1;
         } else if (pIndex === 3) {
             // Saboteur (West): Opportunistic bidder
             if (bestEV >= 17 && bestEV < 20) maxWilling += 1;
@@ -4044,9 +4114,12 @@ class TwentyEightEngine {
         if (validIndices.length === 0) validIndices = hand.map((_, i) => i);
         if (validIndices.length === 1) return { reveal: false, index: validIndices[0] };
 
-        // Information Set Monte Carlo Tree Search (ISMCTS) with 6 tactical upgrades
+        // Information Set Monte Carlo Tree Search (ISMCTS) with AlphaZero PUCT & Dynamic Utilities
         let botRole = pIndex === 2 ? 'wingman' : (pIndex === 1 ? 'striker' : 'saboteur');
         let rollouts = currentDifficulty === 'hard' ? 70 : (currentDifficulty === 'medium' ? 40 : 20);
+        let mathPriors = (typeof ui !== 'undefined' && ui && ui.cachedMathPriors) ? ui.cachedMathPriors : null;
+        let oppProfile = this.getOpponentProfile();
+
         let bestIdx = ISMCTS.selectBestPlay({
             hand: hand,
             validIndices: validIndices,
@@ -4061,6 +4134,10 @@ class TwentyEightEngine {
             t1Points: this.t1TrickPts,
             t2Points: this.t2TrickPts,
             highestBidder: this.highestBidder,
+            utilityWeights: mathPriors ? mathPriors.utilityWeights : null,
+            movePriors: mathPriors ? mathPriors.movePriors : null,
+            trumpPriors: mathPriors ? mathPriors.trumpSuitPriors : null,
+            opponentProfile: oppProfile,
             numRollouts: rollouts
         });
         return { reveal: false, index: bestIdx };
@@ -4808,6 +4885,34 @@ class UIController {
                 ease: "back.out(1.5)"
             });
         }
+    }
+
+    async fetchMathPriorsInFlight(nextPlayer) {
+        // Zero Perceived Lag Pipeline: Pre-fetch Groq math priors during card animation flight
+        try {
+            if (nextPlayer === mySeat || this.engine.phase !== 'PLAYING') return;
+            let hand = this.engine.players[nextPlayer] || [];
+            let valids = this.engine.getValidPlayIndices(nextPlayer);
+            let legalCards = valids.map(i => `${hand[i].rank}${hand[i].suit}`);
+            let excluded = Array.from(this.engine.bidderExcludedTrumps || []);
+
+            let stateSnapshot = {
+                bidTarget: this.engine.currentBid,
+                highestBidder: COMPASS_FULL[this.engine.highestBidder],
+                trumpRevealed: this.engine.trumpRevealed,
+                trumpSuit: this.engine.trumpSuit,
+                excludedTrumps: excluded,
+                legalCards: legalCards,
+                currentTrick: (this.engine.trickCards || []).map(tc => ({ seat: COMPASS_FULL[tc.player], card: `${tc.card.rank}${tc.card.suit}` })),
+                teamPoints: { NS: this.engine.t1TrickPts, EW: this.engine.t2TrickPts },
+                opponentProfile: this.engine.getOpponentProfile()
+            };
+
+            this.cachedMathPriors = await BackendAPI.getBotMath(stateSnapshot);
+            if (this.cachedMathPriors && this.cachedMathPriors.trumpSuitPriors && this.engine.inference) {
+                this.engine.inference.setTrumpSuitPriors(this.cachedMathPriors.trumpSuitPriors);
+            }
+        } catch(e) {}
     }
 
     animateVaultUnlock(suit) {
