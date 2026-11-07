@@ -908,6 +908,254 @@ body::before {
 .turn-urgency-rect.critical { stroke: #ef4444; filter: drop-shadow(0 0 10px #ef4444); animation: critPulse 0.5s infinite alternate; }
 @keyframes critPulse { 0% { opacity: 0.6; } 100% { opacity: 1; } }
 
+/* ==================== 8. DYNAMIC FLOATING SEAT BIDDING BUBBLE ==================== */
+.floating-seat-bid {
+    position: absolute;
+    z-index: 250;
+    pointer-events: none;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 14px;
+    border-radius: 14px;
+    font-family: 'Cinzel', serif;
+    white-space: nowrap;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.85);
+    backdrop-filter: blur(10px);
+    transition: transform 0.2s ease, opacity 0.25s ease;
+}
+.floating-seat-bid.pos-bottom {
+    bottom: calc(100% + 14px);
+    left: 50%;
+    translate: -50% 0;
+}
+.floating-seat-bid.pos-top {
+    top: calc(100% + 14px);
+    left: 50%;
+    translate: -50% 0;
+}
+.floating-seat-bid.pos-left {
+    left: calc(100% + 14px);
+    top: 50%;
+    translate: 0 -50%;
+}
+.floating-seat-bid.pos-right {
+    right: calc(100% + 14px);
+    top: 50%;
+    translate: 0 -50%;
+}
+
+.floating-seat-bid .float-bid-sub {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.floating-seat-bid .float-bid-main {
+    font-size: 1.25rem;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: 0.5px;
+}
+
+.floating-seat-bid.type-bid {
+    background: linear-gradient(135deg, rgba(28, 22, 6, 0.97), rgba(14, 10, 2, 0.98));
+    border: 2px solid var(--gold-bright);
+    box-shadow: 0 0 28px rgba(234, 179, 8, 0.7), 0 8px 24px rgba(0,0,0,0.85);
+    color: #fef08a;
+}
+.floating-seat-bid.type-bid .float-bid-main {
+    color: #fff;
+    text-shadow: 0 0 12px rgba(234, 179, 8, 0.9);
+}
+
+.floating-seat-bid.type-pass {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+    border: 1.5px solid rgba(148, 163, 184, 0.55);
+    box-shadow: 0 0 18px rgba(100, 116, 139, 0.45), 0 6px 20px rgba(0,0,0,0.75);
+    color: #cbd5e1;
+    padding: 5px 12px;
+}
+.floating-seat-bid.type-pass .float-bid-main {
+    color: #e2e8f0;
+    font-size: 0.95rem;
+}
+
+.floating-seat-bid.type-won {
+    background: linear-gradient(135deg, rgba(6, 44, 22, 0.97), rgba(2, 20, 10, 0.98));
+    border: 2px solid #4ade80;
+    box-shadow: 0 0 35px rgba(74, 222, 128, 0.8), 0 12px 28px rgba(0,0,0,0.85);
+    color: #86efac;
+}
+.floating-seat-bid.type-won .float-bid-main {
+    color: #ffffff;
+    font-size: 1.35rem;
+    text-shadow: 0 0 14px rgba(74, 222, 128, 0.95);
+}
+
+/* Dynamic Thinking Deliberation Badge */
+.seat-bid-thinking {
+    position: absolute;
+    z-index: 200;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 14px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    background: rgba(8, 20, 14, 0.94);
+    border: 1.5px solid var(--gold-primary);
+    color: var(--gold-bright);
+    box-shadow: 0 0 14px rgba(229, 193, 88, 0.45), 0 4px 12px rgba(0,0,0,0.65);
+    white-space: nowrap;
+    animation: thinkingLevitate 1.4s infinite ease-in-out alternate;
+}
+.seat-bid-thinking.pos-bottom {
+    bottom: calc(100% + 8px);
+    left: 50%;
+    translate: -50% 0;
+}
+.seat-bid-thinking.pos-top {
+    top: calc(100% + 8px);
+    left: 50%;
+    translate: -50% 0;
+}
+.seat-bid-thinking.pos-left {
+    left: calc(100% + 8px);
+    top: 50%;
+    translate: 0 -50%;
+}
+.seat-bid-thinking.pos-right {
+    right: calc(100% + 8px);
+    top: 50%;
+    translate: 0 -50%;
+}
+.seat-bid-thinking.my-turn {
+    border-color: #38bdf8;
+    color: #bae6fd;
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.6), 0 4px 12px rgba(0,0,0,0.65);
+    animation: thinkingLevitate 0.9s infinite ease-in-out alternate;
+}
+@keyframes thinkingLevitate {
+    0% { margin-top: 0; opacity: 0.88; }
+    100% { margin-top: -4px; opacity: 1; }
+}
+
+/* ==================== 9. DYNAMIC TRICK WINNER HALO & HOVERING CROWN ==================== */
+@keyframes winnerHaloPulseFriend {
+    0% {
+        box-shadow: 0 0 14px rgba(56, 189, 248, 0.8), 0 0 32px rgba(56, 189, 248, 0.45), inset 0 0 10px rgba(56, 189, 248, 0.35);
+        border-color: #38bdf8;
+    }
+    50% {
+        box-shadow: 0 0 26px rgba(56, 189, 248, 1), 0 0 52px rgba(56, 189, 248, 0.65), inset 0 0 14px rgba(56, 189, 248, 0.55);
+        border-color: #bae6fd;
+    }
+    100% {
+        box-shadow: 0 0 14px rgba(56, 189, 248, 0.8), 0 0 32px rgba(56, 189, 248, 0.45), inset 0 0 10px rgba(56, 189, 248, 0.35);
+        border-color: #38bdf8;
+    }
+}
+
+@keyframes winnerHaloPulseEnemy {
+    0% {
+        box-shadow: 0 0 14px rgba(251, 113, 133, 0.8), 0 0 32px rgba(251, 113, 133, 0.45), inset 0 0 10px rgba(251, 113, 133, 0.35);
+        border-color: #fb7185;
+    }
+    50% {
+        box-shadow: 0 0 26px rgba(251, 113, 133, 1), 0 0 52px rgba(251, 113, 133, 0.65), inset 0 0 14px rgba(251, 113, 133, 0.55);
+        border-color: #fecdd3;
+    }
+    100% {
+        box-shadow: 0 0 14px rgba(251, 113, 133, 0.8), 0 0 32px rgba(251, 113, 133, 0.45), inset 0 0 10px rgba(251, 113, 133, 0.35);
+        border-color: #fb7185;
+    }
+}
+
+.player-badge.trick-winner-halo-friend {
+    animation: winnerHaloPulseFriend 1.2s infinite ease-in-out !important;
+    transform: scale(1.08) !important;
+    border-color: #38bdf8 !important;
+    z-index: 45 !important;
+}
+
+.player-badge.trick-winner-halo-enemy {
+    animation: winnerHaloPulseEnemy 1.2s infinite ease-in-out !important;
+    transform: scale(1.08) !important;
+    border-color: #fb7185 !important;
+    z-index: 45 !important;
+}
+
+/* Hovering halo crown over the winning seat */
+.seat-winner-crown {
+    position: absolute;
+    z-index: 55;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-family: 'Cinzel', serif;
+    font-size: 0.63rem;
+    font-weight: 800;
+    white-space: nowrap;
+    animation: crownFloat 1.2s infinite ease-in-out alternate;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+}
+.seat-winner-crown.crown-pos-bottom {
+    bottom: calc(100% + 7px);
+    left: 50%;
+    translate: -50% 0;
+}
+.seat-winner-crown.crown-pos-top {
+    top: calc(100% + 7px);
+    left: 50%;
+    translate: -50% 0;
+}
+.seat-winner-crown.crown-pos-left {
+    left: calc(100% + 7px);
+    top: 50%;
+    translate: 0 -50%;
+}
+.seat-winner-crown.crown-pos-right {
+    right: calc(100% + 7px);
+    top: 50%;
+    translate: 0 -50%;
+}
+
+.seat-winner-crown.crown-friend {
+    background: linear-gradient(135deg, rgba(8, 28, 48, 0.95), rgba(3, 14, 24, 0.98));
+    border: 1.5px solid #38bdf8;
+    color: #bae6fd;
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.7), 0 4px 12px rgba(0,0,0,0.65);
+}
+.seat-winner-crown.crown-enemy {
+    background: linear-gradient(135deg, rgba(48, 12, 20, 0.95), rgba(22, 4, 8, 0.98));
+    border: 1.5px solid #fb7185;
+    color: #fecdd3;
+    box-shadow: 0 0 18px rgba(251, 113, 133, 0.7), 0 4px 12px rgba(0,0,0,0.65);
+}
+.seat-winner-crown .crown-icon {
+    font-size: 0.85rem;
+    animation: crownTwist 1s infinite alternate ease-in-out;
+}
+@keyframes crownTwist {
+    0% { transform: translateY(0) rotate(-7deg); }
+    100% { transform: translateY(-2px) rotate(7deg); }
+}
+@keyframes crownFloat {
+    0% { margin-top: 0; }
+    100% { margin-top: -4px; }
+}
+
 </style>
 </head>
 <body>
@@ -2426,6 +2674,7 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         document.getElementById('log-drawer').innerHTML = '';
         ui.uiTrumpRevealed = false;
         ui.animatingTrick = false;
+        ui.clearTrickWinnerHalo();
         const vault = document.getElementById('secret-trump-vault'); if (vault) vault.style.display = 'none';
         const watermark = document.getElementById('lead-suit-watermark'); if (watermark) { watermark.className = ''; watermark.innerHTML = ''; }
     }
@@ -3353,16 +3602,19 @@ class UIController {
             let displayVal = `🎯 ${t.partnerWonBid} (${val})`;
             playSound('trump_select');
             this.triggerBidSplash(pIndex, winPrefix, displayVal, 'won');
+            this.showSeatFloatingBid(pIndex, val, true);
         } else if (isPass) {
             let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `⏭️ ${t.passedSkipped || 'PASSED (SKIPPED)'}`;
             playSound('pass');
             this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
+            this.showSeatFloatingBid(pIndex, 'Pass', false);
         } else {
             let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `💰 ${t.bidding} ${val}`;
             playSound('bid');
             this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
+            this.showSeatFloatingBid(pIndex, val, false);
         }
 
         if (this.engine.phase === 'BIDDING') {
@@ -3457,11 +3709,82 @@ class UIController {
             } else {
                 splash.classList.remove('show');
             }
-        }, 2200);
+        }, 2600);
     }
 
     triggerPartnerBidSplash(title, value) {
         this.triggerBidSplash(2, title, value, 'partner');
+    }
+
+    showSeatFloatingBid(pIndex, val, won) {
+        const positions = ['bottom', 'right', 'top', 'left'];
+        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
+        const seatEl = document.getElementById(`player-${positions[visualPos]}`);
+        if (!seatEl) return;
+        const badgeEl = seatEl.querySelector('.player-badge');
+        if (!badgeEl) return;
+
+        // Remove any previous floating bid on this seat
+        const prev = badgeEl.querySelector('.floating-seat-bid');
+        if (prev) prev.remove();
+
+        let t = I18N[currentLang] || I18N.en;
+        let isPass = (val === 'Pass');
+        let type = won ? 'won' : (isPass ? 'pass' : 'bid');
+
+        const floatEl = document.createElement('div');
+        floatEl.className = `floating-seat-bid pos-${positions[visualPos]} type-${type}`;
+
+        if (won) {
+            floatEl.innerHTML = `
+                <div class="float-bid-sub">🎯 ${t.partnerWonBid || 'WON BID'}</div>
+                <div class="float-bid-main">${val}</div>
+            `;
+        } else if (isPass) {
+            floatEl.innerHTML = `
+                <div class="float-bid-main">⏭️ ${t.partnerPassed || 'PASSED'}</div>
+            `;
+        } else {
+            floatEl.innerHTML = `
+                <div class="float-bid-sub">💰 ${t.bidding || 'BIDS'}</div>
+                <div class="float-bid-main">${val}</div>
+            `;
+        }
+
+        badgeEl.appendChild(floatEl);
+
+        let pos = positions[visualPos];
+        let startY = (pos === 'bottom') ? 14 : (pos === 'top' ? -14 : 0);
+        let startX = (pos === 'right') ? 14 : (pos === 'left' ? -14 : 0);
+
+        if (window.gsap) {
+            gsap.fromTo(floatEl,
+                { scale: 0.45, opacity: 0, x: startX, y: startY },
+                { 
+                    scale: 1, 
+                    opacity: 1, 
+                    x: 0, 
+                    y: 0, 
+                    duration: 0.38, 
+                    ease: "back.out(2)"
+                }
+            );
+            setTimeout(() => {
+                if (floatEl.parentNode) {
+                    gsap.to(floatEl, {
+                        scale: 0.8,
+                        opacity: 0,
+                        y: (pos === 'bottom' ? -18 : (pos === 'top' ? 18 : 0)),
+                        x: (pos === 'right' ? -18 : (pos === 'left' ? 18 : 0)),
+                        duration: 0.38,
+                        ease: "power2.in",
+                        onComplete: () => floatEl.remove()
+                    });
+                }
+            }, 2600);
+        } else {
+            setTimeout(() => floatEl.remove(), 2600);
+        }
     }
 
     renderLog(msg) {
@@ -3892,12 +4215,75 @@ class UIController {
         }
     }
 
+    clearTrickWinnerHalo() {
+        const positions = ['bottom', 'right', 'top', 'left'];
+        for (let i = 0; i < 4; i++) {
+            const el = document.getElementById(`player-${positions[i]}`);
+            if (!el) continue;
+            const badge = el.querySelector('.player-badge');
+            if (badge) {
+                badge.classList.remove('trick-winner-halo-friend', 'trick-winner-halo-enemy');
+            }
+            const crown = el.querySelector('.seat-winner-crown');
+            if (crown) crown.remove();
+        }
+    }
+
+    updateTrickWinnerHalo(winner) {
+        if (!winner || !this.engine.trickCards || this.engine.trickCards.length === 0 || (this.engine.phase !== 'PLAYING' && this.engine.phase !== 'TRICK_OVER')) {
+            this.clearTrickWinnerHalo();
+            return;
+        }
+
+        const positions = ['bottom', 'right', 'top', 'left'];
+        let visualPos = (mySeat === 99) ? winner.player : (winner.player - mySeat + 4) % 4;
+        let myTeam = (mySeat === 0 || mySeat === 2 || mySeat === 99) ? 1 : 2;
+        let winTeam = (winner.player === 0 || winner.player === 2) ? 1 : 2;
+        let isFriend = (winTeam === myTeam);
+        let haloClass = isFriend ? 'trick-winner-halo-friend' : 'trick-winner-halo-enemy';
+
+        for (let i = 0; i < 4; i++) {
+            const el = document.getElementById(`player-${positions[i]}`);
+            if (!el) continue;
+            const badge = el.querySelector('.player-badge');
+            if (!badge) continue;
+            const existingCrown = badge.querySelector('.seat-winner-crown');
+
+            if (i === visualPos) {
+                if (!badge.classList.contains(haloClass)) {
+                    badge.classList.remove('trick-winner-halo-friend', 'trick-winner-halo-enemy');
+                    badge.classList.add(haloClass);
+                    if (window.gsap) {
+                        gsap.fromTo(badge, { scale: 1.2 }, { scale: 1.08, duration: 0.32, ease: "back.out(2)" });
+                    }
+                }
+                let leadLabel = currentLang === 'hi' ? 'आगे' : 'Leading';
+                if (!existingCrown) {
+                    const crown = document.createElement('div');
+                    crown.className = `seat-winner-crown crown-pos-${positions[i]} ${isFriend ? 'crown-friend' : 'crown-enemy'}`;
+                    crown.innerHTML = `<span class="crown-icon">👑</span> <span class="crown-label">${leadLabel}</span> <span style="font-weight:900;">(${winner.card.rank}${winner.card.suit})</span>`;
+                    badge.appendChild(crown);
+                    if (window.gsap) {
+                        gsap.fromTo(crown, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.28, ease: "back.out(2)" });
+                    }
+                } else {
+                    existingCrown.className = `seat-winner-crown crown-pos-${positions[i]} ${isFriend ? 'crown-friend' : 'crown-enemy'}`;
+                    existingCrown.innerHTML = `<span class="crown-icon">👑</span> <span class="crown-label">${leadLabel}</span> <span style="font-weight:900;">(${winner.card.rank}${winner.card.suit})</span>`;
+                }
+            } else {
+                badge.classList.remove('trick-winner-halo-friend', 'trick-winner-halo-enemy');
+                if (existingCrown) existingCrown.remove();
+            }
+        }
+    }
+
     updateTrickHUD() {
         const pill = document.getElementById('trick-hud-pill');
         const ptsPill = document.getElementById('trick-pts-pill');
         let t = I18N[currentLang];
 
-        if (this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1') {
+        if (this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
+            this.clearTrickWinnerHalo();
             let currentTurnName = this.playerNames[this.engine.currentTurn] || COMPASS_FULL[this.engine.currentTurn];
             let partnerIdx = mySeat === 99 ? 2 : (mySeat + 2) % 4;
             let isPartnerTurn = (this.engine.currentTurn === partnerIdx && mySeat !== 99);
@@ -3920,12 +4306,14 @@ class UIController {
         let potLabel = (t && t.trickPot) ? t.trickPot : (currentLang === 'hi' ? 'चाल के अंक' : 'Trick Pot');
 
         if (this.engine.trickCards.length === 0) {
+            this.clearTrickWinnerHalo();
             let leaderName = this.playerNames[this.engine.currentTurn];
             pill.className = '';
             pill.innerHTML = (t.waitingToLead || 'Waiting for {name} to lead').replace('{name}', `<b>${leaderName}</b>`);
             ptsPill.innerText = `${potLabel}: 0 ${ptsWord}`;
         } else {
             let winner = this.engine._getCurrentTrickWinner();
+            this.updateTrickWinnerHalo(winner);
             let pts = this.engine._countPointsInTrick();
             let myTeam = (mySeat === 0 || mySeat === 2) ? 1 : 2;
             if (mySeat === 99) myTeam = 1;
@@ -4015,8 +4403,6 @@ class UIController {
             }
         }
 
-        this.updateTrickHUD();
-
         const positions = ['bottom', 'right', 'top', 'left'];
         let userValidPlays = (this.engine.phase === 'PLAYING' && this.engine.currentTurn === mySeat && mySeat !== 99) ? this.engine.getValidPlayIndices(mySeat) : [];
 
@@ -4047,9 +4433,29 @@ class UIController {
             let displayedCount = this.isDealingState ? cardStartIndex : cardCount;
 
             const activeBubble = el.querySelector('.speech-bubble');
+            const activeFloatBid = el.querySelector('.floating-seat-bid');
             el.innerHTML = `<div class="${badgeClass}">${this.playerNames[actualPlayerIndex]}${bidderCrown} <span class="card-cnt" id="badge-cnt-${actualPlayerIndex}">${displayedCount}</span></div>${bidBadge}`; 
+            const badgeEl = el.querySelector('.player-badge');
             if (activeBubble) el.appendChild(activeBubble);
-            this.updateTurnUrgencyRing(el.querySelector('.player-badge'), isCurrent, actualPlayerIndex);
+            if (activeFloatBid && badgeEl) badgeEl.appendChild(activeFloatBid);
+            if (badgeEl) this.updateTurnUrgencyRing(badgeEl, isCurrent, actualPlayerIndex);
+
+            // Bidding or Trump Selection Deliberation Indicator on active player's badge
+            if (this.engine.phase === 'BIDDING' && isCurrent && badgeEl) {
+                let isMe = (actualPlayerIndex === mySeat && mySeat !== 99);
+                let thinkingText = isMe ? (currentLang === 'hi' ? 'आपकी बारी (बोली लगाएं)' : 'YOUR TURN TO BID') : (currentLang === 'hi' ? 'सोच रहे हैं...' : 'Thinking...');
+                let thinkDiv = document.createElement('div');
+                thinkDiv.className = `seat-bid-thinking pos-${positions[i]} ${isMe ? 'my-turn' : ''}`;
+                thinkDiv.innerHTML = `<span class="think-icon">${isMe ? '👉' : '💭'}</span> <span>${thinkingText}</span>`;
+                badgeEl.appendChild(thinkDiv);
+            } else if (this.engine.phase === 'SET_TRUMP' && actualPlayerIndex === this.engine.highestBidder && badgeEl) {
+                let isMe = (actualPlayerIndex === mySeat && mySeat !== 99);
+                let trumpThinkingText = isMe ? (currentLang === 'hi' ? 'गुप्त हुकुम चुनें' : 'SELECT SECRET TRUMP') : (currentLang === 'hi' ? 'हुकुम चुन रहे हैं...' : 'Selecting Trump...');
+                let thinkDiv = document.createElement('div');
+                thinkDiv.className = `seat-bid-thinking pos-${positions[i]} ${isMe ? 'my-turn' : ''}`;
+                thinkDiv.innerHTML = `<span class="think-icon">🔒</span> <span>${trumpThinkingText}</span>`;
+                badgeEl.appendChild(thinkDiv);
+            }
             
             if (actualPlayerIndex === mySeat && mySeat !== 99) {
                 const row = document.createElement('div');
@@ -4122,6 +4528,7 @@ class UIController {
             initVanillaTilt();
         }, 50);
 
+        this.updateTrickHUD();
         this.updateSecretTrumpVault();
         if (document.getElementById('tracker-drawer')?.classList.contains('open')) {
             this.updateTrackerUI();
@@ -4477,6 +4884,7 @@ class UIController {
             }
         }
         playSound('play');
+        this.updateTrickHUD();
         if (document.getElementById('tracker-drawer')?.classList.contains('open')) {
             this.updateTrackerUI();
         }
@@ -4628,6 +5036,7 @@ class UIController {
             setTimeout(() => {
                 this.animatingTrick = false;
                 table.innerHTML = '';
+                this.clearTrickWinnerHalo();
                 if (isHost) {
                     this.engine.resolveTrick();
                     setTimeout(() => { this.gameLoop(); }, 600);
@@ -4646,6 +5055,7 @@ class UIController {
             });
             setTimeout(() => {
                 this.animatingTrick = false; table.innerHTML = '';
+                this.clearTrickWinnerHalo();
                 if (isHost) {
                     this.engine.resolveTrick();
                     setTimeout(() => { this.gameLoop(); }, 750);
@@ -4743,8 +5153,8 @@ class UIController {
 
         if (isAITurn && (gameMode === 'ai' || (gameMode === 'multi' && isHost))) {
             if (this.engine.phase === 'BIDDING') {
-                // Natural human thinking pause for bidding: 2.1s - 2.8s
-                let bidDelay = 2100 + Math.floor(Math.random() * 700);
+                // Paced human thinking pause for bidding: 3.4s - 4.2s
+                let bidDelay = 3400 + Math.floor(Math.random() * 800);
                 this.aiTimer = setTimeout(async () => {
                     try {
                         let val = await this.engine.getAIBidAsync();
@@ -5094,6 +5504,7 @@ class UIController {
         document.getElementById('log-drawer').innerHTML = '';
         this.uiTrumpRevealed = false;
         this.animatingTrick = false;
+        this.clearTrickWinnerHalo();
         const vault = document.getElementById('secret-trump-vault'); if (vault) vault.style.display = 'none';
         const watermark = document.getElementById('lead-suit-watermark'); if (watermark) { watermark.className = ''; watermark.innerHTML = ''; }
         if(isHost) {
