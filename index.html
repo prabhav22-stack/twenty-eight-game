@@ -249,8 +249,8 @@ body::before {
 /* ==================== BOARD & TABLE ==================== */
 #board { flex: 1 1 0; position: relative; width: 100%; min-height: 0; z-index: 10; overflow: hidden; }
 #casino-ring {
-    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
-    width: clamp(170px, min(48vw, 36vh), 230px); height: clamp(170px, min(48vw, 36vh), 230px);
+    position: absolute; top: var(--table-center-y, 42%); left: 50%; transform: translate(-50%, -50%);
+    width: var(--ring-size, clamp(160px, min(48vw, 36vh), 230px)); height: var(--ring-size, clamp(160px, min(48vw, 36vh), 230px));
     border-radius: 50%; border: 1.5px dashed rgba(229, 193, 88, 0.25);
     background: radial-gradient(circle, rgba(229, 193, 88, 0.07) 0%, transparent 72%);
     pointer-events: none; z-index: 2; display: flex; flex-direction: column;
@@ -258,7 +258,7 @@ body::before {
 }
 #trick-hud-pill {
     position: absolute;
-    top: calc(42% - clamp(92px, min(25vw, 19vh), 124px));
+    top: calc(var(--table-center-y, 42%) - var(--hud-pill-offset, clamp(85px, min(24vw, 18vh), 118px)));
     left: 50%;
     transform: translateX(-50%);
     z-index: 95;
@@ -289,7 +289,7 @@ body::before {
 }
 #trick-pts-pill {
     position: absolute;
-    top: calc(42% + clamp(92px, min(25vw, 19vh), 124px));
+    top: calc(var(--table-center-y, 42%) + var(--hud-pill-offset, clamp(85px, min(24vw, 18vh), 118px)));
     left: 50%;
     transform: translateX(-50%);
     z-index: 95;
@@ -306,17 +306,18 @@ body::before {
     white-space: nowrap;
 }
 #center-table {
-    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
+    position: absolute; top: var(--table-center-y, 42%); left: 50%; transform: translate(-50%, -50%);
     width: calc(var(--card-w) * 2.2); height: calc(var(--card-h) * 1.5); z-index: 15; pointer-events: none;
 }
 
 /* PLAYER SEATS */
 .hand { position: absolute; display: flex; align-items: center; justify-content: center; z-index: 20; }
 #player-top { top: clamp(4px, 1.2vh, 8px); left: 50%; transform: translateX(-50%); flex-direction: column; }
-#player-left { left: clamp(4px, 1vw, 10px); top: 42%; transform: translateY(-50%); flex-direction: column; }
-#player-right { right: clamp(4px, 1vw, 10px); top: 42%; transform: translateY(-50%); flex-direction: column; }
+#player-left { left: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-left, 0px)); top: var(--table-center-y, 42%); transform: translateY(-50%); flex-direction: column; }
+#player-right { right: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-right, 0px)); top: var(--table-center-y, 42%); transform: translateY(-50%); flex-direction: column; }
 #player-bottom {
-    bottom: clamp(6px, 1.6vh, 16px); left: 50%; transform: translateX(-50%);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--south-bottom, clamp(6px, 1.5vh, 14px)));
+    left: 50%; transform: translateX(-50%);
     z-index: 120; perspective: 900px; flex-direction: column; align-items: center;
 }
 
@@ -332,9 +333,9 @@ body::before {
     padding: 4px 8px 0px 8px; min-height: calc(var(--card-h) + 12px);
     max-width: 98vw; margin: 0 auto;
 }
-.my-cards-row .card { margin-left: clamp(-18px, -3.5vw, -10px); transform-origin: bottom center; }
+.my-cards-row .card { margin-left: var(--sparse-card-margin, clamp(-12px, -2.5vw, -6px)); transform-origin: bottom center; }
 .my-cards-row .card:first-child { margin-left: 0 !important; }
-.my-cards-row.dense-hand .card { margin-left: clamp(-28px, -6.5vw, -20px) !important; }
+.my-cards-row.dense-hand .card { margin-left: var(--dense-card-margin, clamp(-26px, -6.5vw, -20px)) !important; }
 .my-cards-row.dense-hand .card:first-child { margin-left: 0 !important; }
 
 .player-badge {
@@ -644,12 +645,6 @@ body::before {
 
 /* ==================== MOBILE SCREEN OPTIMIZATION ==================== */
 @media (max-width: 680px), (max-aspect-ratio: 1/1) {
-    :root {
-        --card-w: clamp(52px, 14.5vw, 68px);
-        --card-h: clamp(76px, 21vw, 98px);
-        --opp-card-w: clamp(24px, 7vw, 34px);
-        --opp-card-h: clamp(36px, 10.5vw, 50px);
-    }
     #top-hud {
         padding: 4px 6px; gap: 4px;
     }
@@ -660,35 +655,37 @@ body::before {
         font-size: 0.62rem;
     }
     #casino-ring, #center-table, #dealer-deck, .dealing-card-flyer, .shuffle-packet {
-        top: 48%;
+        top: var(--table-center-y, 48%);
     }
     #trick-hud-pill {
-        top: calc(48% - clamp(82px, 16vh, 110px));
+        top: calc(var(--table-center-y, 48%) - var(--hud-pill-offset, clamp(80px, 16vh, 108px)));
     }
     #trick-pts-pill {
-        top: calc(48% + clamp(82px, 16vh, 110px));
+        top: calc(var(--table-center-y, 48%) + var(--hud-pill-offset, clamp(80px, 16vh, 108px)));
     }
     #player-top {
         top: clamp(2px, 0.8vh, 6px);
     }
     #player-left {
-        left: clamp(2px, 0.8vw, 6px); top: 48%;
+        left: max(clamp(2px, 0.8vw, 6px), env(safe-area-inset-left, 0px));
+        top: var(--table-center-y, 48%);
     }
     #player-right {
-        right: clamp(2px, 0.8vw, 6px); top: 48%;
+        right: max(clamp(2px, 0.8vw, 6px), env(safe-area-inset-right, 0px));
+        top: var(--table-center-y, 48%);
     }
     #player-bottom {
-        bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(6px, 1.5vh, 12px));
+        bottom: calc(env(safe-area-inset-bottom, 0px) + var(--south-bottom, clamp(4px, 1.4vh, 10px)));
         width: 100vw; max-width: 100vw;
     }
     .my-cards-row {
         width: 100%; max-width: 98vw; padding: 0 4px 2px 4px; justify-content: center; overflow: visible;
     }
     .my-cards-row .card {
-        margin-left: clamp(-10px, -2.5vw, -6px);
+        margin-left: var(--sparse-card-margin, clamp(-10px, -2.5vw, -6px));
     }
     .my-cards-row.dense-hand .card {
-        margin-left: clamp(-26px, -6.8vw, -20px) !important;
+        margin-left: var(--dense-card-margin, clamp(-26px, -6.8vw, -20px)) !important;
     }
     .my-cards-row .card:first-child, .my-cards-row.dense-hand .card:first-child {
         margin-left: 0 !important;
@@ -701,12 +698,14 @@ body::before {
         padding: 1px 3px;
     }
     .action-btn-container {
-        bottom: calc(var(--card-h) + clamp(36px, 6vh, 48px));
+        bottom: calc(var(--card-h) + clamp(26px, 5vh, 42px));
     }
     .modal {
-        width: clamp(290px, 94vw, 380px);
+        width: clamp(280px, 94vw, 380px);
+        max-height: calc(100dvh - 36px);
+        overflow-y: auto;
         padding: 14px 12px;
-        top: 48%;
+        top: var(--table-center-y, 48%);
     }
     .bid-options-grid {
         grid-template-columns: repeat(4, 1fr);
@@ -719,6 +718,40 @@ body::before {
     }
     .modal-pass-btn {
         padding: 11px; font-size: 0.92rem; font-weight: 800;
+    }
+}
+
+/* ==================== ADAPTIVE SHORT / LANDSCAPE SCREEN OPTIMIZATION ==================== */
+@media (orientation: landscape) and (max-height: 580px) {
+    #top-hud {
+        padding: 2px 8px;
+    }
+    .contract-pill {
+        font-size: 0.8rem;
+    }
+    .trump-pill {
+        font-size: 0.58rem;
+    }
+    #player-top {
+        top: 1px;
+    }
+    #player-top .player-badge {
+        padding: 2px 6px;
+        font-size: 0.58rem;
+    }
+    #player-left .player-badge, #player-right .player-badge {
+        padding: 2px 6px;
+        font-size: 0.58rem;
+    }
+    #player-bottom {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 2px);
+    }
+    .action-btn-container {
+        bottom: calc(var(--card-h) + 4px);
+    }
+    .action-btn-container .act-btn {
+        padding: 3px 9px;
+        font-size: 0.65rem;
     }
 }
 
@@ -1438,6 +1471,103 @@ body::before {
 <div id="dramatic-reveal"></div>
 
 <script>
+// ==================== RESPONSIVE SCREEN DETECTOR & ADAPTIVE LAYOUT ====================
+function updateScreenMetrics() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const ar = w / h;
+    const docEl = document.documentElement;
+
+    docEl.style.setProperty('--vh', (h * 0.01) + 'px');
+    docEl.style.setProperty('--app-width', w + 'px');
+    docEl.style.setProperty('--app-height', h + 'px');
+
+    const isLandscape = (w > h);
+    const isMobile = (w <= 680) || (ar < 1.05 && w <= 820);
+    const isTallPhone = (!isLandscape && ar <= 0.56);
+    const isStandardPhone = (!isLandscape && ar > 0.56 && ar <= 0.72);
+    const isTablet = (!isLandscape && ar > 0.72 && w <= 1024) || (isLandscape && w <= 1100 && h <= 800);
+    const isShortScreen = (h < 640);
+
+    let tableCenterPercent = 42;
+    if (isTallPhone) {
+        tableCenterPercent = 48;
+    } else if (isStandardPhone) {
+        tableCenterPercent = 46.5;
+    } else if (isTablet && !isLandscape) {
+        tableCenterPercent = 45;
+    } else if (isLandscape && isShortScreen) {
+        tableCenterPercent = 44;
+    } else {
+        tableCenterPercent = 42;
+    }
+    docEl.style.setProperty('--table-center-y', tableCenterPercent + '%');
+
+    let cardW, cardH, oppCardW, oppCardH;
+    if (isMobile) {
+        if (isLandscape) {
+            cardH = Math.min(Math.max(52, h * 0.18), 76);
+            cardW = Math.round(cardH * 0.69);
+            oppCardH = Math.min(Math.max(30, h * 0.11), 42);
+            oppCardW = Math.round(oppCardH * 0.69);
+        } else {
+            cardW = Math.min(Math.max(48, w * 0.145), 68);
+            cardH = Math.min(Math.round(cardW * 1.44), h * 0.145);
+            cardH = Math.max(cardH, 68);
+            cardW = Math.round(cardH * 0.69);
+
+            oppCardW = Math.min(Math.max(22, w * 0.075), 34);
+            oppCardH = Math.min(Math.round(oppCardW * 1.47), h * 0.075);
+            oppCardH = Math.max(oppCardH, 34);
+            oppCardW = Math.round(oppCardH * 0.68);
+        }
+    } else if (isTablet) {
+        cardW = Math.min(Math.max(58, w * 0.09), 78);
+        cardH = Math.round(cardW * 1.44);
+        oppCardW = Math.min(Math.max(28, w * 0.05), 40);
+        oppCardH = Math.round(oppCardW * 1.47);
+    } else {
+        cardW = Math.min(Math.max(60, Math.min(w * 0.065, h * 0.11)), 88);
+        cardH = Math.round(cardW * 1.44);
+        oppCardW = Math.min(Math.max(30, Math.min(w * 0.04, h * 0.07)), 48);
+        oppCardH = Math.round(oppCardW * 1.47);
+    }
+
+    docEl.style.setProperty('--card-w', cardW + 'px');
+    docEl.style.setProperty('--card-h', cardH + 'px');
+    docEl.style.setProperty('--opp-card-w', oppCardW + 'px');
+    docEl.style.setProperty('--opp-card-h', oppCardH + 'px');
+
+    let ringSize;
+    if (isLandscape) {
+        ringSize = Math.min(Math.max(140, h * 0.46), 220);
+    } else {
+        ringSize = Math.min(Math.max(160, Math.min(w * 0.48, h * 0.28)), 230);
+    }
+    docEl.style.setProperty('--ring-size', ringSize + 'px');
+
+    let hudPillOffset = Math.round(ringSize * 0.5 + Math.min(Math.max(14, h * 0.022), 24));
+    docEl.style.setProperty('--hud-pill-offset', hudPillOffset + 'px');
+
+    let maxHandWidth = Math.min(w - 20, 560);
+    let idealDenseMargin = Math.min(-18, Math.round((maxHandWidth - cardW) / 7 - cardW));
+    let idealSparseMargin = Math.min(-6, Math.round((Math.min(w - 24, 380) - cardW) / 3 - cardW));
+    idealSparseMargin = Math.max(idealSparseMargin, -16);
+
+    docEl.style.setProperty('--dense-card-margin', idealDenseMargin + 'px');
+    docEl.style.setProperty('--sparse-card-margin', idealSparseMargin + 'px');
+
+    let safeBottom = 8;
+    if (isShortScreen) safeBottom = 4;
+    else if (isTallPhone) safeBottom = 10;
+    docEl.style.setProperty('--south-bottom', safeBottom + 'px');
+}
+updateScreenMetrics();
+window.addEventListener('resize', updateScreenMetrics);
+window.addEventListener('orientationchange', () => { setTimeout(updateScreenMetrics, 120); });
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateScreenMetrics);
+}
 // ==================== PWA INSTALLATION & SERVICE WORKER ====================
 let deferredPWAInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -4318,6 +4448,7 @@ class UIController {
 
     renderStaticBoard() {
         if(this.animatingTrick) return; 
+        if (typeof updateScreenMetrics === 'function') updateScreenMetrics();
         updateTopCompassBar();
 
         let showT1First = (mySeat === 0 || mySeat === 2 || mySeat === 99);
@@ -4407,7 +4538,10 @@ class UIController {
                 let total = (this.engine.players[mySeat] || []).length;
                 if (total >= 5) row.classList.add('dense-hand');
                 let mid = (total - 1) / 2;
-                let isMobile = window.innerWidth <= 680;
+                let isMobile = window.innerWidth <= 680 || (window.innerWidth / window.innerHeight < 1.05 && window.innerWidth <= 820);
+                let isShort = window.innerHeight < 600;
+                let degMultiplier = isMobile ? (isShort ? 1.6 : 2.2) : 2.8;
+                let yLiftMultiplier = isMobile ? (isShort ? 0.8 : 1.3) : 1.8;
 
                 (this.engine.players[mySeat] || []).forEach((card, index) => {
                     const isMyTurnToPlay = (this.engine.phase === 'PLAYING' && this.engine.currentTurn === mySeat && !uiLocked);
@@ -4418,8 +4552,8 @@ class UIController {
                     div.dataset.cardIdx = index;
 
                     let offset = index - mid;
-                    let deg = offset * (isMobile ? 2.2 : 2.8);
-                    let yLift = Math.abs(offset) * (isMobile ? 1.3 : 1.8);
+                    let deg = offset * degMultiplier;
+                    let yLift = Math.abs(offset) * yLiftMultiplier;
                     div.style.setProperty('--rot', `${deg}deg`);
                     div.style.setProperty('--y-lift', `${yLift}px`);
                     div.style.transform = `rotate(var(--rot)) translateY(var(--y-lift))`;
@@ -4511,7 +4645,8 @@ class UIController {
         const positions = ['bottom', 'right', 'top', 'left'];
         const boardRect = board.getBoundingClientRect();
         const centerOriginX = boardRect.width * 0.5;
-        const centerOriginY = boardRect.height * (window.innerWidth <= 680 ? 0.48 : 0.42);
+        const tableCenterRatio = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--table-center-y')) / 100) || (window.innerWidth <= 680 ? 0.48 : 0.42);
+        const centerOriginY = boardRect.height * tableCenterRatio;
 
         const seatTargets = [];
         for (let i = 0; i < 4; i++) {
@@ -4574,7 +4709,8 @@ class UIController {
                             <div class="card-corner bottom"><span>${cardData.rank}</span><span class="corner-suit">${cardData.suit}</span></div>
                         `;
                         let offset = cardIndex - mid;
-                        endRot = offset * (isMobile ? 2.2 : 2.8);
+                        let isShortScreen = window.innerHeight < 600;
+                        endRot = offset * (isMobile ? (isShortScreen ? 1.6 : 2.2) : 2.8);
                     } else {
                         flyer.className = 'card card-back dealing-card-flyer opp-flyer';
                         endRot = (seatInfo.visualPos === 1 ? 6 : (seatInfo.visualPos === 3 ? -6 : 0)) + (Math.random() - 0.5) * 4;
