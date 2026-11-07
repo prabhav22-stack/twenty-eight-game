@@ -602,6 +602,10 @@ body::before {
     box-shadow: 0 10px 24px rgba(0,0,0,0.65);
     will-change: transform, opacity;
 }
+.dealing-card-flyer.opp-flyer {
+    width: var(--opp-card-w);
+    height: var(--opp-card-h);
+}
 
 /* Language Selector Pills */
 .lang-selector-bar {
@@ -1162,54 +1166,278 @@ function toggleFullscreen() {
 
 // ==================== PROCEDURAL SOUND EFFECTS ====================
 let soundEnabled = true;
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let audioCtx = null;
+let noiseBuffer = null;
+
+function getAudioContext() {
+    if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+            audioCtx = new AudioContextClass();
+        }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+    }
+    return audioCtx;
+}
+
+if (typeof window !== 'undefined') {
+    ['click', 'touchstart', 'keydown'].forEach(evt => {
+        window.addEventListener(evt, () => {
+            getAudioContext();
+        }, { once: true, passive: true });
+    });
+}
+
+function getNoiseBuffer(ctx) {
+    if (noiseBuffer && noiseBuffer.sampleRate === ctx.sampleRate) return noiseBuffer;
+    const bufferSize = ctx.sampleRate * 1.0;
+    noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
+    return noiseBuffer;
+}
 
 function playSound(type) {
-    if (!soundEnabled || !audioCtx) return;
+    if (!soundEnabled) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
     try {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const now = audioCtx.currentTime;
+        const now = ctx.currentTime;
         if (type === 'deal') {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
+            // Realistic card flick and slide across felt table
+            const noise = ctx.createBufferSource();
+            noise.buffer = getNoiseBuffer(ctx);
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            const centerFreq = 1900 + (Math.random() - 0.5) * 320;
+            filter.frequency.setValueAtTime(centerFreq, now);
+            filter.Q.setValueAtTime(2.2, now);
+
+            const noiseGain = ctx.createGain();
+            noiseGain.gain.setValueAtTime(0.001, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.18, now + 0.004);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+
+            noise.connect(filter);
+            filter.connect(noiseGain);
+            noiseGain.connect(ctx.destination);
+            noise.start(now);
+            noise.stop(now + 0.06);
+
+            // Subtle low-end flex snap of the card (130Hz -> 45Hz)
+            const osc = ctx.createOscillator();
+            const oscGain = ctx.createGain();
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(400, now);
-            osc.frequency.exponentialRampToValueAtTime(100, now + 0.08);
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(now); osc.stop(now + 0.08);
+            osc.frequency.setValueAtTime(130, now);
+            osc.frequency.exponentialRampToValueAtTime(45, now + 0.035);
+            oscGain.gain.setValueAtTime(0.08, now);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+            osc.connect(oscGain);
+            oscGain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.04);
         } else if (type === 'play') {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
+            // Authentic card slap / snap on green felt casino table
+            const noise = ctx.createBufferSource();
+            noise.buffer = getNoiseBuffer(ctx);
+            const highpass = ctx.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.setValueAtTime(2800, now);
+
+            const snapGain = ctx.createGain();
+            snapGain.gain.setValueAtTime(0.001, now);
+            snapGain.gain.exponentialRampToValueAtTime(0.22, now + 0.002);
+            snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+
+            noise.connect(highpass);
+            highpass.connect(snapGain);
+            snapGain.connect(ctx.destination);
+            noise.start(now);
+            noise.stop(now + 0.03);
+
+            // Resonant table body impact (felt/wood thump)
+            const osc = ctx.createOscillator();
+            const lowpass = ctx.createBiquadFilter();
+            const thumpGain = ctx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(320, now);
-            osc.frequency.exponentialRampToValueAtTime(220, now + 0.12);
-            gain.gain.setValueAtTime(0.25, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(now); osc.stop(now + 0.12);
+            osc.frequency.setValueAtTime(185, now);
+            osc.frequency.exponentialRampToValueAtTime(55, now + 0.065);
+
+            lowpass.type = 'lowpass';
+            lowpass.frequency.setValueAtTime(400, now);
+
+            thumpGain.gain.setValueAtTime(0.28, now);
+            thumpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+
+            osc.connect(lowpass);
+            lowpass.connect(thumpGain);
+            thumpGain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.08);
         } else if (type === 'reveal') {
-            [220, 277, 330, 440].forEach((freq, idx) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(freq, now + idx * 0.08);
-                gain.gain.setValueAtTime(0.18, now + idx * 0.08);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.45);
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(now + idx * 0.08); osc.stop(now + idx * 0.08 + 0.45);
-            });
-        } else if (type === 'trick') {
-            [523.25, 659.25].forEach((freq, idx) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
+            // Majestic Royal Trump Reveal: Warm celestial arpeggio chime & sub-bass swell
+            const chord = [523.25, 659.25, 783.99, 987.77, 1046.50];
+            chord.forEach((freq, idx) => {
+                const noteTime = now + idx * 0.045;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                const filter = ctx.createBiquadFilter();
+
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq, now + idx * 0.07);
-                gain.gain.setValueAtTime(0.2, now + idx * 0.07);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.07 + 0.25);
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(now + idx * 0.07); osc.stop(now + idx * 0.07 + 0.25);
+                osc.frequency.setValueAtTime(freq, noteTime);
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(2600, noteTime);
+
+                gain.gain.setValueAtTime(0.001, noteTime);
+                gain.gain.exponentialRampToValueAtTime(0.16, noteTime + 0.012);
+                gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.65);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(noteTime);
+                osc.stop(noteTime + 0.68);
+            });
+
+            // Sub-bass cinematic boom
+            const bass = ctx.createOscillator();
+            const bassGain = ctx.createGain();
+            bass.type = 'sine';
+            bass.frequency.setValueAtTime(95, now);
+            bass.frequency.exponentialRampToValueAtTime(42, now + 0.35);
+            bassGain.gain.setValueAtTime(0.2, now);
+            bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+            bass.connect(bassGain);
+            bassGain.connect(ctx.destination);
+            bass.start(now);
+            bass.stop(now + 0.4);
+        } else if (type === 'trick') {
+            // Card gather sweep & victory chip collect
+            [0, 0.035, 0.07].forEach((delay) => {
+                const noise = ctx.createBufferSource();
+                noise.buffer = getNoiseBuffer(ctx);
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(1600 + Math.random() * 200, now + delay);
+                filter.Q.setValueAtTime(3.0, now + delay);
+
+                const gain = ctx.createGain();
+                gain.gain.setValueAtTime(0.001, now + delay);
+                gain.gain.exponentialRampToValueAtTime(0.12, now + delay + 0.004);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.04);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctx.destination);
+                noise.start(now + delay);
+                noise.stop(now + delay + 0.045);
+            });
+
+            // Affirmative chime (E5 -> A5)
+            [659.25, 880.00].forEach((freq, idx) => {
+                const noteTime = now + 0.09 + idx * 0.06;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, noteTime);
+                gain.gain.setValueAtTime(0.001, noteTime);
+                gain.gain.exponentialRampToValueAtTime(0.15, noteTime + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.35);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(noteTime);
+                osc.stop(noteTime + 0.36);
+            });
+        } else if (type === 'bid') {
+            // Crisp wooden auction gavel / clay chip click
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(540, now);
+            osc.frequency.exponentialRampToValueAtTime(180, now + 0.035);
+            gain.gain.setValueAtTime(0.16, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.045);
+        } else if (type === 'pass') {
+            // Soft, discreet felt tap
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(160, now);
+            osc.frequency.exponentialRampToValueAtTime(70, now + 0.04);
+            gain.gain.setValueAtTime(0.09, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.05);
+        } else if (type === 'trump_select') {
+            // Velvet lock / secret trump chosen
+            [392.00, 523.25].forEach((freq, idx) => {
+                const noteTime = now + idx * 0.06;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, noteTime);
+                gain.gain.setValueAtTime(0.12, noteTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.32);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(noteTime);
+                osc.stop(noteTime + 0.34);
+            });
+        } else if (type === 'pair') {
+            // Royal K-Q Pair Fanfare
+            [392.00, 523.25, 659.25, 783.99].forEach((freq, idx) => {
+                const noteTime = now + idx * 0.06;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, noteTime);
+                gain.gain.setValueAtTime(0.16, noteTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.45);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(noteTime);
+                osc.stop(noteTime + 0.48);
+            });
+        } else if (type === 'win') {
+            // Celebratory match triumph fanfare
+            [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((freq, idx) => {
+                const noteTime = now + idx * 0.07;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, noteTime);
+                gain.gain.setValueAtTime(0.18, noteTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.55);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(noteTime);
+                osc.stop(noteTime + 0.58);
+            });
+        } else if (type === 'lose') {
+            // Somber defeat phrase
+            [392.00, 311.13, 261.63].forEach((freq, idx) => {
+                const noteTime = now + idx * 0.12;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, noteTime);
+                gain.gain.setValueAtTime(0.15, noteTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.5);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(noteTime);
+                osc.stop(noteTime + 0.52);
             });
         }
     } catch(e) {}
@@ -1217,7 +1445,8 @@ function playSound(type) {
 
 function toggleAudio() {
     soundEnabled = !soundEnabled;
-    document.getElementById('sound-btn').innerText = soundEnabled ? '🔊' : '🔇';
+    const btn = document.getElementById('sound-btn');
+    if (btn) btn.innerText = soundEnabled ? '🔊' : '🔇';
 }
 
 function toggleLogModal() {
@@ -1956,9 +2185,11 @@ function handleIncomingNetworkMessage(sourceConn, data) {
     else if (data.type === 'STATE_UPDATE') {
         if (!isHost && (data.target === mySeat || data.target === 'ALL' || mySeat === 99)) {
             game.syncFromMasterState(data.state);
-            ui.renderStaticBoard();
-            ui.syncTable();
-            ui.gameLoop();
+            if (!ui.dealingAnimationActive) {
+                ui.renderStaticBoard();
+                ui.syncTable();
+                ui.gameLoop();
+            }
         }
     }
     else if (data.type === 'UI_EVENT' && !isHost) {
@@ -2180,7 +2411,6 @@ class TwentyEightEngine {
         }
         this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
         this.phase = 'DEALING_1';
-        playSound('deal');
         this.log(`🔄 Redeal requested by Player ${pIndex} (0 points in hand). Fresh hands dealt!`);
     }
 
@@ -2205,12 +2435,12 @@ class TwentyEightEngine {
         }
         this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
         this.phase = 'DEALING_1';
-        playSound('deal');
         this.log("♣ Dealing first 4 cards — Bidding begins!");
     }
 
     finishDealAnimation() {
         for(let p of this.players) for(let c of p) c.isNew = false;
+        for(let i=0; i<4; i++) this.sortHand(i);
         if(this.phase === 'DEALING_1') this.phase = 'BIDDING';
         if(this.phase === 'DEALING_2') this.phase = 'PLAYING';
     }
@@ -2227,12 +2457,14 @@ class TwentyEightEngine {
             this.hasPassed[pIndex] = true;
             this.passCount++;
             this.log(`Player ${pIndex} passed.`);
+            playSound('pass');
             if(this.callbacks.onBid) this.callbacks.onBid(pIndex, 'Pass');
             if(gameMode === 'multi' && isHost) broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex, val:'Pass', won:false}});
         } else { 
             this.currentBid = parseInt(val);
             this.highestBidder = pIndex;
             this.log(`Player ${pIndex} bids ${this.currentBid}`);
+            playSound('bid');
             if(this.callbacks.onBid) this.callbacks.onBid(pIndex, this.currentBid);
             if(gameMode === 'multi' && isHost) broadcastNetMessage({type:'UI_EVENT', bidEvent:{pIndex, val:this.currentBid, won:false}});
         }
@@ -2414,6 +2646,7 @@ class TwentyEightEngine {
         this.hiddenTrumpCard = null;
         this.hasHiddenTrump = false;
         this.log(`🤫 Player ${this.highestBidder} chose Secret Trump.`);
+        playSound('trump_select');
 
         if (this.phase2Hands && this.phase2Hands.length === 4) {
             for (let j = 0; j < 4; j++) {
@@ -2434,9 +2667,8 @@ class TwentyEightEngine {
                 }
             }
         }
-        this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
+        // Defer hand sorting until round 2 dealing animation finishes to avoid vanished cards and scrambled slots
         this.phase = 'DEALING_2';
-        playSound('deal');
         this.currentTurn = this.highestBidder;
     }
 
@@ -2471,6 +2703,7 @@ class TwentyEightEngine {
         let biddingTeam = (this.highestBidder === 0 || this.highestBidder === 2) ? 1 : 2;
         this.pairDeclared = true;
         this.pairDeclaringTeam = team;
+        playSound('pair');
 
         if (team === biddingTeam) {
             this.currentBid = Math.max(14, this.currentBid - 4);
@@ -2522,7 +2755,6 @@ class TwentyEightEngine {
     playCard(pIndex, cardIndex) {
         if (this.currentTurn !== pIndex || this.phase !== 'PLAYING') return; 
         let card = this.players[pIndex].splice(cardIndex, 1)[0];
-        playSound('play');
         if (this.trickCards.length === 0) {
             this.leadSuit = card.suit;
         } else if (card.suit !== this.leadSuit) {
@@ -2871,14 +3103,17 @@ class UIController {
         if (won) {
             let winPrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `🎯 ${t.partnerWonBid} (${val})`;
+            playSound('trump_select');
             this.triggerBidSplash(pIndex, winPrefix, displayVal, 'won');
         } else if (isPass) {
             let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `⏭️ ${t.passedSkipped || 'PASSED (SKIPPED)'}`;
+            playSound('pass');
             this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
         } else {
             let rolePrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `💰 ${t.bidding} ${val}`;
+            playSound('bid');
             this.triggerBidSplash(pIndex, rolePrefix, displayVal, type);
         }
 
@@ -3181,8 +3416,8 @@ class UIController {
                     div.style.transform = `rotate(var(--rot)) translateY(var(--y-lift))`;
                     div.style.zIndex = index + 10;
 
-                    if (this.isDealingState && card.isNew) {
-                        // Keep card invisible while physical dealing flyer is in flight
+                    if (this.isDealingState && index >= cardStartIndex) {
+                        // Keep incoming round 2 cards invisible until their specific flyer arrives
                         div.style.visibility = 'hidden';
                         div.style.opacity = '0';
                     }
@@ -3216,7 +3451,7 @@ class UIController {
                     div.className = `card card-back`; 
                     div.dataset.seat = actualPlayerIndex;
                     div.dataset.cardIdx = c;
-                    if (this.isDealingState && this.engine.players[actualPlayerIndex][c] && this.engine.players[actualPlayerIndex][c].isNew) {
+                    if (this.isDealingState && c >= cardStartIndex) {
                         div.style.visibility = 'hidden';
                         div.style.opacity = '0';
                     }
@@ -3328,7 +3563,7 @@ class UIController {
                         let offset = cardIndex - mid;
                         endRot = offset * (isMobile ? 1.2 : 2.5);
                     } else {
-                        flyer.className = 'card card-back dealing-card-flyer';
+                        flyer.className = 'card card-back dealing-card-flyer opp-flyer';
                         endRot = (seatInfo.visualPos === 1 ? 6 : (seatInfo.visualPos === 3 ? -6 : 0)) + (Math.random() - 0.5) * 4;
                     }
 
@@ -3752,12 +3987,25 @@ class UIController {
             this.playHumanDealAnimation(() => {
                 this.isDealingState = false;
                 this.dealingAnimationActive = false;
+                for (let i = 0; i < 4; i++) this.engine.sortHand(i);
                 if (isHost) {
                     this.engine.finishDealAnimation();
-                    this.renderStaticBoard();
-                    this.gameLoop();
                 } else {
-                    this.renderStaticBoard();
+                    if (this.engine.phase === 'DEALING_1') this.engine.phase = 'BIDDING';
+                    if (this.engine.phase === 'DEALING_2') this.engine.phase = 'PLAYING';
+                }
+                this.renderStaticBoard();
+                if (window.gsap) {
+                    gsap.from('.my-cards-row .card', {
+                        y: 12,
+                        scale: 0.96,
+                        stagger: 0.025,
+                        duration: 0.28,
+                        ease: "power2.out"
+                    });
+                }
+                if (isHost) {
+                    this.gameLoop();
                 }
             });
             return; 
@@ -4164,6 +4412,9 @@ class UIController {
         }
         if (isHumanWinner) {
             triggerVictoryConfetti();
+            playSound('win');
+        } else {
+            playSound('lose');
         }
         
         document.getElementById('end-text').innerHTML = msg;
