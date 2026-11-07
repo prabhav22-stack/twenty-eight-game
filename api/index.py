@@ -1053,11 +1053,7 @@ def evaluate_bot_brain(data):
         
         dialogue = ""
         emote = "thinking_face"
-        if is_contested:
-            context = f"{personality_name} placing high bid of {chosen_bid}"
-            dialogue, emote = generate_bot_table_talk(personality_name, BOT_ROLES[player_idx]['role'], context, language)
-        elif chosen_bid == 'Pass' and human_overbids >= 2 and player_idx == 3:
-            dialogue, emote = ("All yours, South. Don't slip.", "smirk")
+        pass
 
         return {
             "chosenAction": { "type": "PLACE_BID", "bid": chosen_bid, "suit": best_suit },
@@ -1093,7 +1089,7 @@ def evaluate_bot_brain(data):
                 best_suit = s
 
         pre_think_ms = random.randint(1900, 2600)
-        dialogue, emote = generate_bot_table_talk(personality_name, BOT_ROLES[player_idx]['role'], "Setting secret trump", language)
+        dialogue, emote = "", ""
 
         return {
             "chosenAction": { "type": "SET_TRUMP", "suit": best_suit },
@@ -1284,9 +1280,7 @@ def evaluate_bot_brain(data):
     dialogue = ""
     emote = ""
     is_pivotal = reveal_trump or (trick_points >= 4) or (personality_name == 'Saboteur' and defending_needed <= 3) or is_high_entropy
-    if is_pivotal:
-        ctx = "trump_reveal" if reveal_trump else ("ambush" if trick_points >= 4 else "high_decision")
-        dialogue, emote = generate_bot_table_talk(personality_name, BOT_ROLES[player_idx]['role'], ctx, language)
+    pass
 
     return {
         "chosenAction": {

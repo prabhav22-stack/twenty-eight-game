@@ -4552,33 +4552,10 @@ class UIController {
     }
 
     showSpeechBubble(pIndex, text, emote = '') {
-        if (!text) return;
-        const positions = ['bottom', 'right', 'top', 'left'];
-        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
-        const seatEl = document.getElementById(`player-${positions[visualPos]}`);
-        if (!seatEl) return;
-
-        let existing = seatEl.querySelector('.speech-bubble');
-        if (!existing) {
-            existing = document.createElement('div');
-            existing.className = `speech-bubble bubble-${positions[visualPos]}`;
-            seatEl.appendChild(existing);
-        }
-
-        const emoteIcons = {
-            'sweat_smile': '😅', 'smirk': '😏', 'thinking_face': '🤔', 'sunglasses': '😎',
-            'fire': '🔥', 'shield': '🛡️', 'handshake': '🤝', 'crossed_swords': '⚔️',
-            'chess_pawn': '♟️', 'thumbsup': '👍', 'muscle': '💪', 'sparkles': '✨',
-            'checkered_flag': '🏁', 'eyes': '👀', 'lock': '🔒', 'moneybag': '💰'
-        };
-        let iconHtml = emote ? `<span style="margin-right:4px;">${emoteIcons[emote] || '💬'}</span>` : '';
-        existing.innerHTML = `${iconHtml}<span>${text}</span>`;
-        existing.classList.add('show');
-
-        if (seatEl.speechBubbleTimer) clearTimeout(seatEl.speechBubbleTimer);
-        seatEl.speechBubbleTimer = setTimeout(() => {
-            existing.classList.remove('show');
-        }, 3200);
+        // In-game bot dialogue comments disabled for clean, distraction-free gameplay
+        const bubbles = document.querySelectorAll('.speech-bubble');
+        bubbles.forEach(b => b.remove());
+        return;
     }
 
     async animateCardHoverFakeout(pIndex, cardRaw) {
@@ -5940,7 +5917,7 @@ class UIController {
                     let val = await this.engine.getAIBidAsync();
                     let beh = this.engine.lastBotBehavior;
                     let delay = (beh && beh.preThinkDelayMs) ? beh.preThinkDelayMs : (1200 + Math.floor(Math.random() * 600));
-                    if (beh && beh.tableTalk) this.showSpeechBubble(turnPlayer, beh.tableTalk, beh.emote);
+                    
 
                     this.aiTimer = setTimeout(() => {
                         if (gameMode === 'multi') broadcastNetMessage({ type: 'UI_EVENT', bidEvent: { pIndex: turnPlayer, val: val, won: false } });
@@ -5954,7 +5931,7 @@ class UIController {
                     let suit = await this.engine.getAITrumpAsync();
                     let beh = this.engine.lastBotBehavior;
                     let delay = (beh && beh.preThinkDelayMs) ? beh.preThinkDelayMs : (1800 + Math.floor(Math.random() * 500));
-                    if (beh && beh.tableTalk) this.showSpeechBubble(turnPlayer, beh.tableTalk, beh.emote);
+                    
 
                     this.aiTimer = setTimeout(() => {
                         this.engine.setTrump(suit);
@@ -5977,9 +5954,7 @@ class UIController {
                         await this.animateCardHoverFakeout(turnPlayer, beh.hoverFakeoutCard);
                     }
 
-                    if (beh && beh.tableTalk) {
-                        this.showSpeechBubble(turnPlayer, beh.tableTalk, beh.emote);
-                    }
+                    
 
                     this.aiTimer = setTimeout(() => {
                         if (aiDecision.reveal) {
