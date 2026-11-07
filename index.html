@@ -451,6 +451,222 @@ body::before {
 .modal-pass-btn { width: 100%; padding: clamp(6px, 1.2vh, 9px); border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: clamp(0.72rem, 1.4vh, 0.8rem); }
 .suit-picker-btn { width: clamp(46px, 10vw, 54px); height: clamp(54px, 11vh, 62px); border-radius: 10px; background: linear-gradient(145deg, #ffffff, #e2e8f0); border: 2px solid var(--gold-primary); font-size: clamp(1.6rem, 3.5vh, 2rem); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
 
+
+/* ==================== TACTICAL REPORT CARD ==================== */
+#end-modal {
+    width: clamp(285px, min(94vw, 430px), 430px);
+    max-height: min(88vh, 88dvh, 680px);
+    overflow-y: auto;
+    padding: clamp(10px, 1.8vh, 16px);
+}
+.tactical-report-card {
+    background: linear-gradient(155deg, rgba(15, 23, 42, 0.95), rgba(8, 14, 26, 0.98));
+    border: 1px solid rgba(229, 193, 88, 0.35);
+    border-radius: 14px;
+    padding: 10px 12px;
+    margin: 0 auto 14px auto;
+    max-width: 96%;
+    text-align: left;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.55);
+}
+.trc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 8px;
+}
+.trc-title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.trc-icon {
+    font-size: 1.35rem;
+    filter: drop-shadow(0 0 6px rgba(229, 193, 88, 0.4));
+}
+.trc-main-title {
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--gold-bright);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    line-height: 1.2;
+}
+.trc-subtitle {
+    font-size: 0.62rem;
+    color: #94a3b8;
+    letter-spacing: 0.3px;
+}
+.trc-grade-badge {
+    font-size: 1.15rem;
+    font-weight: 900;
+    padding: 2px 10px;
+    border-radius: 10px;
+    background: rgba(229, 193, 88, 0.18);
+    border: 1.5px solid var(--gold-border);
+    color: var(--gold-bright);
+    box-shadow: 0 0 12px rgba(229, 193, 88, 0.3);
+    min-width: 32px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+.trc-grade-a { background: rgba(16,185,129,0.18); border-color: #10b981; color: #34d399; box-shadow: 0 0 12px rgba(16,185,129,0.35); }
+.trc-grade-b { background: rgba(229,193,88,0.18); border-color: #e5c158; color: #fde047; box-shadow: 0 0 12px rgba(229,193,88,0.35); }
+.trc-grade-c { background: rgba(245,158,11,0.18); border-color: #f59e0b; color: #fbbf24; box-shadow: 0 0 10px rgba(245,158,11,0.3); }
+.trc-grade-d { background: rgba(244,63,94,0.18); border-color: #f43f5e; color: #fda4af; box-shadow: 0 0 10px rgba(244,63,94,0.3); }
+
+.trc-section {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 7px;
+}
+.trc-section.trc-inflection {
+    border-color: rgba(244, 63, 94, 0.25);
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.05), rgba(15, 23, 42, 0.4));
+}
+.trc-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+.trc-sec-title {
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #cbd5e1;
+    letter-spacing: 0.6px;
+}
+.trc-pill {
+    font-size: 0.62rem;
+    font-weight: 800;
+    padding: 1px 7px;
+    border-radius: 8px;
+    display: inline-block;
+}
+.pill-optimal { background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; }
+.pill-drop { background: rgba(244, 63, 94, 0.16); border: 1px solid rgba(244, 63, 94, 0.4); color: #fb7185; }
+.pill-warn { background: rgba(245, 158, 11, 0.16); border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; }
+
+.trc-cards-row {
+    display: flex;
+    gap: 5px;
+    margin: 4px 0 6px 0;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.trc-mini-card {
+    width: 26px;
+    height: 34px;
+    border-radius: 4px;
+    background: #ffffff;
+    font-weight: 800;
+    font-size: 0.76rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    line-height: 1;
+}
+.trc-mini-card.red { color: #dc2626; }
+.trc-mini-card.black { color: #0f172a; }
+
+.trc-replay-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 5px 0 6px 0;
+}
+.trc-card-compare {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.trc-card-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #94a3b8;
+}
+.trc-arrow {
+    color: var(--gold-bright);
+    font-size: 0.85rem;
+    font-weight: 800;
+}
+.trc-body-text {
+    font-size: 0.72rem;
+    color: #cbd5e1;
+    line-height: 1.4;
+}
+
+.trc-footer-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    margin-top: 4px;
+}
+@media (max-width: 480px) {
+    .trc-footer-grid { grid-template-columns: 1fr; }
+}
+.trc-synergy-box, .trc-locker-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 9px;
+    padding: 7px 9px;
+}
+.trc-synergy-header, .trc-locker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.64rem;
+    font-weight: 800;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+.trc-synergy-pct {
+    color: var(--gold-bright);
+    font-weight: 900;
+}
+.trc-progress-track {
+    width: 100%;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+.trc-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, var(--gold-bright));
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+.trc-micro-text {
+    font-size: 0.64rem;
+    color: #cbd5e1;
+    line-height: 1.35;
+}
+.trc-locker-name {
+    color: var(--gold-bright);
+    font-size: 0.64rem;
+    font-weight: 800;
+}
+.trc-locker-quote {
+    font-size: 0.68rem;
+    color: #cbd5e1;
+    font-style: italic;
+    line-height: 1.35;
+    border-left: 2px solid var(--gold-bright);
+    padding-left: 6px;
+    margin-top: 3px;
+}
+
 /* LOG MODAL */
 #log-modal {
     display: none; position: fixed; inset: 0; background: rgba(3, 10, 6, 0.88);
@@ -1490,14 +1706,74 @@ body::before {
     <h2 id="end-title" style="font-size:clamp(1.15rem, 2.5vh, 1.45rem); margin-bottom:6px;">YOU & YOUR PARTNER WON!</h2>
     <div id="end-badge" style="display:inline-block; padding:4px 14px; border-radius:20px; font-weight:800; font-size:clamp(0.8rem, 1.8vh, 0.95rem); margin-bottom:8px;"></div>
     <div id="end-text" style="font-size:clamp(0.78rem, 1.6vh, 0.88rem); line-height:1.45; color:#e2e8f0; margin:8px 0 14px 0;"></div>
-    <div id="end-coach-box" style="display:none; background:rgba(15,23,42,0.85); border:1px solid var(--gold-border); border-radius:12px; padding:10px 14px; margin:0 auto 16px auto; max-width:92%; text-align:left;">
-        <div style="font-size:0.75rem; color:var(--gold-bright); font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
-            <div style="display:flex; align-items:center; gap:6px;">
-                <span>🧠</span> <span id="end-coach-title">AI Match Analysis</span>
+    <div id="end-coach-box" class="tactical-report-card" style="display:none;">
+        <!-- Header: AI Grandmaster Coach & Glowing Grade Badge -->
+        <div class="trc-header">
+            <div class="trc-title-group">
+                <span class="trc-icon">🧠</span>
+                <div>
+                    <div id="end-coach-title" class="trc-main-title">AI Tactical Report Card</div>
+                    <div class="trc-subtitle">Grandmaster Telemetry & Counterfactual Audit</div>
+                </div>
             </div>
-            <span id="end-coach-verdict-badge" style="display:none; font-size:0.64rem; font-weight:800; padding:2px 8px; border-radius:10px; background:rgba(229,193,88,0.18); border:1px solid var(--gold-border); color:var(--gold-bright);"></span>
+            <div id="end-coach-grade-badge" class="trc-grade-badge">B+</div>
         </div>
-        <div id="end-coach-text" style="font-size:0.8rem; color:#cbd5e1; line-height:1.45;"></div>
+
+        <!-- Section 1: Phase 1 4-Card Bidding Audit -->
+        <div class="trc-section" id="trc-bidding-section">
+            <div class="trc-section-header">
+                <span class="trc-sec-title">PHASE 1: BIDDING AUDIT</span>
+                <span id="trc-bidding-pill" class="trc-pill pill-optimal">Optimal</span>
+            </div>
+            <div id="trc-bidding-cards" class="trc-cards-row"></div>
+            <div id="trc-bidding-summary" class="trc-body-text"></div>
+        </div>
+
+        <!-- Section 2: Critical Turning Point Mini-Replay -->
+        <div class="trc-section trc-inflection" id="trc-turning-point-section">
+            <div class="trc-section-header">
+                <span id="trc-tp-title" class="trc-sec-title">⚡ CRITICAL INFLECTION POINT</span>
+                <span id="trc-tp-drop-badge" class="trc-pill pill-drop">-38% Pace Drop</span>
+            </div>
+            <div class="trc-replay-row">
+                <div class="trc-card-compare">
+                    <span class="trc-card-label">❌ Played:</span>
+                    <div id="trc-played-card" class="trc-mini-card red">9♦</div>
+                </div>
+                <div class="trc-arrow">➔</div>
+                <div class="trc-card-compare">
+                    <span class="trc-card-label">✅ Optimal:</span>
+                    <div id="trc-optimal-card" class="trc-mini-card red">7♦</div>
+                </div>
+            </div>
+            <div id="trc-tp-explanation" class="trc-body-text"></div>
+        </div>
+
+        <!-- Section 3: Partner Synergy & Bot Locker Room -->
+        <div class="trc-footer-grid">
+            <div class="trc-synergy-box">
+                <div class="trc-synergy-header">
+                    <span>Partner Synergy</span>
+                    <span id="trc-synergy-score" class="trc-synergy-pct">65%</span>
+                </div>
+                <div class="trc-progress-track">
+                    <div id="trc-synergy-bar" class="trc-progress-fill" style="width:65%;"></div>
+                </div>
+                <div id="trc-synergy-note" class="trc-micro-text"></div>
+            </div>
+
+            <div class="trc-locker-box">
+                <div class="trc-locker-header">
+                    <span class="trc-locker-icon">💬</span>
+                    <span id="trc-locker-speaker" class="trc-locker-name">Saboteur (West)</span>
+                </div>
+                <div id="trc-locker-taunt" class="trc-locker-quote">"Thanks for the feed."</div>
+            </div>
+        </div>
+
+        <!-- Hidden legacy compatibility hooks -->
+        <div id="end-coach-text" style="display:none;"></div>
+        <div id="end-coach-verdict-badge" style="display:none;"></div>
     </div>
     <button id="next-round-btn" class="menu-btn primary-gold" style="justify-content:center; margin:0 auto;" onclick="ui.startNewRound()">Deal Next Round</button>
 </div>
@@ -2996,10 +3272,10 @@ const BackendAPI = {
             return null;
         }
     },
-    async getRecap(biddingWinner, contract, biddingTeam, t1Pts, t2Pts, success, trumpSuit, pairDeclared, language, tricks, trumpRevealEvent, customNames) {
+    async getRecap(biddingWinner, contract, biddingTeam, t1Pts, t2Pts, success, trumpSuit, pairDeclared, language, tricks, trumpRevealEvent, customNames, telemetry) {
         try {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 4000);
+            const timer = setTimeout(() => ctrl.abort(), 5500);
             const res = await fetch('/api/recap', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3015,7 +3291,8 @@ const BackendAPI = {
                     language: language || 'en',
                     tricks: tricks || [],
                     trump_reveal_event: trumpRevealEvent || null,
-                    custom_names: customNames || null
+                    custom_names: customNames || null,
+                    telemetry: telemetry || null
                 }),
                 signal: ctrl.signal
             });
@@ -3504,6 +3781,12 @@ class TwentyEightEngine {
         this.justRevealedInCurrentTrick = false;
         this.justRevealedByPlayer = -1;
         this.inference = new InferenceMatrix();
+        this.deal1Hands = [[], [], [], []];
+        this.deal2Hands = [[], [], [], []];
+        this.biddingHistory = [];
+        this.humanBlunders = [];
+        this.trickSnapshots = [];
+        this.pendingPrematureReveal = null;
     }
 
     resetRound() {
@@ -3539,6 +3822,12 @@ class TwentyEightEngine {
             '♠': [...this.ranks]
         };
         this.inference = new InferenceMatrix();
+        this.deal1Hands = [[], [], [], []];
+        this.deal2Hands = [[], [], [], []];
+        this.biddingHistory = [];
+        this.humanBlunders = [];
+        this.trickSnapshots = [];
+        this.pendingPrematureReveal = null;
     }
 
     log(msg) {
@@ -3570,6 +3859,7 @@ class TwentyEightEngine {
             }
         }
         this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
+        this.deal1Hands = this.players.map(p => p.map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })));
         this.phase = 'DEALING_1';
         this.log(`🔄 Redeal requested by Player ${pIndex} (0 points in hand). Fresh hands dealt!`);
     }
@@ -3594,6 +3884,7 @@ class TwentyEightEngine {
             }
         }
         this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
+        this.deal1Hands = this.players.map(p => p.map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })));
         this.phase = 'DEALING_1';
         this.log("♣ Dealing first 4 cards — Bidding begins!");
     }
@@ -3612,6 +3903,7 @@ class TwentyEightEngine {
     submitBid(pIndex, val) {
         if (this.currentTurn !== pIndex || this.phase !== 'BIDDING') return; 
         this.playerBids[pIndex] = val;
+        this.biddingHistory.push({ player: pIndex, bid: val });
 
         if (val === 'Pass') { 
             this.hasPassed[pIndex] = true;
@@ -3885,6 +4177,12 @@ class TwentyEightEngine {
                 }
             }
         }
+        this.deal2Hands = [
+            this.players[0].slice(4).map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })),
+            this.players[1].slice(4).map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })),
+            this.players[2].slice(4).map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })),
+            this.players[3].slice(4).map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power }))
+        ];
         // Defer hand sorting until round 2 dealing animation finishes to avoid vanished cards and scrambled slots
         this.phase = 'DEALING_2';
         this.currentTurn = this.highestBidder;
@@ -3979,6 +4277,18 @@ class TwentyEightEngine {
 
     playCard(pIndex, cardIndex) {
         if (this.currentTurn !== pIndex || this.phase !== 'PLAYING') return; 
+        if (this.trickCards.length === 0) {
+            let currentTrickNum = this.roundTricks.length + 1;
+            this.trickSnapshots.push({
+                trickNum: currentTrickNum,
+                hands: this.players.map(hand => hand.map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })))
+            });
+        }
+        if (pIndex === 0 && this.players[0] && this.players[0][cardIndex]) {
+            let cardToPlay = this.players[0][cardIndex];
+            let handBeforePlay = this.players[0].map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power }));
+            this.detectHumanBlunder(this.roundTricks.length + 1, cardToPlay, handBeforePlay, this.trickCards);
+        }
         let card = this.players[pIndex].splice(cardIndex, 1)[0];
         if (this.trickCards.length === 0) {
             this.leadSuit = card.suit;
@@ -4227,6 +4537,20 @@ class TwentyEightEngine {
             t1TotalAfter: this.t1TrickPts,
             t2TotalAfter: this.t2TrickPts
         };
+        if (this.pendingPrematureReveal) {
+            if (winTeam !== 0) {
+                let pInfo = this.pendingPrematureReveal;
+                let reason = pInfo.partnerWinning ? "when North was already winning" : `on a low-value trick (${pInfo.trickPoints} pts)`;
+                this.humanBlunders.push({
+                    tag: 'PREMATURE_TRUMP_REVEAL',
+                    trickNum: pInfo.trickNum,
+                    cardPlayed: winningPlay.card ? `${winningPlay.card.rank}${winningPlay.card.suit}` : 'Trump',
+                    details: `Trick ${pInfo.trickNum}: South exposed the Secret Trump (${this.trumpSuit}) ${reason} and failed to win it.`,
+                    pointSwing: 3
+                });
+            }
+            this.pendingPrematureReveal = null;
+        }
         this.roundTricks.push(trickRecord);
         this.justRevealedInCurrentTrick = false;
         this.justRevealedByPlayer = -1;
@@ -4244,6 +4568,254 @@ class TwentyEightEngine {
         } else {
             this.phase = 'PLAYING';
         }
+    }
+
+
+    detectHumanBlunder(trickNum, card, handBeforePlay, trickCardsSoFar) {
+        if (!card) return;
+        let leadSuit = (trickCardsSoFar.length > 0) ? trickCardsSoFar[0].card.suit : card.suit;
+        let seatInTrick = trickCardsSoFar.length; // 0=lead, 1=second, 2=third, 3=fourth
+
+        // 1. DRY_9_AMBUSH: Human leads or plays a 9 (2 pts) when Jack of that suit is still unplayed and held by opponent
+        if (card.rank === '9') {
+            let jackPlayedAlready = this.playedCardsHistory.some(c => c.suit === card.suit && c.rank === 'J');
+            let jackInTrick = trickCardsSoFar.some(tc => tc.card.suit === card.suit && tc.card.rank === 'J');
+            let jackInPartnerHand = this.players[2] && this.players[2].some(c => c.suit === card.suit && c.rank === 'J');
+            if (!jackPlayedAlready && !jackInTrick && !jackInPartnerHand) {
+                let oppHolding = (this.players[3] && this.players[3].some(c => c.suit === card.suit && c.rank === 'J')) ? 'West' : 'East';
+                this.humanBlunders.push({
+                    tag: 'DRY_9_AMBUSH',
+                    trickNum: trickNum,
+                    cardPlayed: `${card.rank}${card.suit}`,
+                    details: `Trick ${trickNum}: South played 9${card.suit} while J${card.suit} was still live in ${oppHolding}'s hand, gifting a 5-point swing.`,
+                    pointSwing: 5
+                });
+            }
+        }
+
+        // 2. MISSED_FATTENING: Partner (Wingman) plays guaranteed boss card, and human plays 7/8 while holding unprotected 10 or Ace
+        let northPlay = trickCardsSoFar.find(tc => tc.player === 2);
+        if (northPlay && northPlay.card) {
+            let northIsWinning = false;
+            let currentWinner = this._getCurrentTrickWinner();
+            if (currentWinner && currentWinner.player === 2) {
+                let isBoss = this._isCardHighestRemaining(northPlay.card) || (this.trumpRevealed && northPlay.card.suit === this.trumpSuit && this._isCardHighestRemaining(northPlay.card));
+                if (isBoss || seatInTrick === 3) northIsWinning = true;
+            }
+            if (northIsWinning && (card.rank === '7' || card.rank === '8')) {
+                let fatCard = handBeforePlay.find(c => (c.rank === '10' || c.rank === 'A') && (c.suit === card.suit || card.suit !== leadSuit));
+                if (fatCard) {
+                    this.humanBlunders.push({
+                        tag: 'MISSED_FATTENING',
+                        trickNum: trickNum,
+                        cardPlayed: `${card.rank}${card.suit}`,
+                        optimalCard: `${fatCard.rank}${fatCard.suit}`,
+                        details: `Trick ${trickNum}: Partner North had the trick locked with ${northPlay.card.rank}${northPlay.card.suit}, but South played ${card.rank}${card.suit} instead of dumping ${fatCard.rank}${fatCard.suit} (+1 pt lost).`,
+                        pointSwing: 1
+                    });
+                }
+            }
+        }
+
+        // 3. OVERTRUMP_WASTE: Human plays Trump Jack (3 pts) in 4th seat when a low trump (7 or 8) would have won just as easily
+        if (seatInTrick === 3 && this.trumpRevealed && card.suit === this.trumpSuit && card.rank === 'J') {
+            let currentWinner = this._getCurrentTrickWinner();
+            let lowerWinningTrump = handBeforePlay.find(c => {
+                if (c.suit !== this.trumpSuit || c.rank === 'J') return false;
+                if (!currentWinner) return true;
+                let winCard = currentWinner.card;
+                if (winCard.suit !== this.trumpSuit) return true;
+                return c.power > winCard.power;
+            });
+            if (lowerWinningTrump) {
+                this.humanBlunders.push({
+                    tag: 'OVERTRUMP_WASTE',
+                    trickNum: trickNum,
+                    cardPlayed: `${card.rank}${card.suit}`,
+                    optimalCard: `${lowerWinningTrump.rank}${lowerWinningTrump.suit}`,
+                    details: `Trick ${trickNum}: South wasted J${card.suit} in 4th seat to cut a trick when ${lowerWinningTrump.rank}${lowerWinningTrump.suit} would have won it.`,
+                    pointSwing: 3
+                });
+            }
+        }
+
+        // 4. ROYAL_PAIR_MISPLAY: Human holds both K and Q of Trumps and discards one before declaring the pair
+        if (this.trumpSuit && (card.suit === this.trumpSuit) && (card.rank === 'K' || card.rank === 'Q')) {
+            let otherRank = (card.rank === 'K') ? 'Q' : 'K';
+            let holdsOther = handBeforePlay.some(c => c.suit === this.trumpSuit && c.rank === otherRank);
+            if (holdsOther && (!this.trumpRevealed || !this.pairDeclared)) {
+                this.humanBlunders.push({
+                    tag: 'ROYAL_PAIR_MISPLAY',
+                    trickNum: trickNum,
+                    cardPlayed: `${card.rank}${card.suit}`,
+                    details: `Trick ${trickNum}: South discarded ${card.rank}${card.suit} before declaring Royal Pair, throwing away a 4-point contract reduction.`,
+                    pointSwing: 4
+                });
+            }
+        }
+    }
+
+    getRoundTelemetry() {
+        let bidTeam = (this.highestBidder === 0 || this.highestBidder === 2) ? 1 : 2;
+        let isDeclarer = (this.highestBidder === 0);
+        let team1Target = (bidTeam === 1) ? this.currentBid : (29 - this.currentBid);
+
+        // 1. Contract Pace Delta Graph across tricks 1..8
+        // PaceDelta(t) = TeamPoints_t - (BidTarget * PointsPlayedSoFar_t / 28)
+        let paceGraph = [];
+        let prevPace = 0;
+        let worstDrop = 0;
+        let worstTrickIndex = 0;
+
+        for (let i = 0; i < this.roundTricks.length; i++) {
+            let t = this.roundTricks[i];
+            let t1Pts = t.t1TotalAfter || 0;
+            let totalPts = (t.t1TotalAfter || 0) + (t.t2TotalAfter || 0);
+            let pace = t1Pts - (team1Target * (totalPts / 28.0));
+            let delta = pace - prevPace;
+            prevPace = pace;
+
+            paceGraph.push({
+                trickNum: t.trickNum,
+                paceDelta: Math.round(pace * 10) / 10,
+                deltaChange: Math.round(delta * 10) / 10,
+                pointsInTrick: t.points,
+                winningTeam: t.winningTeam
+            });
+
+            if (delta < worstDrop) {
+                worstDrop = delta;
+                worstTrickIndex = i;
+            }
+        }
+
+        // 2. Turning Point Trick
+        let tpTrick = this.roundTricks[worstTrickIndex] || this.roundTricks[0] || { trickNum: 4, points: 3 };
+        let tpNum = tpTrick.trickNum || (worstTrickIndex + 1);
+        let tpSnapshot = this.trickSnapshots[worstTrickIndex] || null;
+
+        let southPlay = null;
+        if (this.roundTricks[worstTrickIndex] && this.roundTricks[worstTrickIndex].honors) {
+            southPlay = this.roundTricks[worstTrickIndex].honors.find(h => h.player === 0);
+        }
+        let southCardPlayed = southPlay ? `${southPlay.rank}${southPlay.suit}` : (this.playedCardsHistory[0] ? `${this.playedCardsHistory[0].rank}${this.playedCardsHistory[0].suit}` : 'Card');
+
+        let trickBlunder = this.humanBlunders.find(b => b.trickNum === tpNum);
+        let optimalCard = trickBlunder ? trickBlunder.optimalCard : '';
+        let dropPct = Math.min(65, Math.max(15, Math.round(Math.abs(worstDrop) / (team1Target || 16) * 100)));
+        let winProbDropStr = `-${dropPct}%`;
+
+        let counterfactualExplanation = "";
+        if (trickBlunder) {
+            counterfactualExplanation = trickBlunder.details;
+            if (!optimalCard) optimalCard = trickBlunder.cardPlayed;
+        } else {
+            counterfactualExplanation = `Trick ${tpNum} was the critical inflection point where Team 2 seized ${tpTrick.points} points. Preserving honors would have secured contract pace.`;
+        }
+
+        let turningPointData = {
+            trickNumber: tpNum,
+            winProbDrop: winProbDropStr,
+            cardPlayed: trickBlunder ? trickBlunder.cardPlayed : southCardPlayed,
+            optimalCard: optimalCard || 'Safe Exit',
+            explanation: counterfactualExplanation,
+            allHands: tpSnapshot ? tpSnapshot.hands : null
+        };
+
+        // 3. Phase 1 Bidding Audit
+        let deal1Cards = (this.deal1Hands && this.deal1Hands[0]) ? this.deal1Hands[0].map(c => `${c.rank}${c.suit}`) : [];
+        let deal2Cards = (this.deal2Hands && this.deal2Hands[0]) ? this.deal2Hands[0].map(c => `${c.rank}${c.suit}`) : [];
+        let d1Points = (this.deal1Hands && this.deal1Hands[0]) ? this.deal1Hands[0].reduce((s, c) => s + (c.value || 0), 0) : 0;
+        let d2Points = (this.deal2Hands && this.deal2Hands[0]) ? this.deal2Hands[0].reduce((s, c) => s + (c.value || 0), 0) : 0;
+
+        let suitPoints = {'♥':0, '♦':0, '♣':0, '♠':0};
+        let suitLengths = {'♥':0, '♦':0, '♣':0, '♠':0};
+        if (this.deal1Hands && this.deal1Hands[0]) {
+            this.deal1Hands[0].forEach(c => {
+                suitPoints[c.suit] += (c.value || 0);
+                suitLengths[c.suit]++;
+            });
+        }
+        let bestSuit = '♥';
+        let maxSuitScore = -1;
+        for (let s in suitLengths) {
+            let sc = suitLengths[s] * 2 + suitPoints[s] * 3;
+            if (sc > maxSuitScore) { maxSuitScore = sc; bestSuit = s; }
+        }
+        let ev = 14 + (suitPoints[bestSuit] * 1.5) + (suitLengths[bestSuit]);
+
+        let biddingRating = "Optimal";
+        let humanBid = (this.playerBids && this.playerBids[0] && this.playerBids[0] !== 'Pass') ? parseInt(this.playerBids[0]) : null;
+        if (humanBid) {
+            if (humanBid <= Math.round(ev) + 1) {
+                if (d2Points <= 1 && !this.roundSuccess) biddingRating = "Variance / Bad Luck";
+                else biddingRating = "Optimal";
+            } else if (humanBid > Math.round(ev) + 2) {
+                biddingRating = "Aggressive Overbid";
+            } else {
+                biddingRating = "Aggressive";
+            }
+        } else {
+            biddingRating = (ev >= 18) ? "Conservative Pass" : "Disciplined Pass";
+        }
+
+        let biddingSummary = "";
+        if (humanBid) {
+            if (biddingRating === "Variance / Bad Luck") {
+                biddingSummary = `Your ${humanBid} bid on [${deal1Cards.join(', ')}] was mathematically textbook; drawing zero honors in the second deal was pure variance.`;
+            } else if (biddingRating === "Aggressive Overbid") {
+                biddingSummary = `Bidding ${humanBid} exceeded your 4-card EV (${Math.round(ev * 10)/10}); tucking high honors face-down starved your trick firepower.`;
+            } else {
+                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] was spot-on, and selecting ${bestSuit} kept your high honors active.`;
+            }
+        } else {
+            biddingSummary = `Passing on [${deal1Cards.join(', ')}] was ${biddingRating.toLowerCase()}, preventing overextension.`;
+        }
+
+        let biddingAuditData = {
+            rating: biddingRating,
+            summary: biddingSummary,
+            deal1_cards: deal1Cards,
+            deal2_cards: deal2Cards,
+            human_bid: humanBid || 'Pass',
+            ev: Math.round(ev * 10) / 10
+        };
+
+        // 4. Partner Synergy Score
+        let synergyScore = 75;
+        if (this.humanBlunders.some(b => b.tag === 'MISSED_FATTENING')) synergyScore -= 15;
+        if (this.humanBlunders.some(b => b.tag === 'PREMATURE_TRUMP_REVEAL')) synergyScore -= 10;
+        if (this.roundSuccess) synergyScore += 12;
+        synergyScore = Math.max(30, Math.min(98, synergyScore));
+
+        let synergyNote = this.roundSuccess
+            ? "Wingman held solid defense and supported your leads on critical tricks."
+            : "Coordination faltered on key honor feeds, missing critical point transfers.";
+
+        // 5. Bot Locker Room Reaction
+        let botSpeaker = "Saboteur (West)";
+        let botTaunt = "";
+        if (this.roundSuccess) {
+            botSpeaker = "Wingman (North)";
+            botTaunt = `Textbook teamwork! Our ${this.trumpSuit || 'trump'} control shut down East and West cleanly.`;
+        } else {
+            if (this.humanBlunders.some(b => b.tag === 'DRY_9_AMBUSH')) {
+                botSpeaker = "Saboteur (West)";
+                botTaunt = `Thanks for feeding that 9 on Trick ${tpNum}—made breaking your ${this.currentBid} contract a walk in the park.`;
+            } else {
+                botSpeaker = "Striker (East)";
+                botTaunt = `You overextended on the ${this.currentBid} contract—we had trump defense mapped from Trick 1.`;
+            }
+        }
+
+        return {
+            blunders: this.humanBlunders,
+            pace_graph: paceGraph,
+            turning_point: turningPointData,
+            bidding_audit: biddingAuditData,
+            partner_synergy: { score: synergyScore, note: synergyNote },
+            bot_locker_room: { speaker: botSpeaker, taunt: botTaunt }
+        };
     }
 
     calculateRoundScore() {
@@ -4275,6 +4847,18 @@ class TwentyEightEngine {
         if (!autoEndReveal) {
             this.justRevealedInCurrentTrick = true;
             this.justRevealedByPlayer = requesterIndex;
+            if (requesterIndex === 0) {
+                let trickPts = this._countPointsInTrick();
+                let currentWinner = this._getCurrentTrickWinner();
+                let partnerWinning = currentWinner && currentWinner.player === 2;
+                if (trickPts <= 1 || partnerWinning) {
+                    this.pendingPrematureReveal = {
+                        trickNum: this.roundTricks.length + 1,
+                        trickPoints: trickPts,
+                        partnerWinning: partnerWinning
+                    };
+                }
+            }
             if (!this.trumpRevealEvent) {
                 this.trumpRevealEvent = {
                     trickNum: this.roundTricks.length + 1,
@@ -6287,14 +6871,11 @@ class UIController {
 
         // Groq AI Post-Round Match Analysis / Coach
         const coachBox = document.getElementById('end-coach-box');
-        const coachText = document.getElementById('end-coach-text');
-        const coachTitle = document.getElementById('end-coach-title');
-        const coachBadge = document.getElementById('end-coach-verdict-badge');
-        if (coachBox && coachText) {
-            coachTitle.innerText = currentLang === 'hi' ? 'AI मैच विश्लेषण' : 'AI Match Analysis';
-            if (coachBadge) coachBadge.style.display = 'none';
-            coachText.innerHTML = `<span style="opacity:0.7;">${currentLang === 'hi' ? 'विश्लेषण तैयार किया जा रहा है...' : 'Analyzing round performance...'}</span>`;
+        if (coachBox) {
             coachBox.style.display = 'block';
+            let telemetry = this.engine.getRoundTelemetry();
+            // Pre-render immediately with client-computed telemetry
+            this.renderTacticalReportCard(null, telemetry);
 
             BackendAPI.getRecap(
                 this.engine.highestBidder,
@@ -6308,24 +6889,110 @@ class UIController {
                 currentLang,
                 this.engine.roundTricks || [],
                 this.engine.trumpRevealEvent || null,
-                playerCustomNames || []
+                playerCustomNames || [],
+                telemetry
             ).then(res => {
-                if (res && coachText) {
-                    let verdictText = (typeof res === 'object' && res.verdict) ? res.verdict : '';
-                    let recapText = (typeof res === 'object' && res.recap) ? res.recap : (typeof res === 'string' ? res : '');
-                    if (coachBadge && verdictText) {
-                        coachBadge.innerText = verdictText;
-                        coachBadge.style.display = 'inline-block';
-                    }
-                    if (recapText) {
-                        coachText.innerText = `"${recapText}"`;
-                    }
-                } else if (coachBox) {
-                    coachBox.style.display = 'none';
+                if (res) {
+                    this.renderTacticalReportCard(res, telemetry);
                 }
             }).catch(() => {
-                if (coachBox) coachBox.style.display = 'none';
+                // Pre-render already visible
             });
+        }
+    }
+
+    renderTacticalReportCard(res, telemetry) {
+        const coachBox = document.getElementById('end-coach-box');
+        if (!coachBox) return;
+
+        let t = I18N[currentLang] || I18N.en;
+        let titleEl = document.getElementById('end-coach-title');
+        if (titleEl) titleEl.innerText = (currentLang === 'hi') ? 'AI सामरिक रिपोर्ट कार्ड' : 'AI Tactical Report Card';
+
+        // Overall Grade Badge
+        let grade = (res && res.overallGrade) ? res.overallGrade : (telemetry && telemetry.overallGrade ? telemetry.overallGrade : (this.engine.roundSuccess ? 'A-' : 'C+'));
+        let gradeEl = document.getElementById('end-coach-grade-badge');
+        if (gradeEl) {
+            gradeEl.innerText = grade;
+            gradeEl.className = 'trc-grade-badge';
+            if (grade.startsWith('A')) gradeEl.classList.add('trc-grade-a');
+            else if (grade.startsWith('B')) gradeEl.classList.add('trc-grade-b');
+            else if (grade.startsWith('C')) gradeEl.classList.add('trc-grade-c');
+            else gradeEl.classList.add('trc-grade-d');
+        }
+
+        // 1. Phase 1 Bidding Section
+        let bData = (res && res.biddingVerdict) ? res.biddingVerdict : (telemetry ? telemetry.bidding_audit : {});
+        let bRatingEl = document.getElementById('trc-bidding-pill');
+        if (bRatingEl && bData.rating) {
+            bRatingEl.innerText = bData.rating;
+            bRatingEl.className = 'trc-pill ' + (bData.rating.includes('Optimal') ? 'pill-optimal' : (bData.rating.includes('Overbid') ? 'pill-drop' : 'pill-warn'));
+        }
+        let bCardsEl = document.getElementById('trc-bidding-cards');
+        if (bCardsEl && telemetry && telemetry.bidding_audit && telemetry.bidding_audit.deal1_cards) {
+            bCardsEl.innerHTML = telemetry.bidding_audit.deal1_cards.map(cStr => {
+                let rank = cStr.slice(0, -1);
+                let suit = cStr.slice(-1);
+                let isRed = (suit === '♥' || suit === '♦');
+                return `<div class="trc-mini-card ${isRed ? 'red' : 'black'}">${rank}${suit}</div>`;
+            }).join('');
+        }
+        let bSumEl = document.getElementById('trc-bidding-summary');
+        if (bSumEl) bSumEl.innerText = bData.summary || '';
+
+        // 2. Turning Point Section
+        let tpData = (res && res.turningPointTrick) ? res.turningPointTrick : (telemetry ? telemetry.turning_point : {});
+        let tpTitleEl = document.getElementById('trc-tp-title');
+        if (tpTitleEl && tpData.trickNumber) {
+            tpTitleEl.innerText = (currentLang === 'hi') ? `⚡ निर्णायक मोड़: ट्रिक ${tpData.trickNumber}` : `⚡ INFLECTION POINT: TRICK ${tpData.trickNumber}`;
+        }
+        let tpDropEl = document.getElementById('trc-tp-drop-badge');
+        if (tpDropEl) {
+            let dropText = tpData.winProbDrop ? `${tpData.winProbDrop} Pace` : '-30% Pace';
+            tpDropEl.innerText = dropText;
+        }
+        let playedEl = document.getElementById('trc-played-card');
+        if (playedEl && tpData.cardPlayed) {
+            let cStr = tpData.cardPlayed;
+            let rank = cStr.slice(0, -1);
+            let suit = cStr.slice(-1);
+            let isRed = (suit === '♥' || suit === '♦');
+            playedEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
+            playedEl.innerText = `${rank}${suit}`;
+        }
+        let optEl = document.getElementById('trc-optimal-card');
+        if (optEl && tpData.optimalCard) {
+            let cStr = tpData.optimalCard;
+            let rank = cStr.slice(0, -1);
+            let suit = cStr.slice(-1);
+            let isRed = (suit === '♥' || suit === '♦');
+            optEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
+            optEl.innerText = `${rank}${suit}`;
+        }
+        let tpExpEl = document.getElementById('trc-tp-explanation');
+        if (tpExpEl) tpExpEl.innerText = tpData.explanation || '';
+
+        // 3. Partner Synergy
+        let synData = (res && res.partnerSynergy) ? res.partnerSynergy : (telemetry ? telemetry.partner_synergy : {});
+        let synScoreEl = document.getElementById('trc-synergy-score');
+        let synBarEl = document.getElementById('trc-synergy-bar');
+        let synNoteEl = document.getElementById('trc-synergy-note');
+        let score = (synData && synData.score !== undefined) ? synData.score : 65;
+        if (synScoreEl) synScoreEl.innerText = `${score}%`;
+        if (synBarEl) synBarEl.style.width = `${score}%`;
+        if (synNoteEl) synNoteEl.innerText = synData.note || '';
+
+        // 4. Bot Locker Room Quote
+        let lockerData = (res && res.botLockerRoom) ? res.botLockerRoom : (telemetry ? telemetry.bot_locker_room : {});
+        let speakerEl = document.getElementById('trc-locker-speaker');
+        let tauntEl = document.getElementById('trc-locker-taunt');
+        if (speakerEl) speakerEl.innerText = lockerData.speaker || 'Saboteur (West)';
+        if (tauntEl) tauntEl.innerText = `"${lockerData.taunt || ''}"`;
+
+        // Smooth GSAP Entrance
+        if (window.gsap) {
+            gsap.fromTo(coachBox, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out' });
+            gsap.fromTo('.trc-section', { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.3, stagger: 0.08, ease: 'power2.out' });
         }
     }
 }
