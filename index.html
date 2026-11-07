@@ -4632,13 +4632,14 @@ class TwentyEightEngine {
 
     resolveTrick() {
         let winningPlay = this._getCurrentTrickWinner();
-        let trickPoints = this._countPointsInTrick();
+        if (!winningPlay) winningPlay = { player: 0, card: null };
+        let trickPoints = Number(this._countPointsInTrick()) || 0;
         
         let winTeam = (winningPlay.player === 0 || winningPlay.player === 2) ? 0 : 1;
         if (this.trumpRevealed) this.tricksWonByTeam[winTeam]++;
 
-        if (winningPlay.player === 0 || winningPlay.player === 2) this.t1TrickPts += trickPoints;
-        else this.t2TrickPts += trickPoints;
+        if (winTeam === 0) this.t1TrickPts = (Number(this.t1TrickPts) || 0) + trickPoints;
+        else this.t2TrickPts = (Number(this.t2TrickPts) || 0) + trickPoints;
 
         // Record trick telemetry for deeply grounded AI Match Analysis
         let trickHonors = (this.trickCards || [])
@@ -5057,7 +5058,7 @@ class UIController {
         };
         this.playerNames = ["SOUTH", "EAST", "NORTH", "WEST"];
         this.isDealingState = false; this.uiTrumpRevealed = false; 
-        this.aiTimer = null; this.animatingTrick = false;
+        this.aiTimer = null; this.trickTimer = null; this.animatingTrick = false;
         this.isCardDragging = false;
         this.animQueue = new AnimationQueue();
     }
@@ -5715,7 +5716,7 @@ class UIController {
         if (isHuman && (this.engine.phase === 'BIDDING' || this.engine.phase === 'PLAYING')) {
             if (window.gsap) {
                 gsap.killTweensOf(rect);
-                rect.className.baseVal = 'turn-urgency-rect';
+                rect.setAttribute('class', 'turn-urgency-rect');
                 gsap.fromTo(rect, 
                     { strokeDashoffset: 0 },
                     { 
@@ -5724,8 +5725,8 @@ class UIController {
                         ease: "linear",
                         onUpdate: function() {
                             let prog = this.progress();
-                            if (prog > 0.8) rect.className.baseVal = 'turn-urgency-rect critical';
-                            else if (prog > 0.6) rect.className.baseVal = 'turn-urgency-rect warning';
+                            if (prog > 0.8) rect.setAttribute('class', 'turn-urgency-rect critical');
+                            else if (prog > 0.6) rect.setAttribute('class', 'turn-urgency-rect warning');
                         }
                     }
                 );
@@ -5733,7 +5734,7 @@ class UIController {
         } else {
             if (window.gsap) {
                 gsap.killTweensOf(rect);
-                rect.className.baseVal = 'turn-urgency-rect';
+                rect.setAttribute('class', 'turn-urgency-rect');
                 gsap.fromTo(rect,
                     { strokeDashoffset: 0, opacity: 0.6 },
                     { strokeDashoffset: 120, opacity: 1, duration: 1.2, repeat: -1, yoyo: true, ease: "sine.inOut" }
@@ -6521,117 +6522,187 @@ class UIController {
     animateTrickWinnerAndResolve(winnerIndex) {
         this.animatingTrick = true;
         const table = document.getElementById('center-table');
-        const cards = table.querySelectorAll('.trick-card');
-        let visualPos = (mySeat === 99) ? winnerIndex : (winnerIndex - mySeat + 4) % 4;
-        let isTeam1Winner = (winnerIndex === 0 || winnerIndex === 2);
-        let glowColor = isTeam1Winner ? 'rgba(56, 189, 248, 0.9)' : 'rgba(251, 113, 133, 0.9)';
+        if (!table) {
+            if (isHost) this.engine.resolveTrick();
+            this.animatingTrick = false;
+            this.gameLoop();
+            return;
+        }
 
-        if (window.gsap && cards.length > 0) {
-            const tl = gsap.timeline();
+        try {
+            const cards = table.querySelectorAll('.trick-card');
+            let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+            let visualPos = (mySeat === 99) ? winnerIndex : (winnerIndex - mySeat + 4) % 4;
+            let isTeam1Winner = (winnerIndex === 0 || winnerIndex === 2);
+            let glowColor = isTeam1Winner ? 'rgba(56, 189, 248, 0.95)' : 'rgba(251, 113, 133, 0.95)';
 
-            // Phase 1: Snap all 4 cards into a neat stacked pile in the center (0.24s)
-            tl.to(cards, {
-                xPercent: -50,
-                yPercent: -50,
-                x: 0,
-                y: 0,
-                rotation: (i) => (i - 1.5) * 4,
-                scale: 1.06,
-                boxShadow: `0 0 22px ${glowColor}, 0 8px 20px rgba(0,0,0,0.75)`,
-                duration: 0.24,
-                ease: "power2.out"
-            });
+            // Beat 2: Winner Highlight & Point Pop
+            let winCardPlay = this.engine._getCurrentTrickWinner();
+            let winningCardEl = null;
+            if (winCardPlay) {
+                let winnerCardPos = (mySeat === 99) ? winCardPlay.player : (winCardPlay.player - mySeat + 4) % 4;
+                winningCardEl = table.querySelector(`.trick-card.pos-${winnerCardPos}`);
+            }
+            if (!winningCardEl && winCardPlay && winCardPlay.card) {
+                cards.forEach(cEl => {
+                    let r = cEl.querySelector('.card-corner span');
+                    let s = cEl.querySelector('.card-corner .corner-suit');
+                    if (r && s && r.textContent.trim() === winCardPlay.card.rank && s.textContent.trim() === winCardPlay.card.suit) {
+                        winningCardEl = cEl;
+                    }
+                });
+            }
+            if (!winningCardEl && cards.length > 0) winningCardEl = cards[cards.length - 1];
 
-            // Phase 2: Rapid whoosh & whip of the entire stack into the winner's exact seat
+            if (winningCardEl && window.gsap) {
+                winningCardEl.style.zIndex = '80';
+                gsap.to(winningCardEl, {
+                    scale: 1.08,
+                    boxShadow: `0 0 28px ${glowColor}, 0 10px 25px rgba(0,0,0,0.85)`,
+                    duration: 0.35 * speedMult,
+                    ease: "back.out(1.5)"
+                });
+            }
+            playSound('trick');
+
             const positions = ['bottom', 'right', 'top', 'left'];
-            const winnerBadge = document.getElementById(`player-${positions[visualPos]}`);
-            let destX = 0, destY = 0;
-            if (winnerBadge && table) {
-                const tableRect = table.getBoundingClientRect();
-                const bRect = winnerBadge.getBoundingClientRect();
-                destX = (bRect.left + bRect.width / 2) - (tableRect.left + tableRect.width / 2);
-                destY = (bRect.top + bRect.height / 2) - (tableRect.top + tableRect.height / 2);
-            } else {
-                if (visualPos === 0) destY = 240;
-                else if (visualPos === 1) destX = 240;
-                else if (visualPos === 2) destY = -240;
-                else if (visualPos === 3) destX = -240;
+            const winnerSeatEl = document.getElementById(`player-${positions[visualPos]}`);
+            const winnerBadge = winnerSeatEl ? (winnerSeatEl.querySelector('.player-badge') || winnerSeatEl) : null;
+
+            let trickPts = Number(this.engine._countPointsInTrick()) || 0;
+            if (trickPts > 0 && winnerBadge) {
+                const floatBadge = document.createElement('div');
+                floatBadge.innerText = `+${trickPts} pts`;
+                floatBadge.style.cssText = `
+                    position: absolute; top: -16px; left: 50%;
+                    transform: translateX(-50%);
+                    font-size: 0.76rem; font-weight: 800; font-family: 'Cinzel', serif;
+                    color: ${isTeam1Winner ? '#38bdf8' : '#fb7185'};
+                    background: rgba(4, 18, 12, 0.95);
+                    border: 1.5px solid ${isTeam1Winner ? 'var(--team1-blue)' : 'var(--team2-coral)'};
+                    border-radius: 12px; padding: 2px 8px;
+                    box-shadow: 0 0 16px ${glowColor};
+                    pointer-events: none; z-index: 100; white-space: nowrap;
+                `;
+                winnerBadge.appendChild(floatBadge);
+                if (window.gsap) {
+                    gsap.fromTo(floatBadge,
+                        { y: 0, opacity: 1, scale: 0.8 },
+                        { y: -28, opacity: 0, scale: 1.15, duration: 0.85 * speedMult, ease: "power2.out", onComplete: () => floatBadge.remove() }
+                    );
+                } else {
+                    setTimeout(() => floatBadge.remove(), 800);
+                }
             }
 
-            tl.to(cards, {
-                xPercent: -50,
-                yPercent: -50,
-                x: destX,
-                y: destY,
-                scale: 0.16,
-                opacity: 0,
-                rotation: "+=45",
-                duration: 0.42,
-                ease: "power3.in",
-                stagger: 0.02
-            });
+            let beat2Duration = Math.round(550 * speedMult);
 
-            // Phase 3: Tactile bounce on winner's badge & floating trick points
-            tl.add(() => {
-                if (winnerBadge) {
-                    gsap.fromTo(winnerBadge, 
-                        { scale: 1.25 }, 
-                        { scale: 1, duration: 0.35, ease: "back.out(2)" }
-                    );
+            setTimeout(() => {
+                try {
+                    // Beat 3: Gather & Sweep
+                    playSound('rustle');
 
-                    let trickPts = this.engine._countPointsInTrick();
-                    if (trickPts > 0) {
-                        const floatBadge = document.createElement('div');
-                        floatBadge.innerText = `+${trickPts} pts`;
-                        floatBadge.style.cssText = `
-                            position: absolute; top: -16px; left: 50%;
-                            transform: translateX(-50%);
-                            font-size: 0.72rem; font-weight: 800; font-family: 'Cinzel', serif;
-                            color: ${isTeam1Winner ? '#38bdf8' : '#fb7185'};
-                            background: rgba(4, 18, 12, 0.95);
-                            border: 1.5px solid ${isTeam1Winner ? 'var(--team1-blue)' : 'var(--team2-coral)'};
-                            border-radius: 12px; padding: 1px 7px;
-                            box-shadow: 0 0 14px ${glowColor};
-                            pointer-events: none; z-index: 100; white-space: nowrap;
-                        `;
-                        winnerBadge.appendChild(floatBadge);
-                        gsap.fromTo(floatBadge, 
-                            { y: 0, opacity: 1, scale: 0.8 },
-                            { y: -26, opacity: 0, scale: 1.15, duration: 0.95, ease: "power2.out", onComplete: () => floatBadge.remove() }
-                        );
+                    if (window.gsap && cards.length > 0) {
+                        const tl = gsap.timeline();
+
+                        // Stack cards together in center
+                        tl.to(cards, {
+                            xPercent: -50,
+                            yPercent: -50,
+                            x: 0,
+                            y: 0,
+                            rotation: (i) => (i - 1.5) * 4,
+                            scale: 1.04,
+                            boxShadow: `0 0 20px ${glowColor}, 0 8px 20px rgba(0,0,0,0.75)`,
+                            duration: 0.22 * speedMult,
+                            ease: "power2.out"
+                        });
+
+                        let destX = 0, destY = 0;
+                        let targetEl = winnerBadge || winnerSeatEl;
+                        if (targetEl && table) {
+                            const tableRect = table.getBoundingClientRect();
+                            const bRect = targetEl.getBoundingClientRect();
+                            destX = (bRect.left + bRect.width / 2) - (tableRect.left + tableRect.width / 2);
+                            destY = (bRect.top + bRect.height / 2) - (tableRect.top + tableRect.height / 2);
+                        } else {
+                            if (visualPos === 0) destY = 240;
+                            else if (visualPos === 1) destX = 240;
+                            else if (visualPos === 2) destY = -240;
+                            else if (visualPos === 3) destX = -240;
+                        }
+
+                        // Sweep stack into winner's seat
+                        tl.to(cards, {
+                            xPercent: -50,
+                            yPercent: -50,
+                            x: destX,
+                            y: destY,
+                            scale: 0.16,
+                            opacity: 0,
+                            rotation: "+=45",
+                            duration: 0.42 * speedMult,
+                            ease: "power3.in",
+                            stagger: 0.02
+                        });
+
+                        // Tactile bounce on winner badge
+                        tl.add(() => {
+                            if (targetEl && window.gsap) {
+                                gsap.fromTo(targetEl,
+                                    { scale: 1.25 },
+                                    { scale: 1, duration: 0.32 * speedMult, ease: "back.out(2)" }
+                                );
+                            }
+                        });
+
+                        let sweepDuration = Math.round(500 * speedMult);
+                        setTimeout(() => {
+                            table.innerHTML = '';
+                            this.clearTrickWinnerHalo();
+                            if (isHost) {
+                                this.engine.resolveTrick();
+                            }
+
+                            // Breathing gap before next trick
+                            let breathingGap = Math.round(400 * speedMult);
+                            setTimeout(() => {
+                                this.animatingTrick = false;
+                                this.gameLoop();
+                            }, breathingGap);
+                        }, sweepDuration);
+                    } else {
+                        table.innerHTML = '';
+                        this.clearTrickWinnerHalo();
+                        if (isHost) {
+                            this.engine.resolveTrick();
+                        }
+                        setTimeout(() => {
+                            this.animatingTrick = false;
+                            this.gameLoop();
+                        }, Math.round(400 * speedMult));
                     }
+                } catch (innerErr) {
+                    console.error("Trick sweep animation error:", innerErr);
+                    table.innerHTML = '';
+                    this.clearTrickWinnerHalo();
+                    if (isHost) this.engine.resolveTrick();
+                    this.animatingTrick = false;
+                    this.gameLoop();
                 }
-            });
-
-            setTimeout(() => {
-                this.animatingTrick = false;
-                table.innerHTML = '';
-                this.clearTrickWinnerHalo();
-                if (isHost) {
-                    this.engine.resolveTrick();
-                    setTimeout(() => { this.gameLoop(); }, 600);
-                }
-            }, 720);
-        } else {
-            // Fallback
-            cards.forEach(c => {
-                c.style.transition = 'all 0.65s cubic-bezier(0.34, 1.56, 0.64, 1)';
-                if(visualPos === 0) { c.style.top = '145%'; c.style.left = '50%'; }
-                else if(visualPos === 1) { c.style.top = '50%'; c.style.left = '145%'; }
-                else if(visualPos === 2) { c.style.top = '-45%'; c.style.left = '50%'; }
-                else if(visualPos === 3) { c.style.top = '50%'; c.style.left = '-45%'; }
-                c.style.transform = 'translate(-50%, -50%) scale(0.2) rotate(180deg)';
-                c.style.opacity = '0';
-            });
-            setTimeout(() => {
-                this.animatingTrick = false; table.innerHTML = '';
-                this.clearTrickWinnerHalo();
-                if (isHost) {
-                    this.engine.resolveTrick();
-                    setTimeout(() => { this.gameLoop(); }, 750);
-                }
-            }, 650);
+            }, beat2Duration);
+        } catch (outerErr) {
+            console.error("animateTrickWinnerAndResolve error:", outerErr);
+            table.innerHTML = '';
+            this.clearTrickWinnerHalo();
+            if (isHost) this.engine.resolveTrick();
+            this.animatingTrick = false;
+            this.gameLoop();
         }
+    }
+
+    executeTrickWinnerSequence(winnerIndex) {
+        this.animateTrickWinnerAndResolve(winnerIndex);
     }
 
     broadcastGameState() {
@@ -6839,8 +6910,10 @@ class UIController {
                     let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
                     // Beat 1: The Board Freeze (850ms * speedMult): 4 cards sit completely still
                     let freezeDuration = Math.round(850 * speedMult);
-                    this.aiTimer = setTimeout(() => {
-                        this.executeTrickWinnerSequence(winningPlay.player);
+                    if (this.trickTimer) clearTimeout(this.trickTimer);
+                    this.trickTimer = setTimeout(() => {
+                        this.trickTimer = null;
+                        this.animateTrickWinnerAndResolve(winningPlay.player);
                     }, freezeDuration);
                 }
             }
@@ -7070,6 +7143,8 @@ class UIController {
     }
 
     startNewRound() {
+        if (this.trickTimer) { clearTimeout(this.trickTimer); this.trickTimer = null; }
+        if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
         document.getElementById('end-modal').style.display = 'none';
         document.getElementById('log-drawer').innerHTML = '';
         this.uiTrumpRevealed = false;
