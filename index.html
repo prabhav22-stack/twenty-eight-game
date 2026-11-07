@@ -22,7 +22,9 @@
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"></script>
 
-<style>
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/animations.css">
+    <style>
 :root {
     --felt-center: #165b36; --felt-mid: #0c3820; --felt-edge: #04140b;
     --gold-primary: #e5c158; --gold-bright: #fff3c4; --gold-deep: #9e7818;
@@ -2992,6 +2994,236 @@ const BackendAPI = {
     }
 };
 
+// ==================== PHASE 1 & 2: ANIMATION QUEUE & STATE REDACTION ====================
+class AnimationQueue {
+    constructor() {
+        this.queue = [];
+        this.isProcessing = false;
+        this.onIdleCallbacks = [];
+    }
+    enqueue(animationTask) {
+        return new Promise((resolve, reject) => {
+            this.queue.push(async () => {
+                try {
+                    await animationTask();
+                    resolve();
+                } catch (err) {
+                    console.error('[AnimationQueue] Error:', err);
+                    reject(err);
+                }
+            });
+            if (!this.isProcessing) this.processNext();
+        });
+    }
+    async processNext() {
+        if (this.isProcessing) return;
+        this.isProcessing = true;
+        while (this.queue.length > 0) {
+            const task = this.queue.shift();
+            try { await task(); } catch (e) { console.error(e); }
+        }
+        this.isProcessing = false;
+        while (this.onIdleCallbacks.length > 0) {
+            const cb = this.onIdleCallbacks.shift();
+            try { cb(); } catch (e) {}
+        }
+    }
+    whenIdle() {
+        if (!this.isProcessing && this.queue.length === 0) return Promise.resolve();
+        return new Promise(resolve => this.onIdleCallbacks.push(resolve));
+    }
+    clear() {
+        this.queue = [];
+        this.isProcessing = false;
+        this.onIdleCallbacks = [];
+    }
+}
+
+class PeerManager {
+    static getSanitizedStateForPeer(masterEngine, clientSeat) {
+        if (!masterEngine) return null;
+        const handSizes = [
+            (masterEngine.players[0] || []).length,
+            (masterEngine.players[1] || []).length,
+            (masterEngine.players[2] || []).length,
+            (masterEngine.players[3] || []).length
+        ];
+        let clientHand = [];
+        if (clientSeat !== 99 && clientSeat >= 0 && clientSeat < 4) {
+            clientHand = (masterEngine.players[clientSeat] || []).map(card => ({
+                suit: card.suit, rank: card.rank, value: card.value, power: card.power
+            }));
+        }
+        const canSeeTrump = masterEngine.trumpRevealed || (clientSeat === masterEngine.highestBidder);
+        const projectedTrumpSuit = canSeeTrump ? masterEngine.trumpSuit : null;
+
+        return {
+            t1TrickPts: masterEngine.t1TrickPts,
+            t2TrickPts: masterEngine.t2TrickPts,
+            t1GamePts: masterEngine.t1GamePts,
+            t2GamePts: masterEngine.t2GamePts,
+            currentBid: masterEngine.currentBid,
+            currentTurn: masterEngine.currentTurn,
+            phase: masterEngine.phase,
+            trickCards: (masterEngine.trickCards || []).map(tc => ({
+                card: { suit: tc.card.suit, rank: tc.card.rank, value: tc.card.value, power: tc.card.power },
+                player: tc.player
+            })),
+            leadSuit: masterEngine.leadSuit,
+            myHand: clientHand,
+            handSizes: handSizes,
+            trumpRevealed: masterEngine.trumpRevealed,
+            trumpSuit: projectedTrumpSuit,
+            highestBidder: masterEngine.highestBidder,
+            hasHiddenTrump: false,
+            hasPassed: masterEngine.hasPassed || [false, false, false, false],
+            playerBids: masterEngine.playerBids || [null, null, null, null],
+            tricksWonByTeam: masterEngine.tricksWonByTeam,
+            roundSuccess: masterEngine.roundSuccess,
+            gamePointsWon: masterEngine.gamePointsWon,
+            pairDeclared: masterEngine.pairDeclared,
+            pairDeclaringTeam: masterEngine.pairDeclaringTeam
+        };
+    }
+}
+
+// ==================== PHASE 3: ISMCTS & BELIEF INFERENCE MATRIX ====================
+class InferenceMatrix {
+    constructor() {
+        this.voidInSuit = [
+            { '♠': false, '♥': false, '♣': false, '♦': false },
+            { '♠': false, '♥': false, '♣': false, '♦': false },
+            { '♠': false, '♥': false, '♣': false, '♦': false },
+            { '♠': false, '♥': false, '♣': false, '♦': false }
+        ];
+        this.playedCards = [];
+        this.allCards = [];
+        const suits = ['♠', '♥', '♣', '♦'];
+        const ranks = ['7', '8', 'Q', 'K', '10', 'A', '9', 'J'];
+        const pts = { 'J': 3, '9': 2, 'A': 1, '10': 1, 'K': 0, 'Q': 0, '8': 0, '7': 0 };
+        const pwr = { 'J': 8, '9': 7, 'A': 6, '10': 5, 'K': 4, 'Q': 3, '8': 2, '7': 1 };
+        for (let s of suits) {
+            for (let r of ranks) {
+                this.allCards.push({ suit: s, rank: r, value: pts[r], power: pwr[r] });
+            }
+        }
+    }
+    recordCardPlay(playerIndex, card, leadSuit) {
+        this.playedCards.push({ suit: card.suit, rank: card.rank });
+        if (leadSuit && card.suit !== leadSuit && this.voidInSuit[playerIndex]) {
+            this.voidInSuit[playerIndex][leadSuit] = true;
+        }
+    }
+    sampleHypotheticalWorld(mySeat, myHand, handCounts) {
+        const seen = new Set();
+        for (let c of this.playedCards) seen.add(`${c.rank}${c.suit}`);
+        for (let c of myHand) seen.add(`${c.rank}${c.suit}`);
+        const unseen = this.allCards.filter(c => !seen.has(`${c.rank}${c.suit}`));
+
+        for (let i = unseen.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [unseen[i], unseen[j]] = [unseen[j], unseen[i]];
+        }
+        const simHands = [[], [], [], []];
+        simHands[mySeat] = [...myHand];
+        const others = [0, 1, 2, 3].filter(s => s !== mySeat);
+        const unassigned = [];
+
+        for (let card of unseen) {
+            const cands = others.filter(s => simHands[s].length < (handCounts[s] || 0) && !this.voidInSuit[s][card.suit]);
+            if (cands.length > 0) {
+                const chosen = cands[Math.floor(Math.random() * cands.length)];
+                simHands[chosen].push(card);
+            } else {
+                unassigned.push(card);
+            }
+        }
+        for (let card of unassigned) {
+            const openSeats = others.filter(s => simHands[s].length < (handCounts[s] || 0));
+            if (openSeats.length > 0) simHands[openSeats[0]].push(card);
+        }
+        return simHands;
+    }
+}
+
+class ISMCTS {
+    static selectBestPlay(params) {
+        const { hand, validIndices, trickCards, leadSuit, trumpSuit, trumpRevealed, playerIdx, personality, inference, numRollouts = 50 } = params;
+        if (!validIndices || validIndices.length === 0) return 0;
+        if (validIndices.length === 1) return validIndices[0];
+
+        const partnerSeat = (playerIdx + 2) % 4;
+        const scores = {};
+        for (let idx of validIndices) scores[idx] = 0;
+
+        const handCounts = [8, 8, 8, 8];
+        const currentTricks = Math.floor(((inference?.playedCards || []).length) / 4);
+        for (let i = 0; i < 4; i++) {
+            handCounts[i] = Math.max(0, 8 - currentTricks - (trickCards.some(tc => tc.player === i) ? 1 : 0));
+        }
+        handCounts[playerIdx] = hand.length;
+
+        for (let r = 0; r < numRollouts; r++) {
+            for (let moveIdx of validIndices) {
+                const card = hand[moveIdx];
+                let rolloutScore = 0;
+                const simTrick = [...trickCards, { card, player: playerIdx }];
+                const trickWinner = ISMCTS.evaluateWinner(simTrick, leadSuit || card.suit, trumpSuit, trumpRevealed);
+                const isTrickOver = (simTrick.length === 4);
+                const trickPts = simTrick.reduce((sum, tc) => sum + (tc.card.value || 0), 0);
+                const isWinnerUs = (trickWinner.player === playerIdx || trickWinner.player === partnerSeat);
+
+                if (isTrickOver) {
+                    rolloutScore += isWinnerUs ? (trickPts * 12) : (-trickPts * 12);
+                } else {
+                    rolloutScore += isWinnerUs ? 4 : -4;
+                }
+
+                if (personality === 'wingman') {
+                    if (trickWinner.player === partnerSeat) rolloutScore += (card.value * 8) + 6;
+                    if (card.rank === 'J' && !isTrickOver) rolloutScore -= 6;
+                } else if (personality === 'striker') {
+                    if (card.power >= 6) rolloutScore += 8;
+                    if (isWinnerUs && trickPts >= 2) rolloutScore += 10;
+                } else if (personality === 'saboteur') {
+                    if ((card.rank === 'J' || card.rank === '9') && trickPts < 3 && !isTrickOver) rolloutScore -= 14;
+                    if (!isWinnerUs && trickPts >= 4 && (card.rank === 'J' || card.rank === '9')) rolloutScore += 18;
+                }
+                scores[moveIdx] += rolloutScore;
+            }
+        }
+
+        let bestIdx = validIndices[0];
+        let bestVal = -Infinity;
+        for (let idx of validIndices) {
+            if (scores[idx] > bestVal) {
+                bestVal = scores[idx];
+                bestIdx = idx;
+            }
+        }
+        return bestIdx;
+    }
+
+    static evaluateWinner(trickCards, leadSuit, trumpSuit, trumpRevealed) {
+        if (!trickCards || trickCards.length === 0) return null;
+        let winner = trickCards[0];
+        for (let tc of trickCards) {
+            let isCurrentTrump = trumpRevealed && trumpSuit && (tc.card.suit === trumpSuit);
+            let isWinnerTrump = trumpRevealed && trumpSuit && (winner.card.suit === trumpSuit);
+            if (isCurrentTrump && !isWinnerTrump) {
+                winner = tc;
+            } else if (isCurrentTrump && isWinnerTrump) {
+                if (tc.card.power > winner.card.power) winner = tc;
+            } else if (!isCurrentTrump && !isWinnerTrump) {
+                if (tc.card.suit === leadSuit && tc.card.power > winner.card.power) {
+                    winner = tc;
+                }
+            }
+        }
+        return winner;
+    }
+}
+
 // ==================== 28 GAME ENGINE ====================
 class TwentyEightEngine {
     constructor() {
@@ -3011,6 +3243,7 @@ class TwentyEightEngine {
         this.trumpRevealEvent = null;
         this.justRevealedInCurrentTrick = false;
         this.justRevealedByPlayer = -1;
+        this.inference = new InferenceMatrix();
     }
 
     resetRound() {
@@ -3038,6 +3271,7 @@ class TwentyEightEngine {
             {'♥':false, '♦':false, '♣':false, '♠':false},
             {'♥':false, '♦':false, '♣':false, '♠':false}
         ];
+        this.inference = new InferenceMatrix();
     }
 
     log(msg) {
@@ -3425,6 +3659,7 @@ class TwentyEightEngine {
         this.justRevealedBy = -1;
         this.trickCards.push({ card, player: pIndex });
         this.playedCardsHistory.push(card);
+        if (this.inference) this.inference.recordCardPlay(pIndex, card, this.leadSuit);
         this.log(`🃏 Player ${pIndex} plays ${card.rank}${card.suit}`);
 
         this.currentTurn = (this.currentTurn + 1) % 4;
@@ -3523,6 +3758,23 @@ class TwentyEightEngine {
             validIndices.sort((a, b) => dumpCost(a) - dumpCost(b));
             return { reveal: false, index: validIndices[0] };
         }
+
+        // ISMCTS Monte Carlo Tree Search with personality heuristics
+        let botRole = pIndex === 2 ? 'wingman' : (pIndex === 1 ? 'striker' : 'saboteur');
+        let rollouts = currentDifficulty === 'hard' ? 70 : (currentDifficulty === 'medium' ? 40 : 20);
+        let bestIdx = ISMCTS.selectBestPlay({
+            hand: hand,
+            validIndices: validIndices,
+            trickCards: this.trickCards,
+            leadSuit: this.leadSuit,
+            trumpSuit: knownTrumpSuit,
+            trumpRevealed: this.trumpRevealed,
+            playerIdx: pIndex,
+            personality: botRole,
+            inference: this.inference,
+            numRollouts: rollouts
+        });
+        return { reveal: false, index: bestIdx };
 
         let winningPlay = this._getCurrentTrickWinner();
         let isLastPlayer = (this.trickCards.length === 3);
@@ -3673,29 +3925,7 @@ class TwentyEightEngine {
     }
 
     exportStateForClient(clientSeat) {
-        let sizes = [
-            (this.players[0] || []).length,
-            (this.players[1] || []).length,
-            (this.players[2] || []).length,
-            (this.players[3] || []).length
-        ];
-        return {
-            t1TrickPts: this.t1TrickPts, t2TrickPts: this.t2TrickPts,
-            t1GamePts: this.t1GamePts, t2GamePts: this.t2GamePts,
-            currentBid: this.currentBid, currentTurn: this.currentTurn,
-            phase: this.phase, trickCards: this.trickCards || [],
-            leadSuit: this.leadSuit,
-            myHand: (clientSeat !== 99 && clientSeat >= 0 && clientSeat < 4) ? (this.players[clientSeat] || []) : [], 
-            handSizes: sizes,
-            trumpRevealed: this.trumpRevealed, 
-            trumpSuit: (this.trumpRevealed || clientSeat === this.highestBidder) ? this.trumpSuit : null,
-            highestBidder: this.highestBidder,
-            hasHiddenTrump: false,
-            hasPassed: this.hasPassed || [false, false, false, false], playerBids: this.playerBids || [null, null, null, null],
-            tricksWonByTeam: this.tricksWonByTeam,
-            roundSuccess: this.roundSuccess, gamePointsWon: this.gamePointsWon,
-            pairDeclared: this.pairDeclared, pairDeclaringTeam: this.pairDeclaringTeam
-        };
+        return PeerManager.getSanitizedStateForPeer(this, clientSeat);
     }
 
     syncFromMasterState(state) {
@@ -3746,6 +3976,7 @@ class UIController {
         this.isDealingState = false; this.uiTrumpRevealed = false; 
         this.aiTimer = null; this.animatingTrick = false;
         this.isCardDragging = false;
+        this.animQueue = new AnimationQueue();
     }
 
     handleRemoteBidUI(pIndex, val, won) {

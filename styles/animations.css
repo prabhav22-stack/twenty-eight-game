@@ -1,0 +1,39 @@
+/* ==================== GAME ANIMATIONS & KEYFRAMES ==================== */
+@keyframes modalPop {
+    0% { opacity: 0; transform: translate(-50%, -46%) scale(0.92); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes activeTurnPulse {
+    0% { box-shadow: 0 0 0 0 rgba(229, 193, 88, 0.7), 0 0 10px var(--gold-glow); border-color: #fff; }
+    100% { box-shadow: 0 0 0 5px rgba(229, 193, 88, 0), 0 0 18px var(--gold-primary); border-color: var(--gold-bright); }
+}
+
+@keyframes pulseGlow {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+}
+
+@keyframes scoreBump {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.4); color: var(--gold-primary); }
+    100% { transform: scale(1); }
+}
+
+@keyframes dealCard {
+    0% { opacity: 0; transform: translateY(-80px) scale(0.35) rotate(-10deg); filter: blur(2px); }
+    65% { transform: translateY(6px) scale(1.05) rotate(2deg); filter: blur(0); }
+    100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+@keyframes potPulse {
+    0% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.22); filter: drop-shadow(0 0 14px var(--gold-bright)); }
+    100% { transform: translateX(-50%) scale(1); }
+}
+
+@keyframes trumpCutPulse {
+    0% { transform: scale(0.9); filter: drop-shadow(0 0 30px #ef4444); color: rgba(239, 68, 68, 0.7); }
+    50% { transform: scale(1.35); filter: drop-shadow(0 0 50px #f59e0b); color: rgba(245, 158, 11, 0.85); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 25px rgba(229,193,88,0.4)); color: var(--gold-primary); }
+}

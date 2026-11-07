@@ -1,0 +1,36 @@
+/* ==================== GLOBAL VARIABLES & THEMES ==================== */
+:root {
+    --felt-center: #165b36; 
+    --felt-mid: #0c3820; 
+    --felt-edge: #04140b;
+    --gold-primary: #e5c158; 
+    --gold-bright: #fff3c4; 
+    --gold-deep: #9e7818;
+    --gold-glow: rgba(229, 193, 88, 0.55);
+    --gold-border: rgba(229, 193, 88, 0.4);
+    --team1-blue: #38bdf8; 
+    --team2-coral: #fb7185;
+    --danger: #ef4444; 
+    --success: #22c55e;
+    --suit-red: #dc2626; 
+    --suit-black: #0f172a;
+
+    /* Dynamic responsive values populated continuously by updateScreenMetrics */
+    --table-center-y: 48%;
+    --card-w: clamp(48px, 14.5vw, 68px);
+    --card-h: clamp(70px, 21vw, 98px);
+    --opp-card-w: clamp(24px, 7vw, 34px);
+    --opp-card-h: clamp(36px, 10.5vw, 50px);
+    --ring-size: clamp(160px, min(48vw, 36vh), 230px);
+    --hud-pill-offset: clamp(80px, 16vh, 108px);
+    --dense-card-margin: clamp(-26px, -6.8vw, -20px);
+    --sparse-card-margin: clamp(-10px, -2.5vw, -6px);
+    --south-bottom: clamp(6px, 1.5vh, 12px);
+}
+
+body.theme-midnight {
+    --felt-center: #173860; --felt-mid: #0e223c; --felt-edge: #060e19;
+}
+body.theme-crimson {
+    --felt-center: #5c1822; --felt-mid: #380d14; --felt-edge: #150407;
+}
