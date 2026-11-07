@@ -720,17 +720,44 @@ body::before {
 
 #dramatic-reveal {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
-    background: radial-gradient(circle, rgba(25,35,28,0.98), rgba(4,10,6,0.98));
-    border: 4px solid var(--gold-primary); border-radius: 50%;
-    width: clamp(200px, 45vmin, 270px); height: clamp(200px, 45vmin, 270px);
-    display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1500; opacity: 0; pointer-events: none;
+    background: radial-gradient(circle, rgba(15, 23, 42, 0.98), rgba(4, 10, 6, 0.98));
+    border: 2.5px solid var(--gold-primary); border-radius: 20px;
+    padding: clamp(14px, 3vh, 22px);
+    width: clamp(230px, 48vmin, 300px); min-height: clamp(200px, 42vmin, 260px);
+    display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1500; opacity: 0; pointer-events: none;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.85), 0 0 30px var(--gold-glow);
 }
-.anim-reveal-blast { animation: blastReveal 2.1s forwards; }
+.anim-reveal-blast { animation: blastReveal 2.5s forwards; }
 @keyframes blastReveal {
     0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    18% { transform: translate(-50%, -50%) scale(1.08); opacity: 1; box-shadow: 0 0 100px var(--gold-primary); }
-    82% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    14% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; box-shadow: 0 0 80px var(--gold-primary); }
+    86% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+}
+.trump-3d-card {
+    width: clamp(80px, 18vmin, 105px);
+    height: clamp(115px, 25vmin, 145px);
+    position: relative;
+    transform-style: preserve-3d;
+    perspective: 1000px;
+    border-radius: 10px;
+    margin: 8px auto;
+}
+.trump-3d-front, .trump-3d-back {
+    position: absolute; width: 100%; height: 100%;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    border-radius: 10px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.65);
+}
+.trump-3d-front {
+    background: radial-gradient(circle at 30% 30%, #1e293b, #0f172a);
+    border: 2px solid var(--gold-border);
+}
+.trump-3d-back {
+    background: #ffffff;
+    border: 2.5px solid var(--gold-bright);
+    transform: rotateY(180deg);
 }
 #partner-bid-splash {
     position: fixed; top: var(--table-center-y, 44%); left: 50%; transform: translate(-50%, -50%) scale(0);
@@ -1455,6 +1482,7 @@ body::before {
     </div>
     <div class="bar-quick-actions">
         <button class="bar-icon-btn" id="top-diff-btn" onclick="cycleDifficulty()" title="AI Difficulty: Click to change" style="font-weight:700; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5);"><span id="top-diff-dot" style="width:7px; height:7px; border-radius:50%; background:#eab308;"></span><span id="top-diff-label">Medium</span></button>
+        <button class="bar-icon-btn" id="table-speed-btn" onclick="cycleTableSpeed()" title="Table Pace: 1x (Realistic)" style="font-weight:800; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5); color:var(--gold-bright); cursor:pointer;"><span id="table-speed-icon">⚡</span> <span id="table-speed-label">1x</span></button>
         <div id="ai-status-pill" style="display:inline-flex; align-items:center; gap:5px; font-size:0.68rem; font-weight:800; color:#86efac; background:rgba(34,197,94,0.18); border:1px solid rgba(74,222,128,0.4); padding:3px 9px; border-radius:14px; white-space:nowrap;"><span style="width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span> 🧠 Groq AI</div>
         <button class="bar-icon-btn" onclick="openStatsModal()" id="stats-icon-btn" title="Career Stats & Elo" style="font-weight:700;">🏆 <span id="stats-btn-text">Stats</span></button>
         <button class="bar-icon-btn" onclick="toggleLanguage()" id="lang-toggle-btn" title="Language / भाषा">🌐 हिन्दी</button>
@@ -2057,6 +2085,94 @@ function toggleFullscreen() {
 }
 
 // ==================== PROCEDURAL SOUND EFFECTS ====================
+
+// ==================== TABLE SPEED & PACING CONTROLLER ====================
+window.GAME_SPEED_MULTIPLIER = 1.0;
+
+function initTableSpeed() {
+    try {
+        const saved = localStorage.getItem('28_table_speed');
+        if (saved) {
+            const val = parseFloat(saved);
+            if ([1.0, 0.65, 0.35].includes(val)) {
+                window.GAME_SPEED_MULTIPLIER = val;
+            }
+        }
+    } catch(e) {}
+    updateTableSpeedUI();
+}
+
+function updateTableSpeedUI() {
+    const btn = document.getElementById('table-speed-btn');
+    const label = document.getElementById('table-speed-label');
+    const mult = window.GAME_SPEED_MULTIPLIER || 1.0;
+    if (label) {
+        if (mult === 1.0) label.innerText = '1x';
+        else if (mult === 0.65) label.innerText = '1.5x';
+        else if (mult === 0.35) label.innerText = 'Turbo';
+    }
+    if (btn) {
+        btn.title = `Table Pace: ${mult === 1.0 ? '1x Real' : (mult === 0.65 ? '1.5x Brisk' : 'Turbo Blitz')}`;
+    }
+    if (window.gsap && gsap.globalTimeline) {
+        let ts = Math.min(1.8, Math.max(0.8, 1 / mult));
+        gsap.globalTimeline.timeScale(ts);
+    }
+}
+
+function cycleTableSpeed() {
+    let current = window.GAME_SPEED_MULTIPLIER || 1.0;
+    if (current === 1.0) current = 0.65;
+    else if (current === 0.65) current = 0.35;
+    else current = 1.0;
+
+    window.GAME_SPEED_MULTIPLIER = current;
+    try { localStorage.setItem('28_table_speed', current.toString()); } catch(e) {}
+    updateTableSpeedUI();
+    playSound('rustle');
+}
+
+function getBotThinkTimeMs(engine, botSeat, legalCards) {
+    const jitter = () => Math.floor(Math.random() * 220) - 110; // ±110ms organic variance
+    const mult = window.GAME_SPEED_MULTIPLIER || 1.0;
+
+    // 1. Forced card (single legal option or last trick) -> Fast snap play (350ms - 500ms)
+    if (legalCards && legalCards.length === 1) {
+        return Math.round(Math.max(300, (420 + jitter())) * mult);
+    }
+
+    let delay = 650; // Base human reaction time after previous card lands
+
+    // 2. Leading the trick (Seat 1) requires picking a strategy (900ms - 1350ms)
+    if (!engine.trickCards || engine.trickCards.length === 0) {
+        delay += 450;
+    } else {
+        // 3. High stakes on the table (Jacks or 9s in the middle) -> 1100ms - 1600ms
+        const trickPoints = engine.trickCards.reduce((sum, play) => sum + ((play.card && play.card.value) ? play.card.value : 0), 0);
+        if (trickPoints >= 4) {
+            delay += 550;
+        } else if (trickPoints >= 2) {
+            delay += 350;
+        }
+
+        // 4. Void in led suit while Trump is still secret -> Maximum dramatic tension (1600ms - 2400ms)
+        const ledSuit = engine.leadSuit || (engine.trickCards[0] && engine.trickCards[0].card ? engine.trickCards[0].card.suit : null);
+        const hand = engine.players[botSeat] || [];
+        const hasLedSuit = hand.some(c => c.suit === ledSuit);
+        if (ledSuit && !hasLedSuit && !engine.trumpRevealed) {
+            delay += 1150; 
+        }
+
+        // 5. 4th Seat deciding high stakes trick
+        if (engine.trickCards.length === 3 && trickPoints >= 3) {
+            delay += 350;
+        }
+    }
+
+    let finalDelay = Math.max(350, delay + jitter());
+    return Math.round(finalDelay * mult);
+}
+
 let soundEnabled = true;
 let audioCtx = null;
 let noiseBuffer = null;
@@ -2099,7 +2215,24 @@ function playSound(type) {
     if (!ctx) return;
     try {
         const now = ctx.currentTime;
-        if (type === 'deal') {
+        if (type === 'rustle') {
+            // Subtle paper card slide/lift in fingers
+            const noise = ctx.createBufferSource();
+            noise.buffer = getNoiseBuffer(ctx);
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(1400, now);
+            filter.Q.setValueAtTime(3.0, now);
+            const noiseGain = ctx.createGain();
+            noiseGain.gain.setValueAtTime(0.001, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.07, now + 0.005);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+            noise.connect(filter);
+            filter.connect(noiseGain);
+            noiseGain.connect(ctx.destination);
+            noise.start(now);
+            noise.stop(now + 0.045);
+        } else if (type === 'deal') {
             // Realistic card flick and slide across felt table
             const noise = ctx.createBufferSource();
             noise.buffer = getNoiseBuffer(ctx);
@@ -5142,6 +5275,50 @@ class UIController {
         return;
     }
 
+
+    async animateBotPrePlayTell(pIndex, isSaboteurBluff = false) {
+        const positions = ['bottom', 'right', 'top', 'left'];
+        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
+        const seatEl = document.getElementById(`player-${positions[visualPos]}`);
+        if (!seatEl || !window.gsap) return;
+
+        const cards = seatEl.querySelectorAll('.card, .card-back');
+        if (!cards || cards.length === 0) return;
+
+        let targetIdx = Math.floor(Math.random() * cards.length);
+        let targetCard = cards[targetIdx];
+        let pos = positions[visualPos];
+
+        let moveOffset = (pos === 'top') ? { y: 12 } : (pos === 'left' ? { x: 12 } : (pos === 'right' ? { x: -12 } : { y: -12 }));
+
+        if (isSaboteurBluff && cards.length > 1) {
+            // Saboteur hesitation bluff: lifts one card halfway, slides it back, then pulls a different card!
+            let altIdx = (targetIdx + 1) % cards.length;
+            let altCard = cards[altIdx];
+
+            playSound('rustle');
+            await gsap.to(targetCard, { ...moveOffset, duration: 0.2, ease: "power2.out" });
+            await new Promise(r => setTimeout(r, 220));
+            await gsap.to(targetCard, { x: 0, y: 0, duration: 0.16, ease: "power2.in" });
+            await new Promise(r => setTimeout(r, 160));
+
+            playSound('rustle');
+            await gsap.to(altCard, { ...moveOffset, duration: 0.22, ease: "power2.out" });
+            this._currentlyLiftedCard = altCard;
+        } else {
+            playSound('rustle');
+            await gsap.to(targetCard, { ...moveOffset, duration: 0.22, ease: "power2.out" });
+            this._currentlyLiftedCard = targetCard;
+        }
+    }
+
+    resetBotPrePlayTell() {
+        if (this._currentlyLiftedCard && window.gsap) {
+            gsap.set(this._currentlyLiftedCard, { x: 0, y: 0 });
+            this._currentlyLiftedCard = null;
+        }
+    }
+
     async animateCardHoverFakeout(pIndex, cardRaw) {
         const positions = ['bottom', 'right', 'top', 'left'];
         let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
@@ -6248,46 +6425,97 @@ class UIController {
 
     playTrumpRevealAnimation(suit) {
         const blast = document.getElementById('dramatic-reveal');
-        const isRed = (suit === '♥' || suit === '♦' || suit === 'hearts' || suit === 'diamonds');
-        const suitColor = isRed ? '#ef4444' : '#ffffff';
+        if (!blast) { this.gameLoop(); return; }
+
+        let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+        let caller = (this.engine.justRevealedBy >= 0) ? this.engine.justRevealedBy : (this.engine.justRevealedByPlayer >= 0 ? this.engine.justRevealedByPlayer : 0);
+        let callerName = (caller === 0) ? (currentLang === 'hi' ? 'आपने' : 'You') : (this.playerNames[caller] || COMPASS_FULL[caller] || 'Opponent');
+        let isRed = (suit === '♥' || suit === '♦' || suit === 'hearts' || suit === 'diamonds');
+        let suitColor = isRed ? '#ef4444' : '#ffffff';
+        let suitName = (SUIT_FULL_NAMES && SUIT_FULL_NAMES[suit]) ? (SUIT_FULL_NAMES[suit][currentLang] || suit) : suit;
+
+        let callerText = (currentLang === 'hi') ? `${callerName} ने हुकुम खोलने की मांग की!` : `${callerName} calls for Secret Trump!`;
+        let bannerText = (currentLang === 'hi') ? `गुप्त हुकुम खुला: ${suitName}` : `SECRET TRUMP REVEALED: ${suitName}`;
+
         blast.innerHTML = `
-            <div style="font-size:1.15rem; color:var(--gold-primary); font-family:'Cinzel',serif; text-align:center; letter-spacing:2.5px; text-shadow:0 0 16px var(--gold-glow);">TRUMP REVEALED</div>
-            <div class="trump-big-icon" style="font-size:clamp(4.5rem, 15vw, 6.8rem); line-height:1; color:${suitColor}; filter: drop-shadow(0 0 35px ${suitColor});">${suit}</div>
+            <div id="trump-reveal-caller-tag" style="font-size:clamp(0.68rem, 1.6vh, 0.78rem); color:#94a3b8; font-weight:700; margin-bottom:4px; letter-spacing:1px; text-transform:uppercase;">${callerText}</div>
+            <div style="font-size:clamp(1.05rem, 2.2vh, 1.25rem); color:var(--gold-bright); font-family:'Cinzel',serif; text-align:center; letter-spacing:1.5px; text-shadow:0 0 16px var(--gold-glow); margin-bottom:6px;">${bannerText}</div>
+            <div class="trump-3d-card" id="trump-reveal-3d-card">
+                <div class="trump-3d-front">
+                    <div style="font-size:1.8rem; color:var(--gold-bright);">🔒</div>
+                    <div style="font-size:0.65rem; color:#94a3b8; font-weight:800; margin-top:4px; text-transform:uppercase;">TURUP</div>
+                </div>
+                <div class="trump-3d-back">
+                    <div style="font-size:0.75rem; font-weight:900; color:${suitColor}; position:absolute; top:6px; left:8px;">${suit}</div>
+                    <div class="trump-big-icon" style="font-size:clamp(2.8rem, 8vmin, 3.6rem); line-height:1; color:${suitColor}; filter:drop-shadow(0 0 16px ${suitColor});">${suit}</div>
+                    <div style="font-size:0.75rem; font-weight:900; color:${suitColor}; position:absolute; bottom:6px; right:8px;">${suit}</div>
+                </div>
+            </div>
         `;
+        blast.style.display = 'flex';
         blast.classList.add('anim-reveal-blast');
 
-        // Directional spark shockwave burst in the trump suit's royal colors
-        if (typeof confetti === 'function') {
-            let sparkColors = isRed ? ['#ef4444', '#fca5a5', '#ffd700', '#ffffff'] : ['#38bdf8', '#bae6fd', '#e5c158', '#ffffff'];
-            confetti({
-                particleCount: 55,
-                spread: 360,
-                startVelocity: 26,
-                origin: { x: 0.5, y: 0.44 },
-                colors: sparkColors,
-                ticks: 90
-            });
-        }
+        // Step 1: Pause table for 500ms * speedMult before dramatic 3D card flip
+        let pause1 = Math.round(500 * speedMult);
+        setTimeout(() => {
+            const cardEl = document.getElementById('trump-reveal-3d-card');
+            playSound('reveal');
 
-        this.animateVaultUnlock(suit);
-        if (window.gsap) {
-            const icon = blast.querySelector('.trump-big-icon');
-            if (icon) {
-                gsap.fromTo(icon, 
-                    { scale: 0.15, rotationY: 720, opacity: 0 },
-                    { scale: 1.15, rotationY: 0, opacity: 1, duration: 0.65, ease: "back.out(1.8)" }
-                );
+            // Directional spark shockwave burst in trump suit's royal colors
+            if (typeof confetti === 'function') {
+                let sparkColors = isRed ? ['#ef4444', '#fca5a5', '#ffd700', '#ffffff'] : ['#38bdf8', '#bae6fd', '#e5c158', '#ffffff'];
+                confetti({
+                    particleCount: 50,
+                    spread: 360,
+                    startVelocity: 24,
+                    origin: { x: 0.5, y: 0.44 },
+                    colors: sparkColors,
+                    ticks: 80
+                });
             }
+
+            this.animateVaultUnlock(suit);
+
+            // Dramatic 3D Y-axis flip
+            if (cardEl && window.gsap) {
+                gsap.to(cardEl, {
+                    rotationY: 180,
+                    scale: 1.25,
+                    duration: 0.65 * speedMult,
+                    ease: "back.out(1.4)"
+                });
+            } else if (cardEl) {
+                cardEl.style.transform = 'rotateY(180deg) scale(1.25)';
+            }
+
             const trumpPill = document.getElementById('trump-status');
-            if (trumpPill) {
+            if (trumpPill && window.gsap) {
                 gsap.fromTo(trumpPill,
                     { scale: 1.35, color: 'var(--gold-bright)' },
-                    { scale: 1, color: 'inherit', duration: 0.6, ease: "back.out(2)", delay: 0.45 }
+                    { scale: 1, color: 'inherit', duration: 0.5 * speedMult, ease: "back.out(2)", delay: 0.3 * speedMult }
                 );
             }
-        }
 
-        setTimeout(() => { blast.classList.remove('anim-reveal-blast'); this.gameLoop(); }, 2100); 
+            // Step 2: Hold revealed card for 900ms * speedMult
+            let holdDuration = Math.round(900 * speedMult);
+            setTimeout(() => {
+                // Step 3: Card slides smoothly back to bidder's hand/vault
+                if (cardEl && window.gsap) {
+                    gsap.to(cardEl, {
+                        scale: 0.35,
+                        opacity: 0,
+                        y: -50,
+                        duration: 0.45 * speedMult,
+                        ease: "power2.in"
+                    });
+                }
+                setTimeout(() => {
+                    blast.classList.remove('anim-reveal-blast');
+                    blast.style.display = 'none';
+                    this.gameLoop();
+                }, Math.round(450 * speedMult));
+            }, holdDuration);
+        }, pause1);
     }
 
     animateTrickWinnerAndResolve(winnerIndex) {
@@ -6499,9 +6727,18 @@ class UIController {
             if (this.engine.phase === 'BIDDING') {
                 (async () => {
                     let val = await this.engine.getAIBidAsync();
-                    let beh = this.engine.lastBotBehavior;
-                    let delay = (beh && beh.preThinkDelayMs) ? beh.preThinkDelayMs : (1200 + Math.floor(Math.random() * 600));
-                    
+                    let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+                    let delay;
+                    if (val === 'Pass') {
+                        // Quick pass (450ms - 550ms)
+                        delay = Math.round((480 + (Math.floor(Math.random() * 140) - 70)) * speedMult);
+                    } else {
+                        // Bidding Escalation: 700 + (val - 14) * 180ms
+                        let bidNum = parseInt(val) || 16;
+                        let baseDelay = 700 + Math.max(0, (bidNum - 14)) * 180;
+                        let jitter = Math.floor(Math.random() * 200) - 100;
+                        delay = Math.round(Math.max(650, baseDelay + jitter) * speedMult);
+                    }
 
                     this.aiTimer = setTimeout(() => {
                         if (gameMode === 'multi') broadcastNetMessage({ type: 'UI_EVENT', bidEvent: { pIndex: turnPlayer, val: val, won: false } });
@@ -6530,24 +6767,30 @@ class UIController {
                 }
 
                 (async () => {
+                    let legalIndices = this.engine.getValidPlayIndices(turnPlayer);
+                    let thinkTimeMs = getBotThinkTimeMs(this.engine, turnPlayer, legalIndices);
+                    let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+
+                    // Stage 1 (At ~48% of thinkTime): Two-Stage GSAP Pre-Play Tell
+                    let stage1Delay = Math.max(120, Math.round(thinkTimeMs * 0.48));
+                    let isSaboteurBluff = (turnPlayer === 3 && thinkTimeMs >= 1300 * speedMult);
+
+                    setTimeout(() => {
+                        this.animateBotPrePlayTell(turnPlayer, isSaboteurBluff);
+                    }, stage1Delay);
+
                     let aiDecision = await this.engine.getAIPlayAsync();
-                    let beh = aiDecision.behavior || this.engine.lastBotBehavior;
-                    let delay = (beh && beh.preThinkDelayMs) ? beh.preThinkDelayMs : 1000;
 
-                    if (beh && beh.hoverFakeoutCard) {
-                        await this.animateCardHoverFakeout(turnPlayer, beh.hoverFakeoutCard);
-                    }
-
-                    
-
+                    // Stage 2 (At 100% of thinkTime): Launch card to trick area
                     this.aiTimer = setTimeout(() => {
+                        this.resetBotPrePlayTell();
                         if (aiDecision.reveal) {
                             this.engine.revealTrump(turnPlayer);
                         } else {
                             this.engine.playCard(turnPlayer, aiDecision.index);
                         }
                         this.gameLoop();
-                    }, Math.max(250, delay));
+                    }, thinkTimeMs);
                 })();
             }
         }
@@ -6589,11 +6832,16 @@ class UIController {
         }
 
         if (this.engine.phase === 'TRICK_OVER') {
-            if(!this.animatingTrick) {
+            if (!this.animatingTrick) {
                 let winningPlay = this.engine._getCurrentTrickWinner();
                 if (winningPlay) {
-                    // 2600ms generous pause so players can clearly observe who won and what was smeared
-                    this.aiTimer = setTimeout(() => { this.animateTrickWinnerAndResolve(winningPlay.player); }, 2600);
+                    this.animatingTrick = true;
+                    let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+                    // Beat 1: The Board Freeze (850ms * speedMult): 4 cards sit completely still
+                    let freezeDuration = Math.round(850 * speedMult);
+                    this.aiTimer = setTimeout(() => {
+                        this.executeTrickWinnerSequence(winningPlay.player);
+                    }, freezeDuration);
                 }
             }
         }
@@ -7000,6 +7248,7 @@ class UIController {
 const game = new TwentyEightEngine();
 const ui = new UIController(game);
 window.addEventListener('DOMContentLoaded', () => {
+    initTableSpeed();
     applyLanguage();
     refreshLucideIcons();
 });
