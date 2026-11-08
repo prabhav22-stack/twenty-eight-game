@@ -3311,6 +3311,9 @@ function handleIncomingNetworkMessage(sourceConn, data) {
                         updateTableSpeedUI();
                     }
                     if (ui.animatingTrick || ui.animatingReveal || ui.dealingAnimationActive) {
+                        if (ui.animatingTrick && data.state.phase === 'TRICK_OVER') {
+                            return; // Drop duplicate/stale TRICK_OVER updates while local trick animation is active
+                        }
                         ui.pendingMasterState = data.state;
                         return;
                     }
@@ -3590,7 +3593,8 @@ class PeerManager {
             roundSuccess: masterEngine.roundSuccess,
             gamePointsWon: masterEngine.gamePointsWon,
             pairDeclared: masterEngine.pairDeclared,
-            pairDeclaringTeam: masterEngine.pairDeclaringTeam
+            pairDeclaringTeam: masterEngine.pairDeclaringTeam,
+            roundTricksCount: (masterEngine.roundTricks || []).length
         };
     }
 }
@@ -5153,7 +5157,14 @@ class TwentyEightEngine {
         this.t1TrickPts = state.t1TrickPts || 0; this.t2TrickPts = state.t2TrickPts || 0;
         this.t1GamePts = state.t1GamePts || 0; this.t2GamePts = state.t2GamePts || 0;
         this.currentBid = state.currentBid || 15; this.currentTurn = state.currentTurn !== undefined ? state.currentTurn : 0;
-        this.phase = state.phase; this.trickCards = state.trickCards || [];
+        let localTricksCount = (this.roundTricks || []).length;
+        let masterTricksCount = state.roundTricksCount !== undefined ? state.roundTricksCount : localTricksCount;
+        if (state.phase === 'TRICK_OVER' && localTricksCount > masterTricksCount) {
+            // Already resolved this trick locally - keep current playing state
+        } else {
+            this.phase = state.phase;
+            this.trickCards = state.trickCards || [];
+        }
         this.leadSuit = state.leadSuit;
         this.trumpRevealed = !!state.trumpRevealed; this.trumpSuit = state.trumpSuit;
         this.highestBidder = state.highestBidder !== undefined ? state.highestBidder : -1;
@@ -6775,6 +6786,12 @@ class UIController {
     }
 
     animateTrickWinnerAndResolve(winnerIndex) {
+        if (!this.engine.trickCards || this.engine.trickCards.length === 0) {
+            this.animatingTrick = false;
+            this.engine.phase = (this.engine.roundTricks.length >= 8) ? 'ROUND_OVER' : 'PLAYING';
+            this.gameLoop();
+            return;
+        }
         this.animatingTrick = true;
         let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
 
@@ -6786,14 +6803,17 @@ class UIController {
                 const tEl = document.getElementById('center-table');
                 if (tEl) tEl.innerHTML = '';
                 this.clearTrickWinnerHalo();
-                if (isHost) this.engine.resolveTrick();
+                this.engine.resolveTrick();
+                if (isHost) this.broadcastGameState();
                 this.animatingTrick = false;
                 if (!isHost && this.pendingMasterState) {
                     let pState = this.pendingMasterState;
                     this.pendingMasterState = null;
-                    this.engine.syncFromMasterState(pState);
-                    this.renderStaticBoard();
-                    this.syncTable();
+                    if (pState.phase !== 'TRICK_OVER') {
+                        this.engine.syncFromMasterState(pState);
+                        this.renderStaticBoard();
+                        this.syncTable();
+                    }
                 }
                 this.gameLoop();
             }
@@ -6887,8 +6907,9 @@ class UIController {
                                 this._trickAnimationWatchdog = null;
                                 table.innerHTML = '';
                                 this.clearTrickWinnerHalo();
+                                this.engine.resolveTrick();
                                 if (isHost) {
-                                    this.engine.resolveTrick();
+                                    this.broadcastGameState();
                                 }
 
                                 // Breathing gap before next trick with host multiplayer headroom
@@ -6899,9 +6920,11 @@ class UIController {
                                     if (!isHost && this.pendingMasterState) {
                                         let pState = this.pendingMasterState;
                                         this.pendingMasterState = null;
-                                        this.engine.syncFromMasterState(pState);
-                                        this.renderStaticBoard();
-                                        this.syncTable();
+                                        if (pState.phase !== 'TRICK_OVER') {
+                                            this.engine.syncFromMasterState(pState);
+                                            this.renderStaticBoard();
+                                            this.syncTable();
+                                        }
                                     }
                                     this.gameLoop();
                                 }, breathingGap);
@@ -6963,8 +6986,9 @@ class UIController {
                         this._trickAnimationWatchdog = null;
                         table.innerHTML = '';
                         this.clearTrickWinnerHalo();
+                        this.engine.resolveTrick();
                         if (isHost) {
-                            this.engine.resolveTrick();
+                            this.broadcastGameState();
                         }
                         let extraNetBuffer = (gameMode === 'multi' && isHost) ? 350 : 0;
                         setTimeout(() => {
@@ -6972,9 +6996,11 @@ class UIController {
                             if (!isHost && this.pendingMasterState) {
                                 let pState = this.pendingMasterState;
                                 this.pendingMasterState = null;
-                                this.engine.syncFromMasterState(pState);
-                                this.renderStaticBoard();
-                                this.syncTable();
+                                if (pState.phase !== 'TRICK_OVER') {
+                                    this.engine.syncFromMasterState(pState);
+                                    this.renderStaticBoard();
+                                    this.syncTable();
+                                }
                             }
                             this.gameLoop();
                         }, Math.round((400 + extraNetBuffer) * speedMult));
@@ -6985,14 +7011,17 @@ class UIController {
                     this._trickAnimationWatchdog = null;
                     table.innerHTML = '';
                     this.clearTrickWinnerHalo();
-                    if (isHost) this.engine.resolveTrick();
+                    this.engine.resolveTrick();
+                    if (isHost) this.broadcastGameState();
                     this.animatingTrick = false;
                     if (!isHost && this.pendingMasterState) {
                         let pState = this.pendingMasterState;
                         this.pendingMasterState = null;
-                        this.engine.syncFromMasterState(pState);
-                        this.renderStaticBoard();
-                        this.syncTable();
+                        if (pState.phase !== 'TRICK_OVER') {
+                            this.engine.syncFromMasterState(pState);
+                            this.renderStaticBoard();
+                            this.syncTable();
+                        }
                     }
                     this.gameLoop();
                 }
@@ -7003,14 +7032,17 @@ class UIController {
             this._trickAnimationWatchdog = null;
             table.innerHTML = '';
             this.clearTrickWinnerHalo();
-            if (isHost) this.engine.resolveTrick();
+            this.engine.resolveTrick();
+            if (isHost) this.broadcastGameState();
             this.animatingTrick = false;
             if (!isHost && this.pendingMasterState) {
                 let pState = this.pendingMasterState;
                 this.pendingMasterState = null;
-                this.engine.syncFromMasterState(pState);
-                this.renderStaticBoard();
-                this.syncTable();
+                if (pState.phase !== 'TRICK_OVER') {
+                    this.engine.syncFromMasterState(pState);
+                    this.renderStaticBoard();
+                    this.syncTable();
+                }
             }
             this.gameLoop();
         }
@@ -7064,8 +7096,9 @@ class UIController {
 
         // 1. TRICK OVER: High-priority immediate handling before any moves
         if (this.engine.phase === 'TRICK_OVER') {
+            if (this.animatingTrick) return; // Mutex guard: prevent duplicate concurrent trick sweeps
             let winningPlay = this.engine._getCurrentTrickWinner();
-            if (winningPlay) {
+            if (winningPlay && this.engine.trickCards && this.engine.trickCards.length === 4) {
                 this.animatingTrick = true;
                 let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
                 let freezeDuration = Math.round(850 * speedMult);
