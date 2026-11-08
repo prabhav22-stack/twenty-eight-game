@@ -6168,6 +6168,7 @@ class UIController {
             
                 if (typeof showYourTurnBanner === 'function') showYourTurnBanner('🎯 YOUR TURN — Place Your Bid', 0);
             } else if (isPartnerTurn) {
+                if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
                 pill.innerHTML = `<span style="color:var(--team1-blue); font-weight:800;">🤝 Partner (${currentTurnName}) ${t.decidingBid || 'is deciding bid...'}</span>`;
             } else {
                 if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
