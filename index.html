@@ -4410,11 +4410,20 @@ class TwentyEightEngine {
 
     playCard(pIndex, cardIndex) {
         if (this.currentTurn !== pIndex || this.phase !== 'PLAYING') return; 
+        let hand = this.players[pIndex];
+        if (!hand || hand.length === 0) return;
+
+        let validIndices = this.getValidPlayIndices(pIndex);
+        if (!validIndices || validIndices.length === 0) validIndices = hand.map((_, i) => i);
+        if (typeof cardIndex !== 'number' || cardIndex < 0 || cardIndex >= hand.length || !validIndices.includes(cardIndex)) {
+            cardIndex = validIndices[0];
+        }
+
         if (this.trickCards.length === 0) {
             let currentTrickNum = this.roundTricks.length + 1;
             this.trickSnapshots.push({
                 trickNum: currentTrickNum,
-                hands: this.players.map(hand => hand.map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })))
+                hands: this.players.map(h => (h || []).map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })))
             });
         }
         if (pIndex === 0 && this.players[0] && this.players[0][cardIndex]) {
@@ -4422,7 +4431,9 @@ class TwentyEightEngine {
             let handBeforePlay = this.players[0].map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power }));
             this.detectHumanBlunder(this.roundTricks.length + 1, cardToPlay, handBeforePlay, this.trickCards);
         }
-        let card = this.players[pIndex].splice(cardIndex, 1)[0];
+        let card = hand.splice(cardIndex, 1)[0];
+        if (!card) return;
+
         if (this.trickCards.length === 0) {
             this.leadSuit = card.suit;
             // Secret Trump Deduction: Bidder cannot lead secret trump in Phase 1
@@ -4430,8 +4441,10 @@ class TwentyEightEngine {
                 if (this.bidderExcludedTrumps) this.bidderExcludedTrumps.add(card.suit);
                 if (this.inference) this.inference.recordBidderLead(card.suit);
             }
-        } else if (card.suit !== this.leadSuit) {
-            this.voidInSuit[pIndex][this.leadSuit] = true;
+        } else if (this.leadSuit && card.suit !== this.leadSuit) {
+            if (this.voidInSuit && this.voidInSuit[pIndex]) {
+                this.voidInSuit[pIndex][this.leadSuit] = true;
+            }
         }
 
         // CardMemory Matrix: Remove played card from remainingBySuit for dynamic boss promotion
@@ -4696,7 +4709,8 @@ class TwentyEightEngine {
         this.currentTurn = winningPlay.player;
         
         let totalRemaining = this.players[0].length + this.players[1].length + this.players[2].length + this.players[3].length;
-        if (totalRemaining === 0) {
+        if (totalRemaining === 0 || this.roundTricks.length >= 8) {
+            if (!this.trumpRevealed) this.revealTrump(this.highestBidder, true);
             this.calculateRoundScore();
             this.phase = 'ROUND_OVER';
         } else {
@@ -5058,7 +5072,9 @@ class UIController {
         };
         this.playerNames = ["SOUTH", "EAST", "NORTH", "WEST"];
         this.isDealingState = false; this.uiTrumpRevealed = false; 
-        this.aiTimer = null; this.trickTimer = null; this.animatingTrick = false;
+        this.aiTimer = null; this.trickTimer = null;
+        this._aiWatchdogTimer = null; this._trickAnimationWatchdog = null;
+        this.animatingTrick = false; this.isAIThinking = false;
         this.isCardDragging = false;
         this.animQueue = new AnimationQueue();
     }
@@ -5409,7 +5425,7 @@ class UIController {
         const centerTable = document.getElementById('center-table');
 
         const onPointerDown = (e) => {
-            if (uiLocked) return;
+            if (uiLocked || this.animatingTrick || this.engine.currentTurn !== mySeat || this.engine.phase !== 'PLAYING') return;
             startX = e.clientX;
             startY = e.clientY;
             startTime = performance.now();
@@ -5448,14 +5464,21 @@ class UIController {
             cardEl.classList.remove('dragging-card');
             if (centerTable) centerTable.classList.remove('drag-target-active');
 
+            if (uiLocked || this.animatingTrick || this.engine.currentTurn !== mySeat || this.engine.phase !== 'PLAYING') {
+                if (window.gsap) gsap.to(cardEl, { x: 0, y: 0, scale: 1, duration: 0.2, clearProps: "x,y" });
+                return;
+            }
+
             let dx = e.clientX - startX;
             let dy = e.clientY - startY;
             let dt = Math.max(1, performance.now() - startTime);
             let vy = (dy / dt) * 1000;
 
+            clearTimeout(window._uiLockSafetyTimer);
+            window._uiLockSafetyTimer = setTimeout(() => { uiLocked = false; }, 1500);
+
             if (hasMoved && (dy < -55 || vy < -220)) {
                 // Flick to play onto table
-                if (uiLocked) return;
                 uiLocked = true;
                 if (window.gsap) {
                     gsap.to(cardEl, {
@@ -5475,7 +5498,6 @@ class UIController {
                 }
             } else if (!hasMoved) {
                 // Click/tap to play
-                if (uiLocked) return;
                 uiLocked = true;
                 if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
                 else { game.playCard(mySeat, cardIndex); ui.gameLoop(); }
@@ -6521,6 +6543,22 @@ class UIController {
 
     animateTrickWinnerAndResolve(winnerIndex) {
         this.animatingTrick = true;
+        let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+
+        // Watchdog Safety (5s): Guarantees table cards NEVER stay frozen
+        clearTimeout(this._trickAnimationWatchdog);
+        this._trickAnimationWatchdog = setTimeout(() => {
+            if (this.animatingTrick) {
+                console.warn("Watchdog: Trick animation exceeded timeout, forcing resolution!");
+                const tEl = document.getElementById('center-table');
+                if (tEl) tEl.innerHTML = '';
+                this.clearTrickWinnerHalo();
+                if (isHost) this.engine.resolveTrick();
+                this.animatingTrick = false;
+                this.gameLoop();
+            }
+        }, Math.round(5000 * speedMult));
+
         const table = document.getElementById('center-table');
         if (!table) {
             if (isHost) this.engine.resolveTrick();
@@ -6667,6 +6705,8 @@ class UIController {
                             // Breathing gap before next trick
                             let breathingGap = Math.round(400 * speedMult);
                             setTimeout(() => {
+                                clearTimeout(this._trickAnimationWatchdog);
+                                this._trickAnimationWatchdog = null;
                                 this.animatingTrick = false;
                                 this.gameLoop();
                             }, breathingGap);
@@ -6678,12 +6718,16 @@ class UIController {
                             this.engine.resolveTrick();
                         }
                         setTimeout(() => {
+                            clearTimeout(this._trickAnimationWatchdog);
+                            this._trickAnimationWatchdog = null;
                             this.animatingTrick = false;
                             this.gameLoop();
                         }, Math.round(400 * speedMult));
                     }
                 } catch (innerErr) {
                     console.error("Trick sweep animation error:", innerErr);
+                    clearTimeout(this._trickAnimationWatchdog);
+                    this._trickAnimationWatchdog = null;
                     table.innerHTML = '';
                     this.clearTrickWinnerHalo();
                     if (isHost) this.engine.resolveTrick();
@@ -6693,6 +6737,8 @@ class UIController {
             }, beat2Duration);
         } catch (outerErr) {
             console.error("animateTrickWinnerAndResolve error:", outerErr);
+            clearTimeout(this._trickAnimationWatchdog);
+            this._trickAnimationWatchdog = null;
             table.innerHTML = '';
             this.clearTrickWinnerHalo();
             if (isHost) this.engine.resolveTrick();
@@ -6726,8 +6772,10 @@ class UIController {
 
     gameLoop() {
         uiLocked = false;
-        if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; } 
         
+        // Trick animation in progress: lock gameLoop completely
+        if (this.animatingTrick) return;
+
         if (this.engine.trumpRevealed && !this.uiTrumpRevealed && this.engine.trumpSuit) {
             this.uiTrumpRevealed = true; 
             this.renderStaticBoard(); 
@@ -6735,13 +6783,37 @@ class UIController {
             return; 
         }
 
-        if(!this.animatingTrick) {
-            this.renderStaticBoard();
-            this.syncTable();
-        }
+        this.renderStaticBoard();
+        this.syncTable();
         
         if (isHost) this.broadcastGameState();
 
+        // 1. TRICK OVER: High-priority immediate handling before any moves
+        if (this.engine.phase === 'TRICK_OVER') {
+            let winningPlay = this.engine._getCurrentTrickWinner();
+            if (winningPlay) {
+                this.animatingTrick = true;
+                let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+                let freezeDuration = Math.round(850 * speedMult);
+                if (this.trickTimer) clearTimeout(this.trickTimer);
+                this.trickTimer = setTimeout(() => {
+                    this.trickTimer = null;
+                    this.animateTrickWinnerAndResolve(winningPlay.player);
+                }, freezeDuration);
+            } else {
+                this.engine.phase = (this.engine.roundTricks.length >= 8) ? 'ROUND_OVER' : 'PLAYING';
+                this.gameLoop();
+            }
+            return;
+        }
+
+        // 2. ROUND OVER: Immediate modal display
+        if (this.engine.phase === 'ROUND_OVER') {
+            this.showEndModal();
+            return;
+        }
+
+        // 3. DEALING PHASES
         if (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
             if (this.dealingAnimationActive) return;
             this.dealingAnimationActive = true;
@@ -6792,80 +6864,168 @@ class UIController {
             clearTimeout(this.humanBidTimeout); this.humanBidTimeout = null;
         }
 
+        // 4. AI BOT TURNS (Single-player or Host in multi)
         if (isAITurn && (gameMode === 'ai' || (gameMode === 'multi' && isHost))) {
             let turnPlayer = this.engine.currentTurn;
 
-            if (this.engine.phase === 'BIDDING') {
-                (async () => {
-                    let val = await this.engine.getAIBidAsync();
-                    let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
-                    let delay;
-                    if (val === 'Pass') {
-                        // Quick pass (450ms - 550ms)
-                        delay = Math.round((480 + (Math.floor(Math.random() * 140) - 70)) * speedMult);
-                    } else {
-                        // Bidding Escalation: 700 + (val - 14) * 180ms
-                        let bidNum = parseInt(val) || 16;
-                        let baseDelay = 700 + Math.max(0, (bidNum - 14)) * 180;
-                        let jitter = Math.floor(Math.random() * 200) - 100;
-                        delay = Math.round(Math.max(650, baseDelay + jitter) * speedMult);
-                    }
+            // Prevent re-entrant double worker calls
+            if (this.isAIThinking) return;
 
-                    this.aiTimer = setTimeout(() => {
-                        if (gameMode === 'multi') broadcastNetMessage({ type: 'UI_EVENT', bidEvent: { pIndex: turnPlayer, val: val, won: false } });
-                        this.engine.submitBid(turnPlayer, val);
+            if (this.engine.phase === 'BIDDING') {
+                this.isAIThinking = true;
+                (async () => {
+                    try {
+                        let val = await this.engine.getAIBidAsync();
+                        let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+                        let delay;
+                        if (val === 'Pass') {
+                            delay = Math.round((480 + (Math.floor(Math.random() * 140) - 70)) * speedMult);
+                        } else {
+                            let bidNum = parseInt(val) || 16;
+                            let baseDelay = 700 + Math.max(0, (bidNum - 14)) * 180;
+                            let jitter = Math.floor(Math.random() * 200) - 100;
+                            delay = Math.round(Math.max(650, baseDelay + jitter) * speedMult);
+                        }
+
+                        this.aiTimer = setTimeout(() => {
+                            this.isAIThinking = false;
+                            this.aiTimer = null;
+                            if (this.engine.phase !== 'BIDDING' || this.engine.currentTurn !== turnPlayer) {
+                                this.gameLoop();
+                                return;
+                            }
+                            if (gameMode === 'multi') broadcastNetMessage({ type: 'UI_EVENT', bidEvent: { pIndex: turnPlayer, val: val, won: false } });
+                            this.engine.submitBid(turnPlayer, val);
+                            this.gameLoop();
+                        }, delay);
+                    } catch (err) {
+                        console.warn("AI Bid error, using pass:", err);
+                        this.isAIThinking = false;
+                        this.aiTimer = null;
+                        this.engine.submitBid(turnPlayer, 'Pass');
                         this.gameLoop();
-                    }, delay);
+                    }
                 })();
             } 
             else if (this.engine.phase === 'SET_TRUMP') {
+                this.isAIThinking = true;
                 (async () => {
-                    let suit = await this.engine.getAITrumpAsync();
-                    let beh = this.engine.lastBotBehavior;
-                    let delay = (beh && beh.preThinkDelayMs) ? beh.preThinkDelayMs : (1800 + Math.floor(Math.random() * 500));
-                    
+                    try {
+                        let suit = await this.engine.getAITrumpAsync();
+                        let beh = this.engine.lastBotBehavior;
+                        let delay = (beh && beh.preThinkDelayMs) ? beh.preThinkDelayMs : (1400 + Math.floor(Math.random() * 400));
+                        delay = Math.round(delay * (window.GAME_SPEED_MULTIPLIER || 1.0));
 
-                    this.aiTimer = setTimeout(() => {
+                        this.aiTimer = setTimeout(() => {
+                            this.isAIThinking = false;
+                            this.aiTimer = null;
+                            if (this.engine.phase !== 'SET_TRUMP' || this.engine.currentTurn !== turnPlayer) {
+                                this.gameLoop();
+                                return;
+                            }
+                            this.engine.setTrump(suit);
+                            this.gameLoop();
+                        }, delay);
+                    } catch (err) {
+                        console.warn("AI Trump error, picking fallback:", err);
+                        this.isAIThinking = false;
+                        this.aiTimer = null;
+                        let suit = this.engine.getAITrump();
                         this.engine.setTrump(suit);
                         this.gameLoop();
-                    }, delay);
+                    }
                 })();
             }
             else if (this.engine.phase === 'PLAYING') {
+                this.isAIThinking = true;
+
                 let team = (turnPlayer === 0 || turnPlayer === 2) ? 0 : 1;
                 if (!this.engine.pairDeclared && this.engine.hasPair(turnPlayer) && this.engine.tricksWonByTeam[team] > 0) {
                     this.engine.declarePair(turnPlayer);
                 }
 
-                (async () => {
-                    let legalIndices = this.engine.getValidPlayIndices(turnPlayer);
-                    let thinkTimeMs = getBotThinkTimeMs(this.engine, turnPlayer, legalIndices);
-                    let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
-
-                    // Stage 1 (At ~48% of thinkTime): Two-Stage GSAP Pre-Play Tell
-                    let stage1Delay = Math.max(120, Math.round(thinkTimeMs * 0.48));
-                    let isSaboteurBluff = (turnPlayer === 3 && thinkTimeMs >= 1300 * speedMult);
-
-                    setTimeout(() => {
-                        this.animateBotPrePlayTell(turnPlayer, isSaboteurBluff);
-                    }, stage1Delay);
-
-                    let aiDecision = await this.engine.getAIPlayAsync();
-
-                    // Stage 2 (At 100% of thinkTime): Launch card to trick area
-                    this.aiTimer = setTimeout(() => {
+                // AI Watchdog Timer (4.5s): Guarantees the bot will NEVER freeze the table
+                clearTimeout(this._aiWatchdogTimer);
+                this._aiWatchdogTimer = setTimeout(() => {
+                    if (this.isAIThinking && this.engine.phase === 'PLAYING' && this.engine.currentTurn === turnPlayer) {
+                        console.warn(`Watchdog: Bot ${turnPlayer} took too long, forcing move!`);
                         this.resetBotPrePlayTell();
-                        if (aiDecision.reveal) {
-                            this.engine.revealTrump(turnPlayer);
-                        } else {
-                            this.engine.playCard(turnPlayer, aiDecision.index);
-                        }
+                        this.isAIThinking = false;
+                        this.aiTimer = null;
+                        let valids = this.engine.getValidPlayIndices(turnPlayer);
+                        let moveIdx = (valids && valids.length > 0) ? valids[0] : 0;
+                        this.engine.playCard(turnPlayer, moveIdx);
                         this.gameLoop();
-                    }, thinkTimeMs);
+                    }
+                }, Math.round(4500 * (window.GAME_SPEED_MULTIPLIER || 1.0)));
+
+                (async () => {
+                    try {
+                        let legalIndices = this.engine.getValidPlayIndices(turnPlayer);
+                        let thinkTimeMs = getBotThinkTimeMs(this.engine, turnPlayer, legalIndices);
+                        let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+
+                        // Stage 1: Tell animation
+                        let stage1Delay = Math.max(120, Math.round(thinkTimeMs * 0.48));
+                        let isSaboteurBluff = (turnPlayer === 3 && thinkTimeMs >= 1300 * speedMult);
+
+                        setTimeout(() => {
+                            if (this.isAIThinking) this.animateBotPrePlayTell(turnPlayer, isSaboteurBluff);
+                        }, stage1Delay);
+
+                        // Concurrent calculation
+                        let startTime = Date.now();
+                        let aiDecision = null;
+                        try {
+                            aiDecision = await this.engine.getAIPlayAsync();
+                        } catch (aiErr) {
+                            console.warn("AI calculation error, using local fallback:", aiErr);
+                            aiDecision = this.engine.getAIPlay();
+                        }
+
+                        if (!aiDecision) aiDecision = this.engine.getAIPlay();
+
+                        // Match organic human delay with elapsed calculation
+                        let elapsed = Date.now() - startTime;
+                        let remainingWait = Math.max(60, thinkTimeMs - elapsed);
+
+                        // Stage 2: Execute card play
+                        this.aiTimer = setTimeout(() => {
+                            clearTimeout(this._aiWatchdogTimer);
+                            this._aiWatchdogTimer = null;
+                            this.resetBotPrePlayTell();
+                            this.isAIThinking = false;
+                            this.aiTimer = null;
+
+                            if (this.engine.currentTurn !== turnPlayer || this.engine.phase !== 'PLAYING') {
+                                this.gameLoop();
+                                return;
+                            }
+
+                            if (aiDecision.reveal && this.engine.canRevealTrump(turnPlayer)) {
+                                this.engine.revealTrump(turnPlayer);
+                            } else {
+                                this.engine.playCard(turnPlayer, aiDecision.index);
+                            }
+                            this.gameLoop();
+                        }, remainingWait);
+                    } catch (fatalAiErr) {
+                        console.error("Fatal bot turn error:", fatalAiErr);
+                        clearTimeout(this._aiWatchdogTimer);
+                        this._aiWatchdogTimer = null;
+                        this.resetBotPrePlayTell();
+                        this.isAIThinking = false;
+                        this.aiTimer = null;
+                        let valids = this.engine.getValidPlayIndices(turnPlayer);
+                        let moveIdx = (valids && valids.length > 0) ? valids[0] : 0;
+                        this.engine.playCard(turnPlayer, moveIdx);
+                        this.gameLoop();
+                    }
                 })();
             }
         }
 
+        // 5. HUMAN PLAYER CONTROLS (Modals & Buttons)
         if (this.engine.currentTurn === mySeat && mySeat !== 99) {
             if (this.engine.phase === 'BIDDING') this.showBidModal();
             else if (this.engine.phase === 'SET_TRUMP') this.showTrumpModal();
@@ -6900,27 +7060,6 @@ class UIController {
             let t = I18N[currentLang] || I18N.en;
             reshuffleBtn.innerText = t.reshuffleZeroPts || '🔄 0 Pts Reshuffle';
             reshuffleBtn.style.display = canReshuffle ? 'block' : 'none';
-        }
-
-        if (this.engine.phase === 'TRICK_OVER') {
-            if (!this.animatingTrick) {
-                let winningPlay = this.engine._getCurrentTrickWinner();
-                if (winningPlay) {
-                    this.animatingTrick = true;
-                    let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
-                    // Beat 1: The Board Freeze (850ms * speedMult): 4 cards sit completely still
-                    let freezeDuration = Math.round(850 * speedMult);
-                    if (this.trickTimer) clearTimeout(this.trickTimer);
-                    this.trickTimer = setTimeout(() => {
-                        this.trickTimer = null;
-                        this.animateTrickWinnerAndResolve(winningPlay.player);
-                    }, freezeDuration);
-                }
-            }
-        }
-        
-        if (this.engine.phase === 'ROUND_OVER') {
-            this.showEndModal();
         }
     }
 
@@ -7145,6 +7284,11 @@ class UIController {
     startNewRound() {
         if (this.trickTimer) { clearTimeout(this.trickTimer); this.trickTimer = null; }
         if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+        if (this._aiWatchdogTimer) { clearTimeout(this._aiWatchdogTimer); this._aiWatchdogTimer = null; }
+        if (this._trickAnimationWatchdog) { clearTimeout(this._trickAnimationWatchdog); this._trickAnimationWatchdog = null; }
+        this.isAIThinking = false;
+        this.animatingTrick = false;
+        uiLocked = false;
         document.getElementById('end-modal').style.display = 'none';
         document.getElementById('log-drawer').innerHTML = '';
         this.uiTrumpRevealed = false;
