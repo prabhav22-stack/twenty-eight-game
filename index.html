@@ -2094,7 +2094,7 @@ function initTableSpeed() {
         const saved = localStorage.getItem('28_table_speed');
         if (saved) {
             const val = parseFloat(saved);
-            if ([1.0, 0.65, 0.35].includes(val)) {
+            if ([2.0, 1.33, 1.0, 0.65, 0.35].includes(val)) {
                 window.GAME_SPEED_MULTIPLIER = val;
             }
         }
@@ -2105,17 +2105,30 @@ function initTableSpeed() {
 function updateTableSpeedUI() {
     const btn = document.getElementById('table-speed-btn');
     const label = document.getElementById('table-speed-label');
+    const icon = document.getElementById('table-speed-icon');
     const mult = window.GAME_SPEED_MULTIPLIER || 1.0;
     if (label) {
-        if (mult === 1.0) label.innerText = '1x';
+        if (mult === 2.0) label.innerText = '0.5x';
+        else if (mult === 1.33) label.innerText = '0.75x';
+        else if (mult === 1.0) label.innerText = '1x';
         else if (mult === 0.65) label.innerText = '1.5x';
         else if (mult === 0.35) label.innerText = 'Turbo';
     }
+    if (icon) {
+        if (mult === 2.0 || mult === 1.33) icon.innerText = '🐢';
+        else if (mult === 0.35) icon.innerText = '🚀';
+        else icon.innerText = '⚡';
+    }
     if (btn) {
-        btn.title = `Table Pace: ${mult === 1.0 ? '1x Real' : (mult === 0.65 ? '1.5x Brisk' : 'Turbo Blitz')}`;
+        let title = '1x Real';
+        if (mult === 2.0) title = '0.5x Relaxed';
+        else if (mult === 1.33) title = '0.75x Deliberate';
+        else if (mult === 0.65) title = '1.5x Brisk';
+        else if (mult === 0.35) title = 'Turbo Blitz';
+        btn.title = `Table Pace: ${title}`;
     }
     if (window.gsap && gsap.globalTimeline) {
-        let ts = Math.min(1.8, Math.max(0.8, 1 / mult));
+        let ts = Math.min(2.5, Math.max(0.4, 1 / mult));
         gsap.globalTimeline.timeScale(ts);
     }
 }
@@ -2124,6 +2137,8 @@ function cycleTableSpeed() {
     let current = window.GAME_SPEED_MULTIPLIER || 1.0;
     if (current === 1.0) current = 0.65;
     else if (current === 0.65) current = 0.35;
+    else if (current === 0.35) current = 2.0;
+    else if (current === 2.0) current = 1.33;
     else current = 1.0;
 
     window.GAME_SPEED_MULTIPLIER = current;
@@ -3074,6 +3089,9 @@ function connectAsClient() {
         });
 
         hostConn.on('close', () => {
+            const startScreen = document.getElementById('start-screen');
+            if (startScreen) startScreen.style.display = 'flex';
+            lobbyStatus.style.display = 'block';
             lobbyStatus.innerHTML = `⚠️ Connection to Host lost.<br><button class="menu-btn primary-gold" onclick="location.reload()" style="margin-top:8px; justify-content:center;">🔄 Reconnect</button>`;
         });
     });
@@ -4387,8 +4405,12 @@ class TwentyEightEngine {
         let hand = this.players[pIndex] || [];
         if (hand.length === 0) return [];
 
-        // 1. LEADING A TRICK: Player can lead any card from their hand (including the suit of trump)
+        // 1. LEADING A TRICK: Player can lead any card from their hand (bidder cannot lead secret trump before reveal unless void in non-trump)
         if (this.trickCards.length === 0) {
+            if (!this.trumpRevealed && pIndex === this.highestBidder && this.trumpSuit) {
+                let nonTrumps = hand.map((c, i) => c.suit !== this.trumpSuit ? i : -1).filter(i => i !== -1);
+                if (nonTrumps.length > 0) return nonTrumps;
+            }
             return hand.map((_, i) => i);
         }
 
@@ -4438,8 +4460,10 @@ class TwentyEightEngine {
             this.leadSuit = card.suit;
             // Secret Trump Deduction: Bidder cannot lead secret trump in Phase 1
             if (!this.trumpRevealed && pIndex === this.highestBidder) {
-                if (this.bidderExcludedTrumps) this.bidderExcludedTrumps.add(card.suit);
-                if (this.inference) this.inference.recordBidderLead(card.suit);
+                if (card.suit !== this.trumpSuit) {
+                    if (this.bidderExcludedTrumps) this.bidderExcludedTrumps.add(card.suit);
+                    if (this.inference) this.inference.recordBidderLead(card.suit);
+                }
             }
         } else if (this.leadSuit && card.suit !== this.leadSuit) {
             if (this.voidInSuit && this.voidInSuit[pIndex]) {
@@ -6700,7 +6724,24 @@ class UIController {
                     playSound('rustle');
 
                     if (window.gsap && cards.length > 0) {
-                        const tl = gsap.timeline();
+                        const tl = gsap.timeline({
+                            onComplete: () => {
+                                clearTimeout(this._trickAnimationWatchdog);
+                                this._trickAnimationWatchdog = null;
+                                table.innerHTML = '';
+                                this.clearTrickWinnerHalo();
+                                if (isHost) {
+                                    this.engine.resolveTrick();
+                                }
+
+                                // Breathing gap before next trick
+                                let breathingGap = Math.round(400 * speedMult);
+                                setTimeout(() => {
+                                    this.animatingTrick = false;
+                                    this.gameLoop();
+                                }, breathingGap);
+                            }
+                        });
 
                         // Stack cards together in center
                         tl.to(cards, {
@@ -6752,33 +6793,15 @@ class UIController {
                                 );
                             }
                         });
-
-                        let sweepDuration = Math.round(500 * speedMult);
-                        setTimeout(() => {
-                            table.innerHTML = '';
-                            this.clearTrickWinnerHalo();
-                            if (isHost) {
-                                this.engine.resolveTrick();
-                            }
-
-                            // Breathing gap before next trick
-                            let breathingGap = Math.round(400 * speedMult);
-                            setTimeout(() => {
-                                clearTimeout(this._trickAnimationWatchdog);
-                                this._trickAnimationWatchdog = null;
-                                this.animatingTrick = false;
-                                this.gameLoop();
-                            }, breathingGap);
-                        }, sweepDuration);
                     } else {
+                        clearTimeout(this._trickAnimationWatchdog);
+                        this._trickAnimationWatchdog = null;
                         table.innerHTML = '';
                         this.clearTrickWinnerHalo();
                         if (isHost) {
                             this.engine.resolveTrick();
                         }
                         setTimeout(() => {
-                            clearTimeout(this._trickAnimationWatchdog);
-                            this._trickAnimationWatchdog = null;
                             this.animatingTrick = false;
                             this.gameLoop();
                         }, Math.round(400 * speedMult));
