@@ -1466,6 +1466,115 @@ body::before {
     100% { margin-top: -4px; }
 }
 
+
+/* ===== QoL UI IMPROVEMENTS ===== */
+
+/* Your-Turn floating banner */
+#your-turn-banner {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%) translateY(100%);
+    background: linear-gradient(135deg, #1a3a1a 0%, #0e1c0e 100%);
+    border: 1.5px solid var(--gold-primary); border-bottom: none;
+    border-radius: 14px 14px 0 0; padding: 7px 20px 4px 20px;
+    color: var(--gold-bright); font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em;
+    z-index: 1200; pointer-events: none; white-space: nowrap;
+    box-shadow: 0 -4px 24px rgba(229,193,88,0.35);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#your-turn-banner.visible { transform: translateX(-50%) translateY(0); }
+#your-turn-banner span { animation: yourTurnPulse 0.9s ease-in-out infinite alternate; display: inline-block; }
+@keyframes yourTurnPulse {
+    from { text-shadow: 0 0 6px rgba(229,193,88,0.5); }
+    to   { text-shadow: 0 0 18px rgba(229,193,88,1), 0 0 30px rgba(229,193,88,0.4); }
+}
+
+/* Playable card pulse ring (replaces old static shadow) */
+@keyframes playableRing {
+    0%   { box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 0 0 rgba(229,193,88,0.8); border-color: var(--gold-primary); }
+    70%  { box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 0 6px rgba(229,193,88,0.0); border-color: var(--gold-bright); }
+    100% { box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 0 0 rgba(229,193,88,0); border-color: var(--gold-primary); }
+}
+.my-cards-row .card.playable {
+    cursor: pointer;
+    border: 2px solid var(--gold-primary);
+    animation: playableRing 1.6s ease-out infinite;
+}
+.my-cards-row .card.playable:hover, .my-cards-row .card.playable:active {
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) - 18px)) scale(1.08) !important;
+    box-shadow: 0 14px 28px rgba(0,0,0,0.85), 0 0 20px var(--gold-glow) !important;
+    z-index: 99 !important;
+    animation: none !important;
+}
+
+/* Card index keyboard hint */
+.card-kbd-hint {
+    position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+    background: rgba(229,193,88,0.92); color: #1a1200; border-radius: 4px;
+    font-size: 0.48rem; font-weight: 900; padding: 1px 4px;
+    font-family: 'Plus Jakarta Sans', sans-serif; pointer-events: none; z-index: 10;
+    opacity: 0; transition: opacity 0.2s ease;
+}
+body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
+
+/* Trump card glow in hand after reveal */
+.my-cards-row .card.is-trump-card {
+    border-color: rgba(251, 191, 36, 0.9) !important;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 10px rgba(251,191,36,0.6), inset 0 0 8px rgba(251,191,36,0.1) !important;
+    animation: none !important;
+}
+.my-cards-row .card.is-trump-card.playable {
+    animation: playableRing 1.6s ease-out infinite !important;
+    border-color: rgba(251, 191, 36, 0.9) !important;
+}
+.my-cards-row .card.is-trump-card::after {
+    content: '★'; position: absolute; top: 2px; left: 3px;
+    font-size: 0.45rem; color: rgba(251,191,36,0.9); pointer-events: none;
+}
+.my-cards-row .card.is-trump-card.unplayable {
+    filter: brightness(0.5) saturate(0.65) !important;
+    box-shadow: none !important; border-color: rgba(100,80,20,0.5) !important;
+    animation: none !important;
+}
+
+/* Score flash animation on trick win */
+@keyframes hudScoreFlash {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(1.14); background: rgba(229,193,88,0.3); }
+    100% { transform: scale(1); }
+}
+#trick-hud-pill.score-flash { animation: hudScoreFlash 0.5s ease-out forwards; }
+
+/* Floating toast notification */
+#game-toast-container {
+    position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    z-index: 1500; pointer-events: none; width: max-content; max-width: 90vw;
+}
+.game-toast {
+    background: rgba(5, 18, 10, 0.95); border: 1px solid rgba(229,193,88,0.4);
+    border-radius: 20px; padding: 6px 16px; color: #f8fafc;
+    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.74rem; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6); white-space: nowrap;
+    opacity: 0; transform: translateY(-8px) scale(0.94);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.game-toast.show { opacity: 1; transform: translateY(0) scale(1); }
+.game-toast.hiding { opacity: 0; transform: translateY(-6px) scale(0.96); }
+
+/* Keyboard shortcut hint bar */
+#kbd-hint-bar {
+    position: fixed; bottom: 68px; left: 50%; transform: translateX(-50%) scale(0.9);
+    background: rgba(0,0,0,0.82); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; padding: 5px 12px; color: #94a3b8;
+    font-size: 0.62rem; font-family: 'Plus Jakarta Sans', sans-serif;
+    z-index: 1100; opacity: 0; transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+    white-space: nowrap;
+}
+#kbd-hint-bar.show { opacity: 1; transform: translateX(-50%) scale(1); }
+#kbd-hint-bar kbd {
+    display: inline-block; background: rgba(255,255,255,0.12); border-radius: 3px;
+    padding: 1px 5px; margin: 0 2px; color: var(--gold-bright); font-weight: 800; font-size: 0.64rem;
+}
 </style>
 </head>
 <body>
@@ -1625,6 +1734,12 @@ body::before {
 </div>
 
 <div id="board">
+    <!-- QoL: Your Turn Banner -->
+    <div id="your-turn-banner"><span>✨ YOUR TURN — Play a Card</span></div>
+    <!-- QoL: Toast Container -->
+    <div id="game-toast-container"></div>
+    <!-- QoL: Keyboard Hint Bar -->
+    <div id="kbd-hint-bar"><kbd>1</kbd>–<kbd>8</kbd> play card &nbsp;|&nbsp; <kbd>R</kbd> reveal trump &nbsp;|&nbsp; <kbd>B</kbd> pass</div>
     <div id="trick-hud-pill">Waiting for lead...</div>
     <div id="casino-ring">
         <div style="font-family:'Cinzel',serif; font-size:1.3rem; color:rgba(229,193,88,0.15); font-weight:900;">♠ ♥ ♣ ♦</div>
@@ -6050,9 +6165,12 @@ class UIController {
             
             if (isMyTurn) {
                 pill.innerHTML = `<span style="color:var(--gold-bright); font-weight:800;">👉 ${currentLang === 'hi' ? 'आपकी बारी (बोली लगाएं)' : 'YOUR TURN TO BID!'}</span>`;
+            
+                if (typeof showYourTurnBanner === 'function') showYourTurnBanner('🎯 YOUR TURN — Place Your Bid', 0);
             } else if (isPartnerTurn) {
                 pill.innerHTML = `<span style="color:var(--team1-blue); font-weight:800;">🤝 Partner (${currentTurnName}) ${t.decidingBid || 'is deciding bid...'}</span>`;
             } else {
+                if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
                 pill.innerHTML = `<span>⏳ ${currentTurnName} ${t.decidingBid || 'is deciding bid...'}</span>`;
             }
             
@@ -6070,6 +6188,13 @@ class UIController {
             pill.className = '';
             pill.innerHTML = (t.waitingToLead || 'Waiting for {name} to lead').replace('{name}', `<b>${leaderName}</b>`);
             ptsPill.innerText = `${potLabel}: 0 ${ptsWord}`;
+            // Show your-turn banner if it's human's lead
+            if (this.engine.currentTurn === mySeat && mySeat !== 99) {
+                if (typeof showYourTurnBanner === 'function') showYourTurnBanner('✨ YOUR TURN — Lead a Card', 0);
+                if (typeof showKbdHintBar === 'function') showKbdHintBar();
+            } else {
+                if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
+            }
         } else {
             let winner = this.engine._getCurrentTrickWinner();
             this.updateTrickWinnerHalo(winner);
@@ -6095,6 +6220,12 @@ class UIController {
             let winColor = isFriend ? '#86efac' : '#fca5a5';
 
             pill.innerHTML = `<span style="color:${leadColor}; font-weight:800;">${this.engine.leadSuit}</span> &bull; <b style="color:${winColor};">${winWho}</b> (${winner.card.rank}${winner.card.suit})`;
+            // Show/hide banner based on whose turn it is mid-trick
+            if (this.engine.currentTurn === mySeat && mySeat !== 99) {
+                if (typeof showYourTurnBanner === 'function') showYourTurnBanner('✨ YOUR TURN — Follow Suit', 0);
+            } else {
+                if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
+            }
             const ptsValEl = document.getElementById('trick-pts-val');
             if (ptsValEl) ptsValEl.innerText = `${potLabel}: ${pts} ${ptsWord}`;
             else ptsPill.innerText = `${potLabel}: ${pts} ${ptsWord}`;
@@ -6255,6 +6386,15 @@ class UIController {
                     if (isPlayable) {
                         div.classList.add('playable');
                         this.attachDragAndFlick(div, index, actualPlayerIndex);
+                        // Keyboard index hint overlay
+                        const kbdHint = document.createElement('div');
+                        kbdHint.className = 'card-kbd-hint';
+                        kbdHint.textContent = String(index + 1);
+                        div.appendChild(kbdHint);
+                    }
+                    // Trump glow after reveal
+                    if (this.engine.trumpRevealed && card.suit === this.engine.trumpSuit) {
+                        div.classList.add('is-trump-card');
                     }
                     row.appendChild(div);
                 });
@@ -7024,6 +7164,8 @@ class UIController {
                         table.innerHTML = '';
                         this.clearTrickWinnerHalo();
                         this.engine.resolveTrick();
+                        if (typeof flashTrickHUD === 'function') flashTrickHUD();
+                        if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
                         if (isHost) {
                             this.broadcastGameState();
                         }
@@ -7049,6 +7191,8 @@ class UIController {
                     table.innerHTML = '';
                     this.clearTrickWinnerHalo();
                     this.engine.resolveTrick();
+                    if (typeof flashTrickHUD === 'function') flashTrickHUD();
+                    if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
                     if (isHost) this.broadcastGameState();
                     this.animatingTrick = false;
                     if (!isHost && this.pendingMasterState) {
@@ -7818,6 +7962,121 @@ class UIController {
         }
     }
 }
+
+
+// ===========================
+// QoL UI IMPROVEMENTS JS
+// ===========================
+
+// --- Toast notifications ---
+function showGameToast(msg, durationMs) {
+    durationMs = durationMs || 2200;
+    var container = document.getElementById('game-toast-container');
+    if (!container) return;
+    var toast = document.createElement('div');
+    toast.className = 'game-toast';
+    toast.innerHTML = msg;
+    container.appendChild(toast);
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() { toast.classList.add('show'); });
+    });
+    setTimeout(function() {
+        toast.classList.add('hiding');
+        toast.classList.remove('show');
+        setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 350);
+    }, durationMs);
+}
+
+// --- Your Turn Banner ---
+var _yourTurnBannerVisible = false;
+var _yourTurnTimeout = null;
+function showYourTurnBanner(msg, autoHideMs) {
+    var banner = document.getElementById('your-turn-banner');
+    if (!banner) return;
+    banner.querySelector('span').textContent = msg || '✨ YOUR TURN — Play a Card';
+    if (!_yourTurnBannerVisible) {
+        banner.classList.add('visible');
+        _yourTurnBannerVisible = true;
+    }
+    clearTimeout(_yourTurnTimeout);
+    if (autoHideMs > 0) {
+        _yourTurnTimeout = setTimeout(hideYourTurnBanner, autoHideMs);
+    }
+}
+function hideYourTurnBanner() {
+    var banner = document.getElementById('your-turn-banner');
+    if (banner) banner.classList.remove('visible');
+    _yourTurnBannerVisible = false;
+    clearTimeout(_yourTurnTimeout);
+}
+
+// --- HUD Score Flash ---
+function flashTrickHUD() {
+    var pill = document.getElementById('trick-hud-pill');
+    if (!pill) return;
+    pill.classList.remove('score-flash');
+    void pill.offsetWidth;
+    pill.classList.add('score-flash');
+    setTimeout(function() { pill.classList.remove('score-flash'); }, 600);
+}
+
+// --- Keyboard Hint Bar ---
+var _kbdHintShown = false;
+var _kbdHintTimer = null;
+function showKbdHintBar() {
+    var bar = document.getElementById('kbd-hint-bar');
+    if (!bar) return;
+    bar.classList.add('show');
+    clearTimeout(_kbdHintTimer);
+    _kbdHintTimer = setTimeout(function() {
+        bar.classList.remove('show');
+    }, 3500);
+}
+
+// --- Keyboard Shortcuts ---
+document.addEventListener('keydown', function(e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    var key = e.key;
+
+    // 1-8: Play card at that playable index (1-based)
+    if (key >= '1' && key <= '8') {
+        var idx = parseInt(key) - 1;
+        var playableCards = document.querySelectorAll('.my-cards-row .card.playable');
+        if (playableCards[idx]) {
+            playableCards[idx].click();
+            document.body.classList.remove('kbd-mode');
+        }
+        // Show kbd hints on first press
+        document.body.classList.add('kbd-mode');
+        setTimeout(function() { document.body.classList.remove('kbd-mode'); }, 4000);
+        showKbdHintBar();
+        return;
+    }
+
+    // R: Reveal trump
+    if (key === 'r' || key === 'R') {
+        var revealBtn = document.getElementById('reveal-trump-btn');
+        if (revealBtn && revealBtn.style.display !== 'none' && !revealBtn.disabled) {
+            revealBtn.click();
+        }
+        return;
+    }
+
+    // B: Pass bid
+    if (key === 'b' || key === 'B') {
+        var passBtn = document.getElementById('pass-btn');
+        if (passBtn && passBtn.offsetParent !== null) passBtn.click();
+        return;
+    }
+
+    // Escape: close open drawers
+    if (key === 'Escape') {
+        var logDrawer = document.getElementById('log-drawer');
+        if (logDrawer && logDrawer.classList.contains('open') && ui && ui.toggleLogDrawer) ui.toggleLogDrawer();
+        var trackerDrawer = document.getElementById('tracker-drawer');
+        if (trackerDrawer && trackerDrawer.classList.contains('open') && ui && ui.toggleTrackerDrawer) ui.toggleTrackerDrawer();
+    }
+});
 
 const game = new TwentyEightEngine();
 const ui = new UIController(game);
