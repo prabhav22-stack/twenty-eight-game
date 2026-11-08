@@ -2133,6 +2133,12 @@ function updateTableSpeedUI() {
 }
 
 function cycleTableSpeed() {
+    if (gameMode === 'multi' && !isHost) {
+        if (typeof ui !== 'undefined' && ui) {
+            ui.renderLog("⚡ Table pace is synchronized by the Room Host.");
+        }
+        return;
+    }
     let current = window.GAME_SPEED_MULTIPLIER || 1.0;
     if (current === 1.0) current = 0.65;
     else if (current === 0.65) current = 0.35;
@@ -2144,6 +2150,10 @@ function cycleTableSpeed() {
     try { localStorage.setItem('28_table_speed', current.toString()); } catch(e) {}
     updateTableSpeedUI();
     playSound('rustle');
+
+    if (gameMode === 'multi' && isHost) {
+        broadcastNetMessage({ type: 'SPEED_SYNC', speedMultiplier: current });
+    }
 }
 
 function getBotThinkTimeMs(engine, botSeat, legalCards) {
@@ -3224,7 +3234,7 @@ function handleHostProcessMessage(conn, data) {
         let s = conn.seat !== undefined ? conn.seat : data.seat;
         if (s !== undefined && s !== null) {
             try {
-                conn.send(JSON.stringify({ type: 'STATE_UPDATE', target: s, state: this.engine.exportStateForClient(s) }));
+                conn.send(JSON.stringify({ type: 'STATE_UPDATE', target: s, state: game.exportStateForClient(s) }));
             } catch(e) {}
         }
     }
@@ -3259,9 +3269,19 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         if (data.playerNames) playerCustomNames = data.playerNames;
         updateTopCompassBar();
     }
+    else if (data.type === 'SPEED_SYNC') {
+        if (data.speedMultiplier) {
+            window.GAME_SPEED_MULTIPLIER = data.speedMultiplier;
+            updateTableSpeedUI();
+        }
+    }
     else if (data.type === 'START_GAME') {
         humanSeats = data.humanSeats;
         if (data.playerNames) playerCustomNames = data.playerNames;
+        if (data.speedMultiplier) {
+            window.GAME_SPEED_MULTIPLIER = data.speedMultiplier;
+            updateTableSpeedUI();
+        }
         document.getElementById('start-screen').style.display = 'none';
         ui.updatePlayerNames();
         updateTopCompassBar();
@@ -3286,12 +3306,19 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         if (!isHost && (data.target === mySeat || data.target === 'ALL' || mySeat === 99)) {
             if (data.state && typeof data.state === 'object' && data.state.phase) {
                 try {
-                    game.syncFromMasterState(data.state);
-                    if (!ui.dealingAnimationActive) {
-                        ui.renderStaticBoard();
-                        ui.syncTable();
-                        ui.gameLoop();
+                    if (data.state.speedMultiplier) {
+                        window.GAME_SPEED_MULTIPLIER = data.state.speedMultiplier;
+                        updateTableSpeedUI();
                     }
+                    if (ui.animatingTrick || ui.animatingReveal || ui.dealingAnimationActive) {
+                        ui.pendingMasterState = data.state;
+                        return;
+                    }
+                    ui.pendingMasterState = null;
+                    game.syncFromMasterState(data.state);
+                    ui.renderStaticBoard();
+                    ui.syncTable();
+                    ui.gameLoop();
                 } catch (netSyncErr) {
                     console.warn("Failed to sync state from master:", netSyncErr);
                 }
@@ -3330,7 +3357,7 @@ function hostStartGame() {
         ui.renderLog("🧠 <b>AI Intelligence:</b> Groq Cloud LLM Active");
         game.startRound(); ui.gameLoop();
     } else if (isHost) {
-        broadcastNetMessage({ type: 'START_GAME', humanSeats: humanSeats, playerNames: playerCustomNames });
+        broadcastNetMessage({ type: 'START_GAME', humanSeats: humanSeats, playerNames: playerCustomNames, speedMultiplier: window.GAME_SPEED_MULTIPLIER || 1.0 });
         document.getElementById('start-screen').style.display = 'none';
         ui.updatePlayerNames();
         updateTopCompassBar();
@@ -3538,6 +3565,7 @@ class PeerManager {
         const projectedTrumpSuit = canSeeTrump ? masterEngine.trumpSuit : null;
 
         return {
+            speedMultiplier: window.GAME_SPEED_MULTIPLIER || 1.0,
             t1TrickPts: masterEngine.t1TrickPts,
             t2TrickPts: masterEngine.t2TrickPts,
             t1GamePts: masterEngine.t1GamePts,
@@ -5170,6 +5198,7 @@ class UIController {
         this._aiWatchdogTimer = null; this._trickAnimationWatchdog = null;
         this.animatingTrick = false; this.isAIThinking = false;
         this.isCardDragging = false;
+        this.pendingMasterState = null;
         this.animQueue = new AnimationQueue();
     }
 
@@ -6702,6 +6731,13 @@ class UIController {
                                 blast.style.display = 'none';
                                 blast.style.pointerEvents = 'none';
                                 this.animatingReveal = false;
+                                if (!isHost && this.pendingMasterState) {
+                                    let pState = this.pendingMasterState;
+                                    this.pendingMasterState = null;
+                                    this.engine.syncFromMasterState(pState);
+                                    this.renderStaticBoard();
+                                    this.syncTable();
+                                }
                                 this.gameLoop();
                             }
                         });
@@ -6710,6 +6746,13 @@ class UIController {
                             blast.style.display = 'none';
                             blast.style.pointerEvents = 'none';
                             this.animatingReveal = false;
+                            if (!isHost && this.pendingMasterState) {
+                                let pState = this.pendingMasterState;
+                                this.pendingMasterState = null;
+                                this.engine.syncFromMasterState(pState);
+                                this.renderStaticBoard();
+                                this.syncTable();
+                            }
                             this.gameLoop();
                         }, Math.round(350 * speedMult));
                     }
@@ -6720,6 +6763,13 @@ class UIController {
             blast.style.display = 'none';
             blast.style.pointerEvents = 'none';
             this.animatingReveal = false;
+            if (!isHost && this.pendingMasterState) {
+                let pState = this.pendingMasterState;
+                this.pendingMasterState = null;
+                this.engine.syncFromMasterState(pState);
+                this.renderStaticBoard();
+                this.syncTable();
+            }
             this.gameLoop();
         }
     }
@@ -6738,6 +6788,13 @@ class UIController {
                 this.clearTrickWinnerHalo();
                 if (isHost) this.engine.resolveTrick();
                 this.animatingTrick = false;
+                if (!isHost && this.pendingMasterState) {
+                    let pState = this.pendingMasterState;
+                    this.pendingMasterState = null;
+                    this.engine.syncFromMasterState(pState);
+                    this.renderStaticBoard();
+                    this.syncTable();
+                }
                 this.gameLoop();
             }
         }, Math.round(5000 * speedMult));
@@ -6834,10 +6891,18 @@ class UIController {
                                     this.engine.resolveTrick();
                                 }
 
-                                // Breathing gap before next trick
-                                let breathingGap = Math.round(400 * speedMult);
+                                // Breathing gap before next trick with host multiplayer headroom
+                                let extraNetBuffer = (gameMode === 'multi' && isHost) ? 350 : 0;
+                                let breathingGap = Math.round((400 + extraNetBuffer) * speedMult);
                                 setTimeout(() => {
                                     this.animatingTrick = false;
+                                    if (!isHost && this.pendingMasterState) {
+                                        let pState = this.pendingMasterState;
+                                        this.pendingMasterState = null;
+                                        this.engine.syncFromMasterState(pState);
+                                        this.renderStaticBoard();
+                                        this.syncTable();
+                                    }
                                     this.gameLoop();
                                 }, breathingGap);
                             }
@@ -6901,10 +6966,18 @@ class UIController {
                         if (isHost) {
                             this.engine.resolveTrick();
                         }
+                        let extraNetBuffer = (gameMode === 'multi' && isHost) ? 350 : 0;
                         setTimeout(() => {
                             this.animatingTrick = false;
+                            if (!isHost && this.pendingMasterState) {
+                                let pState = this.pendingMasterState;
+                                this.pendingMasterState = null;
+                                this.engine.syncFromMasterState(pState);
+                                this.renderStaticBoard();
+                                this.syncTable();
+                            }
                             this.gameLoop();
-                        }, Math.round(400 * speedMult));
+                        }, Math.round((400 + extraNetBuffer) * speedMult));
                     }
                 } catch (innerErr) {
                     console.error("Trick sweep animation error:", innerErr);
@@ -6914,6 +6987,13 @@ class UIController {
                     this.clearTrickWinnerHalo();
                     if (isHost) this.engine.resolveTrick();
                     this.animatingTrick = false;
+                    if (!isHost && this.pendingMasterState) {
+                        let pState = this.pendingMasterState;
+                        this.pendingMasterState = null;
+                        this.engine.syncFromMasterState(pState);
+                        this.renderStaticBoard();
+                        this.syncTable();
+                    }
                     this.gameLoop();
                 }
             }, beat2Duration);
@@ -6925,6 +7005,13 @@ class UIController {
             this.clearTrickWinnerHalo();
             if (isHost) this.engine.resolveTrick();
             this.animatingTrick = false;
+            if (!isHost && this.pendingMasterState) {
+                let pState = this.pendingMasterState;
+                this.pendingMasterState = null;
+                this.engine.syncFromMasterState(pState);
+                this.renderStaticBoard();
+                this.syncTable();
+            }
             this.gameLoop();
         }
     }
@@ -7016,6 +7103,11 @@ class UIController {
                 } else {
                     if (this.engine.phase === 'DEALING_1') this.engine.phase = 'BIDDING';
                     if (this.engine.phase === 'DEALING_2') this.engine.phase = 'PLAYING';
+                    if (this.pendingMasterState) {
+                        let pState = this.pendingMasterState;
+                        this.pendingMasterState = null;
+                        this.engine.syncFromMasterState(pState);
+                    }
                 }
                 this.renderStaticBoard();
                 if (window.gsap) {
@@ -7027,9 +7119,7 @@ class UIController {
                         ease: "power2.out"
                     });
                 }
-                if (isHost) {
-                    this.gameLoop();
-                }
+                this.gameLoop();
             });
             return; 
         }
