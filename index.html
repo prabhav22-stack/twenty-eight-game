@@ -4648,12 +4648,8 @@ class TwentyEightEngine {
         let hand = this.players[pIndex] || [];
         if (hand.length === 0) return [];
 
-        // 1. LEADING A TRICK: Player can lead any card from their hand (bidder cannot lead secret trump before reveal unless void in non-trump)
+        // 1. LEADING A TRICK: Player can lead any card from their hand
         if (this.trickCards.length === 0) {
-            if (!this.trumpRevealed && pIndex === this.highestBidder && this.trumpSuit) {
-                let nonTrumps = hand.map((c, i) => c.suit !== this.trumpSuit ? i : -1).filter(i => i !== -1);
-                if (nonTrumps.length > 0) return nonTrumps;
-            }
             return hand.map((_, i) => i);
         }
 
