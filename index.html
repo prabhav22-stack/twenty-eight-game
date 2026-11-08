@@ -4576,34 +4576,49 @@ class TwentyEightEngine {
         let mathPriors = (typeof ui !== 'undefined' && ui && ui.cachedMathPriors) ? ui.cachedMathPriors : null;
         let oppProfile = this.getOpponentProfile();
 
-        let bestIdx = ISMCTS.selectBestPlay({
-            hand: hand,
-            validIndices: validIndices,
-            trickCards: this.trickCards,
-            leadSuit: this.leadSuit,
-            trumpSuit: knownTrumpSuit,
-            trumpRevealed: this.trumpRevealed,
-            playerIdx: pIndex,
-            personality: botRole,
-            inference: this.inference,
-            currentBid: this.currentBid,
-            t1Points: this.t1TrickPts,
-            t2Points: this.t2TrickPts,
-            highestBidder: this.highestBidder,
-            utilityWeights: mathPriors ? mathPriors.utilityWeights : null,
-            movePriors: mathPriors ? mathPriors.movePriors : null,
-            trumpPriors: mathPriors ? mathPriors.trumpSuitPriors : null,
-            opponentProfile: oppProfile,
-            numRollouts: rollouts
-        });
-        return { reveal: false, index: bestIdx };
+        // Discard evaluation function (defining dumpCost eliminates ReferenceError risks)
+        const discardCost = (idx) => {
+            let c = hand[idx];
+            let isTrump = (knownTrumpSuit && c.suit === knownTrumpSuit) ? 1 : 0;
+            return (isTrump * 50) + (c.value * 10) + c.power;
+        };
+        const dumpCost = discardCost; // Explicitly define dumpCost alias
 
+        try {
+            let bestIdx = ISMCTS.selectBestPlay({
+                hand: hand,
+                validIndices: validIndices,
+                trickCards: this.trickCards,
+                leadSuit: this.leadSuit,
+                trumpSuit: knownTrumpSuit,
+                trumpRevealed: this.trumpRevealed,
+                playerIdx: pIndex,
+                personality: botRole,
+                inference: this.inference,
+                currentBid: this.currentBid,
+                t1Points: this.t1TrickPts,
+                t2Points: this.t2TrickPts,
+                highestBidder: this.highestBidder,
+                utilityWeights: mathPriors ? mathPriors.utilityWeights : null,
+                movePriors: mathPriors ? mathPriors.movePriors : null,
+                trumpPriors: mathPriors ? mathPriors.trumpSuitPriors : null,
+                opponentProfile: oppProfile,
+                numRollouts: rollouts
+            });
+            if (bestIdx !== undefined && bestIdx !== null && validIndices.includes(bestIdx)) {
+                return { reveal: false, index: bestIdx };
+            }
+        } catch (mctsErr) {
+            console.warn("ISMCTS evaluation error, executing tactical fallback:", mctsErr);
+        }
+
+        // Tactical Rule-based Fallback (safe with defined discardCost/dumpCost)
         let winningPlay = this._getCurrentTrickWinner();
         let isLastPlayer = (this.trickCards.length === 3);
-        let isPartnerWinning = (winningPlay.player === partnerIndex);
+        let isPartnerWinning = (winningPlay && winningPlay.player === partnerIndex);
 
         if (isPartnerWinning) {
-            let partnerSafe = isLastPlayer || this._isCardHighestRemaining(winningPlay.card);
+            let partnerSafe = isLastPlayer || (winningPlay.card && this._isCardHighestRemaining(winningPlay.card));
             if (partnerSafe) {
                 let smearCandidates = [...validIndices].sort((a, b) => {
                     let aTrump = (knownTrumpSuit && hand[a].suit === knownTrumpSuit) ? 1 : 0;
@@ -4619,10 +4634,10 @@ class TwentyEightEngine {
             let winningIndices = validIndices.filter(i => {
                 let c = hand[i];
                 let isCTrump = (this.trumpRevealed && c.suit === this.trumpSuit);
-                let isWTrump = (this.trumpRevealed && winningPlay.card.suit === this.trumpSuit);
+                let isWTrump = (winningPlay && this.trumpRevealed && winningPlay.card && winningPlay.card.suit === this.trumpSuit);
                 if (isCTrump && !isWTrump) return true;
-                if (isCTrump && isWTrump && c.power > winningPlay.card.power) return true;
-                if (!isCTrump && !isWTrump && c.suit === this.leadSuit && c.power > winningPlay.card.power) return true;
+                if (isCTrump && isWTrump && winningPlay.card && c.power > winningPlay.card.power) return true;
+                if (!isCTrump && !isWTrump && c.suit === this.leadSuit && winningPlay && winningPlay.card && c.power > winningPlay.card.power) return true;
                 return false;
             });
 
@@ -5620,10 +5635,66 @@ class UIController {
     }
 
     updateSecretTrumpVault() {
-        // Vault token removed from board overlay to prevent covering player hand cards.
-        // Trump state is cleanly and prominently displayed in the top HUD bar.
         const vault = document.getElementById('secret-trump-vault');
-        if (vault) vault.style.display = 'none';
+        if (!vault) return;
+        if (this.engine.phase === 'LOBBY' || this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1' || this.engine.highestBidder === -1) {
+            vault.style.display = 'none';
+            return;
+        }
+
+        const bidderIdx = this.engine.highestBidder;
+        const positions = ['bottom', 'right', 'top', 'left'];
+        let visualPos = (mySeat === 99) ? bidderIdx : (bidderIdx - mySeat + 4) % 4;
+        const seatEl = document.getElementById(`player-${positions[visualPos]}`);
+        const boardEl = document.getElementById('board');
+        if (!seatEl || !boardEl) { vault.style.display = 'none'; return; }
+
+        vault.style.display = 'block';
+        const isRevealed = this.engine.trumpRevealed;
+        const suit = this.engine.trumpSuit || '♠';
+        const isRed = (suit === '♥' || suit === '♦');
+        const isBidderMe = (bidderIdx === mySeat && mySeat !== 99);
+
+        // Position vault card safely without overlapping cards
+        const seatRect = seatEl.getBoundingClientRect();
+        const boardRect = boardEl.getBoundingClientRect();
+        let top, left;
+
+        if (visualPos === 0) {
+            // South / Human player: place in bottom-right corner of felt, safe from hand cards
+            top = boardRect.height - 110;
+            left = boardRect.width - 65;
+        } else if (visualPos === 1) {
+            // East (right seat): place near East's badge
+            top = (seatRect.top - boardRect.top) + seatRect.height + 6;
+            left = boardRect.width - 55;
+        } else if (visualPos === 2) {
+            // North (top seat): place to the right of North's badge
+            top = 16;
+            left = (seatRect.left - boardRect.left) + seatRect.width + 12;
+        } else {
+            // West (left seat): place near West's badge
+            top = (seatRect.top - boardRect.top) + seatRect.height + 6;
+            left = 12;
+        }
+
+        vault.style.top = `${Math.round(top)}px`;
+        vault.style.left = `${Math.round(left)}px`;
+
+        let peekHint = isBidderMe && !isRevealed ? `<span style="font-size:0.42rem; opacity:0.85; margin-top:1px;">PEEK</span>` : '';
+        vault.innerHTML = `
+            <div class="vault-card-inner ${isRevealed ? 'flipped' : ''}">
+                <div class="vault-face vault-front">
+                    <span class="lock-icon">🔒</span>
+                    <span class="vault-label">TURUP</span>
+                    ${peekHint}
+                </div>
+                <div class="vault-face vault-back ${isRed ? 'red' : 'black'}">
+                    <span class="v-suit">${suit}</span>
+                    <span style="font-size:0.46rem; font-weight:800; letter-spacing:0.5px; color:#64748b; text-transform:uppercase; margin-top:2px;">TRUMP</span>
+                </div>
+            </div>
+        `;
     }
 
     onVaultTokenClick() {
@@ -5682,28 +5753,11 @@ class UIController {
         if (inner && window.gsap) {
             gsap.to(inner, {
                 rotationY: 180,
-                scale: 1.35,
+                scale: 1.25,
                 duration: 0.5,
                 ease: "back.out(2)",
                 onComplete: () => {
-                    const trumpPill = document.getElementById('trump-status');
-                    if (trumpPill) {
-                        const targetRect = trumpPill.getBoundingClientRect();
-                        const vaultRect = vault.getBoundingClientRect();
-                        gsap.to(vault, {
-                            x: targetRect.left - vaultRect.left,
-                            y: targetRect.top - vaultRect.top,
-                            scale: 0.4,
-                            opacity: 0,
-                            duration: 0.6,
-                            delay: 0.6,
-                            ease: "power2.in",
-                            onComplete: () => {
-                                vault.style.display = 'none';
-                                vault.style.transform = '';
-                            }
-                        });
-                    }
+                    gsap.to(inner, { scale: 1.0, duration: 0.25 });
                 }
             });
         }
@@ -5946,10 +6000,15 @@ class UIController {
         } else if (this.engine.highestBidder !== -1) {
             document.getElementById('bid-status').innerText = `${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
             if (this.engine.trumpRevealed) {
-                const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ff4d4d' : '#ffffff';
-                document.getElementById('trump-status').innerHTML = `${t.trump}: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span>`;
+                const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ef4444' : '#38bdf8';
+                document.getElementById('trump-status').innerHTML = `
+                    <span style="background:rgba(229,193,88,0.22); border:1.5px solid var(--gold-bright); border-radius:12px; padding:2px 8px; color:var(--gold-bright); font-weight:800; font-size:0.75rem; display:inline-flex; align-items:center; gap:5px; box-shadow:0 0 12px rgba(229,193,88,0.45);">
+                        <span style="color:#cbd5e1; font-size:0.62rem; text-transform:uppercase;">${t.trump}:</span>
+                        <span style="color:${suitColor}; font-size:1.15rem; line-height:1; font-weight:900;">${suit}</span>
+                    </span>
+                `;
             } else if (mySeat === this.engine.highestBidder && this.engine.trumpSuit) {
-                const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ff4d4d' : '#ffffff';
+                const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ef4444' : '#38bdf8';
                 document.getElementById('trump-status').innerHTML = `${t.trump}: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span> (${currentLang === 'hi' ? 'गुप्त' : 'Secret'})`;
             } else {
                 document.getElementById('trump-status').innerText = t.secretTrump;
@@ -6776,6 +6835,10 @@ class UIController {
         // Trick animation in progress: lock gameLoop completely
         if (this.animatingTrick) return;
 
+        if (!this.engine.trumpRevealed) {
+            this.uiTrumpRevealed = false;
+        }
+
         if (this.engine.trumpRevealed && !this.uiTrumpRevealed && this.engine.trumpSuit) {
             this.uiTrumpRevealed = true; 
             this.renderStaticBoard(); 
@@ -6951,6 +7014,7 @@ class UIController {
                         console.warn(`Watchdog: Bot ${turnPlayer} took too long, forcing move!`);
                         this.resetBotPrePlayTell();
                         this.isAIThinking = false;
+                        clearTimeout(this.aiTimer);
                         this.aiTimer = null;
                         let valids = this.engine.getValidPlayIndices(turnPlayer);
                         let moveIdx = (valids && valids.length > 0) ? valids[0] : 0;
@@ -7004,6 +7068,7 @@ class UIController {
 
                             if (aiDecision.reveal && this.engine.canRevealTrump(turnPlayer)) {
                                 this.engine.revealTrump(turnPlayer);
+                                this.engine.playCard(turnPlayer, aiDecision.index);
                             } else {
                                 this.engine.playCard(turnPlayer, aiDecision.index);
                             }
