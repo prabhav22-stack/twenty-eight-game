@@ -717,6 +717,34 @@ body::before {
 .speech-bubble.bubble-right { right: calc(100% + 8px); top: 50%; transform: translateY(-50%) scale(0.85); }
 .speech-bubble.bubble-right.show { opacity: 1; transform: translateY(-50%) scale(1); }
 
+#royal-pair-splash {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.4);
+    background: radial-gradient(circle at 50% 25%, rgba(28, 22, 54, 0.98), rgba(7, 10, 20, 0.98));
+    border: 2.5px solid var(--gold-bright); border-radius: 24px;
+    padding: clamp(16px, 3vh, 26px);
+    width: clamp(260px, min(88vw, 360px), 360px);
+    display: none; flex-direction: column; justify-content: center; align-items: center;
+    z-index: 2600; opacity: 0; pointer-events: none;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(229, 193, 88, 0.7);
+    text-align: center;
+    backdrop-filter: blur(12px);
+}
+.pair-card-preview {
+    width: clamp(65px, 14vmin, 80px);
+    height: clamp(92px, 20vmin, 115px);
+    background: linear-gradient(145deg, #ffffff 0%, #f1ebe1 100%);
+    border: 2px solid var(--gold-bright);
+    border-radius: 8px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 16px rgba(229, 193, 88, 0.5);
+    font-family: 'Cinzel', serif;
+}
+.pair-card-preview.red { color: var(--suit-red); }
+.pair-card-preview.black { color: var(--suit-black); }
+
 #dramatic-reveal {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
     background: radial-gradient(circle, rgba(15, 23, 42, 0.98), rgba(4, 10, 6, 0.98));
@@ -1956,6 +1984,7 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 </div>
 
 <div id="dramatic-reveal"></div>
+<div id="royal-pair-splash"></div>
 
 <script>
 // ==================== RESPONSIVE SCREEN DETECTOR & ADAPTIVE LAYOUT ====================
@@ -3501,6 +3530,12 @@ function handleIncomingNetworkMessage(sourceConn, data) {
     else if (data.type === 'UI_EVENT' && !isHost) {
         if (data.log) ui.renderLog(data.log);
         if (data.bidEvent) ui.handleRemoteBidUI(data.bidEvent.pIndex, data.bidEvent.val, data.bidEvent.won);
+        if (data.pairEvent) {
+            ui.playRoyalPairAnimation(data.pairEvent.player, () => {
+                ui.syncTable();
+                ui.renderStaticBoard();
+            });
+        }
     }
     else if (data.type === 'RESET_LOBBY') {
         location.reload();
@@ -3508,7 +3543,16 @@ function handleIncomingNetworkMessage(sourceConn, data) {
     else if (isHost) {
         if (data.type === 'SUBMIT_BID') { game.submitBid(data.player, data.val); ui.gameLoop(); }
         else if (data.type === 'SET_TRUMP') { game.setTrump(data.suit); ui.gameLoop(); }
-        else if (data.type === 'DECLARE_PAIR') { game.declarePair(data.player); ui.gameLoop(); }
+        else if (data.type === 'DECLARE_PAIR') {
+            broadcastNetMessage({ type: 'UI_EVENT', pairEvent: { player: data.player } });
+            ui.playRoyalPairAnimation(data.player, () => {
+                game.declarePair(data.player);
+                ui.broadcastGameState();
+                ui.syncTable();
+                ui.renderStaticBoard();
+                ui.gameLoop();
+            });
+        }
         else if (data.type === 'PLAY_CARD') { game.playCard(data.player, data.cardIndex); ui.gameLoop(); }
         else if (data.type === 'REVEAL_TRUMP') { game.revealTrump(data.player); ui.gameLoop(); }
         else if (data.type === 'RESHUFFLE_REQUEST') { game.reshuffleRound(data.player); ui.gameLoop(); }
@@ -4614,6 +4658,16 @@ class TwentyEightEngine {
         return hasKing && hasQueen;
     }
 
+    canDeclarePair(pIndex) {
+        if (this.pairDeclared || !this.hasPair(pIndex)) return false;
+        let teamIdx = (pIndex === 0 || pIndex === 2) ? 0 : 1;
+        let roundTricksWon = (this.roundTricks || []).filter(t => {
+            let winP = (t.winner !== undefined) ? t.winner : (t.winningPlayer !== undefined ? t.winningPlayer : -1);
+            return ((winP === 0 || winP === 2) ? 0 : 1) === teamIdx;
+        }).length;
+        return (this.tricksWonByTeam[teamIdx] > 0 || roundTricksWon > 0);
+    }
+
     declarePair(pIndex) {
         if (this.pairDeclared || !this.hasPair(pIndex)) return;
         let team = (pIndex === 0 || pIndex === 2) ? 1 : 2;
@@ -4622,13 +4676,21 @@ class TwentyEightEngine {
         this.pairDeclaringTeam = team;
         playSound('pair');
 
+        let oldBid = this.currentBid;
         if (team === biddingTeam) {
-            this.currentBid = Math.max(14, this.currentBid - 4);
-            this.log(`👑 Player ${pIndex} declared Royal K-Q Pair! Target reduced to ${this.currentBid}.`);
+            // Rule: Contract cannot drop below 16 (16 is minimum ceiling/floor)
+            this.currentBid = Math.max(16, this.currentBid - 4);
+            let diff = oldBid - this.currentBid;
+            let reductionMsg = diff > 0 
+                ? `Target reduced from ${oldBid} to ${this.currentBid} (-${diff} pts).`
+                : `Target remains 16 pts (minimum contract ceiling).`;
+            this.log(`👑 Player ${pIndex} declared Royal K-Q Pair! ${reductionMsg}`);
         } else {
             this.currentBid = Math.min(28, this.currentBid + 4);
-            this.log(`👑 Player ${pIndex} declared Royal K-Q Pair! Target raised to ${this.currentBid}.`);
+            let diff = this.currentBid - oldBid;
+            this.log(`👑 Player ${pIndex} declared Royal K-Q Pair! Target raised from ${oldBid} to ${this.currentBid} (+${diff} pts).`);
         }
+        this.lastPairDeclaration = { player: pIndex, team, oldBid, newBid: this.currentBid, suit: this.trumpSuit };
     }
 
     canRevealTrump(pIndex) {
@@ -6869,6 +6931,125 @@ class UIController {
         }
     }
 
+    playRoyalPairAnimation(pIndex, onComplete) {
+        const splash = document.getElementById('royal-pair-splash');
+        if (!splash) {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
+        let pName = (pIndex === mySeat && mySeat !== 99) 
+            ? (currentLang === 'hi' ? 'आपने' : 'You')
+            : (this.playerNames[pIndex] || COMPASS_FULL[pIndex] || `Player ${pIndex}`);
+
+        let team = (pIndex === 0 || pIndex === 2) ? 1 : 2;
+        let biddingTeam = (this.engine.highestBidder === 0 || this.engine.highestBidder === 2) ? 1 : 2;
+        let isBiddingTeam = (team === biddingTeam);
+
+        let suit = this.engine.trumpSuit || '♥';
+        let isRed = (suit === '♥' || suit === '♦');
+        let suitColor = isRed ? '#ef4444' : '#38bdf8';
+
+        let oldBid = this.engine.currentBid;
+        // Rule: Contract cannot drop below 16
+        let newBid = isBiddingTeam ? Math.max(16, oldBid - 4) : Math.min(28, oldBid + 4);
+        let diff = Math.abs(newBid - oldBid);
+
+        let deltaText = '';
+        if (isBiddingTeam) {
+            if (diff > 0) {
+                deltaText = (currentLang === 'hi') 
+                    ? `🎯 लक्ष्य घटाया: ${oldBid} ➔ ${newBid} (-${diff} अंक)`
+                    : `🎯 Target Reduced: ${oldBid} ➔ ${newBid} (-${diff} pts)`;
+            } else {
+                deltaText = (currentLang === 'hi')
+                    ? `🎯 न्यूनतम सीमा: लक्ष्य 16 अंक पर बरकरार`
+                    : `🎯 Minimum Ceiling: Target remains 16 pts`;
+            }
+        } else {
+            deltaText = (currentLang === 'hi')
+                ? `🛡️ डिफेंडर बोनस! लक्ष्य बढ़ा: ${oldBid} ➔ ${newBid} (+${diff} अंक)`
+                : `🛡️ Defense Bonus! Target Raised: ${oldBid} ➔ ${newBid} (+${diff} pts)`;
+        }
+
+        let titleText = (currentLang === 'hi') ? '👑 रॉयल K-Q जोड़ी घोषित!' : '👑 ROYAL K-Q PAIR DECLARED!';
+        let subText = (currentLang === 'hi') 
+            ? `${pName} ने हुकुम (${suit}) की राजा-रानी जोड़ी घोषित की!` 
+            : `${pName} declared King & Queen of Trumps (${suit})!`;
+
+        splash.innerHTML = `
+            <div style="font-size:2.4rem; filter:drop-shadow(0 0 12px rgba(229,193,88,0.8)); margin-bottom:2px;">👑</div>
+            <div style="font-family:'Cinzel',serif; font-size:clamp(1.1rem, 2.4vh, 1.35rem); font-weight:900; color:var(--gold-bright); letter-spacing:1px; text-shadow:0 0 16px var(--gold-glow); margin-bottom:4px;">
+                ${titleText}
+            </div>
+            <div style="font-size:clamp(0.74rem, 1.6vh, 0.85rem); color:#cbd5e1; font-weight:700; margin-bottom:12px;">
+                ${subText}
+            </div>
+
+            <!-- Two Cards: King and Queen of Trumps side-by-side -->
+            <div style="display:flex; justify-content:center; gap:14px; margin-bottom:14px;">
+                <div class="pair-card-preview ${isRed ? 'red' : 'black'}">
+                    <div style="font-size:0.75rem; font-weight:900; line-height:1;">K<br>${suit}</div>
+                    <div style="font-size:1.7rem; line-height:1; color:${suitColor};">👑</div>
+                    <div style="font-size:0.75rem; font-weight:900; line-height:1; transform:rotate(180deg);">K<br>${suit}</div>
+                </div>
+                <div class="pair-card-preview ${isRed ? 'red' : 'black'}">
+                    <div style="font-size:0.75rem; font-weight:900; line-height:1;">Q<br>${suit}</div>
+                    <div style="font-size:1.7rem; line-height:1; color:${suitColor};">👸</div>
+                    <div style="font-size:0.75rem; font-weight:900; line-height:1; transform:rotate(180deg);">Q<br>${suit}</div>
+                </div>
+            </div>
+
+            <div style="display:inline-block; padding:6px 16px; border-radius:20px; font-weight:800; font-size:clamp(0.76rem, 1.6vh, 0.88rem); background:rgba(229,193,88,0.18); border:1.5px solid var(--gold-primary); color:var(--gold-bright); box-shadow:0 0 16px rgba(229,193,88,0.3);">
+                ${deltaText}
+            </div>
+        `;
+
+        splash.style.display = 'flex';
+        playSound('pair');
+
+        if (typeof showGameToast === 'function') {
+            showGameToast(`👑 ${pName} declared Royal K-Q Pair! (${deltaText})`, 3400);
+        }
+
+        if (window.confetti) {
+            confetti({
+                particleCount: 50,
+                spread: 70,
+                origin: { y: 0.5 },
+                colors: ['#e5c158', '#f59e0b', '#ffffff', '#38bdf8']
+            });
+        }
+
+        if (window.gsap) {
+            gsap.killTweensOf(splash);
+            gsap.fromTo(splash,
+                { scale: 0.3, opacity: 0, xPercent: -50, yPercent: -50 },
+                { scale: 1, opacity: 1, xPercent: -50, yPercent: -50, duration: 0.38, ease: "back.out(1.5)" }
+            );
+
+            let holdDuration = Math.round(1900 * speedMult);
+            setTimeout(() => {
+                gsap.to(splash, {
+                    scale: 0.85,
+                    opacity: 0,
+                    duration: 0.25,
+                    ease: "power2.in",
+                    onComplete: () => {
+                        splash.style.display = 'none';
+                        if (onComplete) onComplete();
+                    }
+                });
+            }, holdDuration);
+        } else {
+            setTimeout(() => {
+                splash.style.display = 'none';
+                if (onComplete) onComplete();
+            }, Math.round(1900 * speedMult));
+        }
+    }
+
     playTrumpRevealAnimation(suit) {
         this.animatingReveal = true;
         const blast = document.getElementById('dramatic-reveal');
@@ -7505,9 +7686,19 @@ class UIController {
             else if (this.engine.phase === 'PLAYING') {
                 this.isAIThinking = true;
 
-                let team = (turnPlayer === 0 || turnPlayer === 2) ? 0 : 1;
-                if (!this.engine.pairDeclared && this.engine.hasPair(turnPlayer) && this.engine.tricksWonByTeam[team] > 0) {
-                    this.engine.declarePair(turnPlayer);
+                if (this.engine.canDeclarePair(turnPlayer)) {
+                    this.isAIThinking = false;
+                    if (gameMode === 'multi' && isHost) {
+                        broadcastNetMessage({ type: 'UI_EVENT', pairEvent: { player: turnPlayer } });
+                    }
+                    this.playRoyalPairAnimation(turnPlayer, () => {
+                        this.engine.declarePair(turnPlayer);
+                        if (gameMode === 'multi' && isHost) this.broadcastGameState();
+                        this.syncTable();
+                        this.renderStaticBoard();
+                        this.gameLoop();
+                    });
+                    return;
                 }
 
                 // AI Watchdog Timer (4.5s): Guarantees the bot will NEVER freeze the table
@@ -7605,8 +7796,7 @@ class UIController {
                 btn.style.display = canReveal ? 'block' : 'none';
 
                 const pairBtn = document.getElementById('pair-btn');
-                let myTeam = (mySeat === 0 || mySeat === 2) ? 0 : 1;
-                if (!this.engine.pairDeclared && this.engine.hasPair(mySeat) && this.engine.tricksWonByTeam[myTeam] > 0) {
+                if (this.engine.canDeclarePair(mySeat)) {
                     pairBtn.style.display = 'block';
                 } else {
                     pairBtn.style.display = 'none';
@@ -7844,9 +8034,19 @@ class UIController {
     }
 
     onDeclarePairClick() {
-        document.getElementById('pair-btn').style.display = 'none';
-        if(gameMode === 'multi') sendNetMessage({type:'DECLARE_PAIR', player: mySeat});
-        else { this.engine.declarePair(mySeat); this.gameLoop(); }
+        const pBtn = document.getElementById('pair-btn');
+        if (pBtn) pBtn.style.display = 'none';
+        if (gameMode === 'multi') sendNetMessage({type:'DECLARE_PAIR', player: mySeat});
+        this.playRoyalPairAnimation(mySeat, () => {
+            this.engine.declarePair(mySeat);
+            if (gameMode === 'multi' && isHost) {
+                broadcastNetMessage({ type: 'UI_EVENT', pairEvent: { player: mySeat } });
+                this.broadcastGameState();
+            }
+            this.syncTable();
+            this.renderStaticBoard();
+            this.gameLoop();
+        });
     }
 
     startNewRound() {
@@ -8156,6 +8356,9 @@ document.addEventListener('keydown', function(e) {
 
 // ==================== TEST HARNESS FOR UI FEATURES ====================
 window.testUIFeatures = function() {
+    if (typeof ui !== 'undefined' && ui && ui.playRoyalPairAnimation) {
+        ui.playRoyalPairAnimation(0);
+    }
     console.log("Testing UI features...");
     if (typeof showYourTurnBanner === 'function') {
         showYourTurnBanner("✨ YOUR TURN — Lead a Card (Test Demo)", 4000);
