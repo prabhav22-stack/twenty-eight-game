@@ -560,18 +560,21 @@ body::before {
     flex-wrap: wrap;
 }
 .trc-mini-card {
-    width: 26px;
-    height: 34px;
-    border-radius: 4px;
+    min-width: 28px;
+    width: auto;
+    height: 32px;
+    padding: 0 5px;
+    border-radius: 5px;
     background: #ffffff;
     font-weight: 800;
-    font-size: 0.76rem;
+    font-size: 0.78rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
     border: 1px solid rgba(0, 0, 0, 0.15);
     line-height: 1;
+    white-space: nowrap;
 }
 .trc-mini-card.red { color: #dc2626; }
 .trc-mini-card.black { color: #0f172a; }
@@ -605,20 +608,17 @@ body::before {
 
 .trc-footer-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 7px;
     margin-top: 4px;
 }
-@media (max-width: 480px) {
-    .trc-footer-grid { grid-template-columns: 1fr; }
-}
-.trc-synergy-box, .trc-locker-box {
+.trc-synergy-box {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 9px;
-    padding: 7px 9px;
+    padding: 8px 10px;
 }
-.trc-synergy-header, .trc-locker-header {
+.trc-synergy-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1776,7 +1776,7 @@ body::before {
             <div id="trc-tp-explanation" class="trc-body-text"></div>
         </div>
 
-        <!-- Section 3: Partner Synergy & Bot Locker Room -->
+        <!-- Section 3: Partner Synergy -->
         <div class="trc-footer-grid">
             <div class="trc-synergy-box">
                 <div class="trc-synergy-header">
@@ -1787,14 +1787,6 @@ body::before {
                     <div id="trc-synergy-bar" class="trc-progress-fill" style="width:65%;"></div>
                 </div>
                 <div id="trc-synergy-note" class="trc-micro-text"></div>
-            </div>
-
-            <div class="trc-locker-box">
-                <div class="trc-locker-header">
-                    <span class="trc-locker-icon">💬</span>
-                    <span id="trc-locker-speaker" class="trc-locker-name">Saboteur (West)</span>
-                </div>
-                <div id="trc-locker-taunt" class="trc-locker-quote">"Thanks for the feed."</div>
             </div>
         </div>
 
@@ -4802,6 +4794,10 @@ class TwentyEightEngine {
             winningCard: winningPlay.card ? `${winningPlay.card.rank}${winningPlay.card.suit}` : '',
             points: trickPoints,
             honors: trickHonors,
+            plays: (this.trickCards || []).map(tc => ({
+                player: tc.player,
+                card: tc.card ? { suit: tc.card.suit, rank: tc.card.rank, value: tc.card.value, power: tc.card.power } : null
+            })),
             trumpRevealedThisTrick: this.justRevealedInCurrentTrick ? {
                 by: this.justRevealedByPlayer,
                 seat: COMPASS_FULL[this.justRevealedByPlayer] || `Player ${this.justRevealedByPlayer}`,
@@ -4851,28 +4847,41 @@ class TwentyEightEngine {
         let seatInTrick = trickCardsSoFar.length; // 0=lead, 1=second, 2=third, 3=fourth
 
         // 1. DRY_9_AMBUSH: Human leads or plays a 9 (2 pts) when Jack of that suit is still unplayed and held by opponent
+        let humanSeat = (typeof mySeat !== 'undefined' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) ? mySeat : 0;
+        let partnerSeat = (humanSeat + 2) % 4;
+        let humanName = (typeof myNickname !== 'undefined' && myNickname) ? myNickname : (COMPASS_FULL[humanSeat] || 'You');
+
         if (card.rank === '9') {
             let jackPlayedAlready = this.playedCardsHistory.some(c => c.suit === card.suit && c.rank === 'J');
-            let jackInTrick = trickCardsSoFar.some(tc => tc.card.suit === card.suit && tc.card.rank === 'J');
-            let jackInPartnerHand = this.players[2] && this.players[2].some(c => c.suit === card.suit && c.rank === 'J');
+            let jackInTrick = trickCardsSoFar.some(tc => tc.card && tc.card.suit === card.suit && tc.card.rank === 'J');
+            let jackInPartnerHand = this.players[partnerSeat] && this.players[partnerSeat].some(c => c.suit === card.suit && c.rank === 'J');
             if (!jackPlayedAlready && !jackInTrick && !jackInPartnerHand) {
-                let oppHolding = (this.players[3] && this.players[3].some(c => c.suit === card.suit && c.rank === 'J')) ? 'West' : 'East';
+                let lowerCardInSuit = handBeforePlay.find(c => c.suit === card.suit && c.rank !== '9' && c.rank !== 'J');
+                let safeAlt = lowerCardInSuit ? `${lowerCardInSuit.rank}${lowerCardInSuit.suit}` : (handBeforePlay.find(c => c.rank !== '9') ? `${handBeforePlay.find(c => c.rank !== '9').rank}${handBeforePlay.find(c => c.rank !== '9').suit}` : `${card.rank}${card.suit}`);
+                let oppHolding = 'Opponent';
+                for (let opp of [(humanSeat + 1) % 4, (humanSeat + 3) % 4]) {
+                    if (this.players[opp] && this.players[opp].some(c => c.suit === card.suit && c.rank === 'J')) {
+                        oppHolding = COMPASS_FULL[opp] || `Player ${opp}`;
+                        break;
+                    }
+                }
                 this.humanBlunders.push({
                     tag: 'DRY_9_AMBUSH',
                     trickNum: trickNum,
                     cardPlayed: `${card.rank}${card.suit}`,
-                    details: `Trick ${trickNum}: South played 9${card.suit} while J${card.suit} was still live in ${oppHolding}'s hand, gifting a 5-point swing.`,
+                    optimalCard: safeAlt,
+                    details: `Trick ${trickNum}: Played 9${card.suit} while J${card.suit} was still live in ${oppHolding}'s hand, conceding high honors.`,
                     pointSwing: 5
                 });
             }
         }
 
         // 2. MISSED_FATTENING: Partner (Wingman) plays guaranteed boss card, and human plays 7/8 while holding unprotected 10 or Ace
-        let northPlay = trickCardsSoFar.find(tc => tc.player === 2);
+        let northPlay = trickCardsSoFar.find(tc => tc.player === partnerSeat);
         if (northPlay && northPlay.card) {
             let northIsWinning = false;
             let currentWinner = this._getCurrentTrickWinner();
-            if (currentWinner && currentWinner.player === 2) {
+            if (currentWinner && currentWinner.player === partnerSeat) {
                 let isBoss = this._isCardHighestRemaining(northPlay.card) || (this.trumpRevealed && northPlay.card.suit === this.trumpSuit && this._isCardHighestRemaining(northPlay.card));
                 if (isBoss || seatInTrick === 3) northIsWinning = true;
             }
@@ -4918,11 +4927,14 @@ class TwentyEightEngine {
             let otherRank = (card.rank === 'K') ? 'Q' : 'K';
             let holdsOther = handBeforePlay.some(c => c.suit === this.trumpSuit && c.rank === otherRank);
             if (holdsOther && (!this.trumpRevealed || !this.pairDeclared)) {
+                let otherNonPair = handBeforePlay.find(c => c.suit !== this.trumpSuit || (c.rank !== 'K' && c.rank !== 'Q'));
+                let altCard = otherNonPair ? `${otherNonPair.rank}${otherNonPair.suit}` : `${card.rank}${card.suit}`;
                 this.humanBlunders.push({
                     tag: 'ROYAL_PAIR_MISPLAY',
                     trickNum: trickNum,
                     cardPlayed: `${card.rank}${card.suit}`,
-                    details: `Trick ${trickNum}: South discarded ${card.rank}${card.suit} before declaring Royal Pair, throwing away a 4-point contract reduction.`,
+                    optimalCard: altCard,
+                    details: `Trick ${trickNum}: Discarded ${card.rank}${card.suit} before declaring Royal Pair, throwing away a 4-point contract bonus.`,
                     pointSwing: 4
                 });
             }
@@ -4968,30 +4980,55 @@ class TwentyEightEngine {
         let tpNum = tpTrick.trickNum || (worstTrickIndex + 1);
         let tpSnapshot = this.trickSnapshots[worstTrickIndex] || null;
 
-        let southPlay = null;
-        if (this.roundTricks[worstTrickIndex] && this.roundTricks[worstTrickIndex].honors) {
-            southPlay = this.roundTricks[worstTrickIndex].honors.find(h => h.player === 0);
+        let humanSeat = (typeof mySeat !== 'undefined' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) ? mySeat : 0;
+        let humanCardPlayed = null;
+        if (tpTrick && tpTrick.plays) {
+            let p = tpTrick.plays.find(play => play.player === humanSeat);
+            if (p && p.card) humanCardPlayed = `${p.card.rank}${p.card.suit}`;
         }
-        let southCardPlayed = southPlay ? `${southPlay.rank}${southPlay.suit}` : (this.playedCardsHistory[0] ? `${this.playedCardsHistory[0].rank}${this.playedCardsHistory[0].suit}` : 'Card');
+        if (!humanCardPlayed && tpTrick && tpTrick.honors) {
+            let h = tpTrick.honors.find(hon => hon.player === humanSeat);
+            if (h) humanCardPlayed = `${h.rank}${h.suit}`;
+        }
+        if (!humanCardPlayed) {
+            if (tpSnapshot && tpSnapshot.hands && tpSnapshot.hands[humanSeat] && tpSnapshot.hands[humanSeat].length > 0) {
+                let firstC = tpSnapshot.hands[humanSeat][0];
+                humanCardPlayed = `${firstC.rank}${firstC.suit}`;
+            } else if (this.playedCardsHistory && this.playedCardsHistory.length > 0) {
+                let firstC = this.playedCardsHistory[0];
+                humanCardPlayed = `${firstC.rank}${firstC.suit}`;
+            } else {
+                humanCardPlayed = '7♠';
+            }
+        }
 
         let trickBlunder = this.humanBlunders.find(b => b.trickNum === tpNum);
         let optimalCard = trickBlunder ? trickBlunder.optimalCard : '';
+        if (!optimalCard) {
+            if (tpSnapshot && tpSnapshot.hands && tpSnapshot.hands[humanSeat] && tpSnapshot.hands[humanSeat].length > 0) {
+                let hand = tpSnapshot.hands[humanSeat];
+                let sorted = [...hand].sort((a, b) => (a.power || 0) - (b.power || 0));
+                let safeC = sorted[0];
+                if (safeC) optimalCard = `${safeC.rank}${safeC.suit}`;
+            }
+        }
+        if (!optimalCard) optimalCard = '7♦';
+
         let dropPct = Math.min(65, Math.max(15, Math.round(Math.abs(worstDrop) / (team1Target || 16) * 100)));
         let winProbDropStr = `-${dropPct}%`;
 
         let counterfactualExplanation = "";
         if (trickBlunder) {
             counterfactualExplanation = trickBlunder.details;
-            if (!optimalCard) optimalCard = trickBlunder.cardPlayed;
         } else {
-            counterfactualExplanation = `Trick ${tpNum} was the critical inflection point where Team 2 seized ${tpTrick.points} points. Preserving honors would have secured contract pace.`;
+            counterfactualExplanation = `Trick ${tpNum} was the critical inflection point where Team 2 seized ${tpTrick.points} points. Discarding a low non-honor (${optimalCard}) would have preserved control.`;
         }
 
         let turningPointData = {
             trickNumber: tpNum,
             winProbDrop: winProbDropStr,
-            cardPlayed: trickBlunder ? trickBlunder.cardPlayed : southCardPlayed,
-            optimalCard: optimalCard || 'Safe Exit',
+            cardPlayed: (trickBlunder && trickBlunder.cardPlayed) ? trickBlunder.cardPlayed : humanCardPlayed,
+            optimalCard: optimalCard,
             explanation: counterfactualExplanation,
             allHands: tpSnapshot ? tpSnapshot.hands : null
         };
@@ -7732,22 +7769,32 @@ class UIController {
             tpDropEl.innerText = dropText;
         }
         let playedEl = document.getElementById('trc-played-card');
-        if (playedEl && tpData.cardPlayed) {
-            let cStr = tpData.cardPlayed;
-            let rank = cStr.slice(0, -1);
-            let suit = cStr.slice(-1);
-            let isRed = (suit === '♥' || suit === '♦');
-            playedEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
-            playedEl.innerText = `${rank}${suit}`;
+        if (playedEl) {
+            let cStr = (tpData.cardPlayed && tpData.cardPlayed !== 'Card') ? String(tpData.cardPlayed).trim() : '';
+            if (cStr && (cStr.includes('♥') || cStr.includes('♦') || cStr.includes('♣') || cStr.includes('♠'))) {
+                let rank = cStr.slice(0, -1);
+                let suit = cStr.slice(-1);
+                let isRed = (suit === '♥' || suit === '♦');
+                playedEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
+                playedEl.innerText = `${rank}${suit}`;
+                playedEl.style.display = 'inline-flex';
+            } else {
+                playedEl.style.display = 'none';
+            }
         }
         let optEl = document.getElementById('trc-optimal-card');
-        if (optEl && tpData.optimalCard) {
-            let cStr = tpData.optimalCard;
-            let rank = cStr.slice(0, -1);
-            let suit = cStr.slice(-1);
-            let isRed = (suit === '♥' || suit === '♦');
-            optEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
-            optEl.innerText = `${rank}${suit}`;
+        if (optEl) {
+            let cStr = (tpData.optimalCard && tpData.optimalCard !== 'Safe Exit') ? String(tpData.optimalCard).trim() : '';
+            if (cStr && (cStr.includes('♥') || cStr.includes('♦') || cStr.includes('♣') || cStr.includes('♠'))) {
+                let rank = cStr.slice(0, -1);
+                let suit = cStr.slice(-1);
+                let isRed = (suit === '♥' || suit === '♦');
+                optEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
+                optEl.innerText = `${rank}${suit}`;
+                optEl.style.display = 'inline-flex';
+            } else {
+                optEl.style.display = 'none';
+            }
         }
         let tpExpEl = document.getElementById('trc-tp-explanation');
         if (tpExpEl) tpExpEl.innerText = tpData.explanation || '';
@@ -7762,12 +7809,7 @@ class UIController {
         if (synBarEl) synBarEl.style.width = `${score}%`;
         if (synNoteEl) synNoteEl.innerText = synData.note || '';
 
-        // 4. Bot Locker Room Quote
-        let lockerData = (res && res.botLockerRoom) ? res.botLockerRoom : (telemetry ? telemetry.bot_locker_room : {});
-        let speakerEl = document.getElementById('trc-locker-speaker');
-        let tauntEl = document.getElementById('trc-locker-taunt');
-        if (speakerEl) speakerEl.innerText = lockerData.speaker || 'Saboteur (West)';
-        if (tauntEl) tauntEl.innerText = `"${lockerData.taunt || ''}"`;
+        // (Bot comments / locker room removed per user request)
 
         // Smooth GSAP Entrance
         if (window.gsap) {

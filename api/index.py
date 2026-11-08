@@ -767,7 +767,11 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
 
     tp_drop = turning_point.get('winProbDrop') or turning_point.get('paceDrop') or "-28%"
     tp_card_played = turning_point.get('cardPlayed') or turning_point.get('southCard') or ""
+    if tp_card_played == "Card":
+        tp_card_played = ""
     tp_optimal_card = turning_point.get('optimalCard') or ""
+    if tp_optimal_card == "Safe Exit":
+        tp_optimal_card = ""
     tp_explanation = turning_point.get('explanation') or turning_point.get('reason') or ""
 
     # Calculate overall grade based on outcome and blunders
@@ -849,10 +853,6 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
         '  "partnerSynergy": {\n'
         '    "score": 65,\n'
         "    \"note\": \"Wingman signaled Clubs strength on Trick 2, but you never led back to North's hand.\"\n"
-        '  },\n'
-        '  "botLockerRoom": {\n'
-        '    "speaker": "Saboteur (West)",\n'
-        '    "taunt": "Thanks for feeding my Jack of Diamonds on Trick 5—made breaking your 16 contract a walk in the park."\n'
         '  }\n'
         "}"
     )
@@ -921,10 +921,6 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
         "partnerSynergy": {
             "score": partner_synergy.get('score', 75 if success else 60),
             "note": partner_synergy.get('note') or fallback_synergy_note
-        },
-        "botLockerRoom": {
-            "speaker": bot_locker_room.get('speaker') or default_speaker,
-            "taunt": bot_locker_room.get('taunt') or default_taunt
         },
         "verdict": verdict_hi if language == 'hi' else verdict_en,
         "recap": fallback_tp_explanation
