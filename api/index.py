@@ -826,33 +826,37 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
     human_bid_val = bidding_audit.get('human_bid', contract)
 
     # Call Groq Cloud LLM for grandmaster commentary
+    is_human_declarer = (bidding_winner == 0)
+    b_summary_base = bidding_audit.get('summary', '')
+    synergy_note_base = partner_synergy.get('note', '')
+
     system_prompt = (
         "You are an elite Twenty-Eight (28) card game grandmaster coach.\n"
         "Deliver an insightful, razor-sharp tactical post-match analysis strictly grounded in the telemetry provided.\n\n"
         "CRITICAL COACHING RULES FOR TWENTY-EIGHT (28):\n"
-        "1. NEVER give generic advice (e.g., 'communicate with your partner', 'save high cards', 'be careful when bidding').\n"
-        "2. Every single sentence MUST cite a specific Trick Number (Trick 1-8) and exact Card Ranks/Suits from the provided telemetry log (e.g., 'J♠', '9♥', '10♣').\n"
-        "3. Respect 28-specific rules: remember that J=3pts, 9=2pts, A=1pt, 10=1pt, and K/Q/8/7=0pts. Never call a King or Ace the highest card in a suit—Jack and 9 outrank Ace! The card hierarchy is strictly J > 9 > A > 10 > K > Q > 8 > 7.\n"
-        "4. Remember the Bidder cannot lead the secret trump suit before it is revealed unless they have no other suits.\n"
-        "5. Analyze the exact telemetry blunders array first. Explain the mathematical point swing of the biggest blunder compared to the optimal legal card in the player's hand at that moment.\n"
+        "1. STRICT TRUTH: Reference ONLY the exact cards and suits South actually held in Deal 1. If South held Spades and Hearts, NEVER mention Clubs or Diamonds. Do not hallucinate cards!\n"
+        "2. ROLE ACCURACY: If South did not win the bid, South was the DEFENDER. NEVER say South bid 16 or selected trump when South was defending!\n"
+        "3. TRICK ISOLATION: In turningPointTrick.explanation, discuss ONLY the specified inflection trick. DO NOT combine or mention other trick numbers.\n"
+        "4. LEGAL PLAYS ONLY: The optimalCard is pre-computed as a strictly legal play for that trick. Do not suggest other cards.\n"
+        "5. Respect 28 card hierarchy: strictly J (3pts) > 9 (2pts) > A (1pt) > 10 (1pt) > K (0) > Q (0) > 8 (0) > 7 (0).\n"
         "6. Return ONLY valid JSON format matching the schema exactly.\n\n"
-        "OUTPUT JSON SCHEMA:\n"
+        "OUTPUT JSON SCHEMA (Do not copy example cards; use the exact match telemetry):\n"
         "{\n"
-        '  "overallGrade": "B-",\n'
+        '  "overallGrade": "<A+|A|B+|B|B-|C+|C|D>",\n'
         '  "biddingVerdict": {\n'
-        '    "rating": "Optimal",\n'
-        '    "summary": "Bidding 16 with J-9 of Hearts in your first 4 cards was textbook, and picking Hearts kept your high honors active."\n'
+        '    "rating": "<rating>",\n'
+        '    "summary": "<one sentence evaluating South deal 1 cards and pass/bid choice>"\n'
         '  },\n'
         '  "turningPointTrick": {\n'
-        '    "trickNumber": 5,\n'
-        '    "winProbDrop": "-38%",\n'
-        '    "cardPlayed": "9D",\n'
-        '    "optimalCard": "7D",\n'
-        "    \"explanation\": \"Leading the bare 9♦ when J♦ was still unaccounted for walked straight into Saboteur's trap. Leading 7♦ would have forced the Jack out cleanly.\"\n"
+        '    "trickNumber": <number>,\n'
+        '    "winProbDrop": "<percentage>",\n'
+        '    "cardPlayed": "<exact_card>",\n'
+        '    "optimalCard": "<exact_card>",\n'
+        '    "explanation": "<one or two sentences explaining strictly this trick and why cardPlayed caused a drop vs optimalCard>"\n'
         '  },\n'
         '  "partnerSynergy": {\n'
-        '    "score": 65,\n'
-        "    \"note\": \"Wingman signaled Clubs strength on Trick 2, but you never led back to North's hand.\"\n"
+        '    "score": <number>,\n'
+        '    "note": "<grounded note on partnership coordination between South and North>"\n'
         '  }\n'
         "}"
     )
@@ -862,19 +866,21 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
             "as spoken by a seasoned Indian 28 grandmaster."
         )
 
+    role_desc = "South was the DECLARER / CONTRACTOR" if is_human_declarer else f"South was DEFENDER against {winner_name}'s {contract}-pt contract"
     user_prompt = (
         f"Match Context & Pre-Computed Telemetry:\n"
-        f"- Declarer: {winner_name} ({declarer_team_en})\n"
-        f"- Contract Bid: {contract} pts | Trump: {suit_en} ({trump_suit})\n"
+        f"- Player Role: {role_desc}\n"
+        f"- Contract Bid: {contract} pts by {winner_name} | Trump: {suit_en} ({trump_suit})\n"
         f"- Final Score: Team 1 (South & North) = {t1_pts}/28 pts | Team 2 (East & West) = {t2_pts}/28 pts\n"
-        f"- Outcome: {'VICTORY (Contract Fulfilled)' if success else f'DEFEATED by {abs_diff} pts'}\n"
-        f"- Phase 1 (4-Card Deal): South held [{deal1_str}], Bid: {human_bid_val}, EV: {b_ev}, Rating: {b_rating}\n"
-        f"- Phase 2 (Deal 2 draw): South drew [{deal2_str}]\n"
-        f"- Detected Tactical Blunders:\n{blunders_text}\n"
-        f"- Critical Inflection Point (Trick {tp_trick_num}): Win Pace Drop {tp_drop}. Played: {tp_card_played}. Optimal: {tp_optimal_card}.\n"
-        f"  * Context: {tp_explanation}\n"
-        f"- Opponents at Table: Striker (East), Saboteur (West) | Partner: Wingman (North)\n"
-        f"Generate the exact structured JSON Tactical Report Card."
+        f"- Match Outcome: {'VICTORY (Contract Fulfilled)' if success else f'DEFEATED by {abs_diff} pts'}\n"
+        f"- South's Deal 1 (First 4 cards): [{deal1_str}] | South Action: {'Bid ' + str(human_bid_val) if is_human_declarer else 'Passed'} | EV: {b_ev} | Rating: {b_rating}\n"
+        f"- Ground-Truth Bidding Assessment: {b_summary_base}\n"
+        f"- Critical Inflection Point: Trick {tp_trick_num} (Win Pace Drop: {tp_drop})\n"
+        f"  * South Card Played: {tp_card_played}\n"
+        f"  * Recommended Legal Card: {tp_optimal_card}\n"
+        f"  * Tactical Context: {tp_explanation}\n"
+        f"- Partner Synergy Baseline: {partner_synergy.get('score', 65)}% - {synergy_note_base}\n"
+        f"Generate the exact structured JSON Tactical Report Card strictly adhering to these factual details."
     )
 
     messages = [

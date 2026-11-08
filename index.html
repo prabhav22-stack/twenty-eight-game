@@ -5240,15 +5240,31 @@ class TwentyEightEngine {
 
         let trickBlunder = this.humanBlunders.find(b => b.trickNum === tpNum);
         let optimalCard = trickBlunder ? trickBlunder.optimalCard : '';
+        let isForcedPlay = false;
+
         if (!optimalCard) {
-            if (tpSnapshot && tpSnapshot.hands && tpSnapshot.hands[humanSeat] && tpSnapshot.hands[humanSeat].length > 0) {
-                let hand = tpSnapshot.hands[humanSeat];
-                let sorted = [...hand].sort((a, b) => (a.power || 0) - (b.power || 0));
-                let safeC = sorted[0];
-                if (safeC) optimalCard = `${safeC.rank}${safeC.suit}`;
+            let hand = (tpSnapshot && tpSnapshot.hands && tpSnapshot.hands[humanSeat]) ? tpSnapshot.hands[humanSeat] : [];
+            let leadSuit = (tpTrick.plays && tpTrick.plays.length > 0 && tpTrick.plays[0].card) 
+                ? tpTrick.plays[0].card.suit 
+                : (tpTrick.leadSuit || null);
+
+            // Filter for strictly LEGAL plays in human's hand for this trick
+            let legalCards = hand;
+            if (leadSuit && hand.some(c => c.suit === leadSuit)) {
+                legalCards = hand.filter(c => c.suit === leadSuit);
+            }
+            if (legalCards.length > 0) {
+                let alts = legalCards.filter(c => `${c.rank}${c.suit}` !== humanCardPlayed);
+                if (alts.length > 0) {
+                    alts.sort((a, b) => (a.power || 0) - (b.power || 0));
+                    optimalCard = `${alts[0].rank}${alts[0].suit}`;
+                } else {
+                    optimalCard = humanCardPlayed;
+                    isForcedPlay = true;
+                }
             }
         }
-        if (!optimalCard) optimalCard = '7♦';
+        if (!optimalCard) optimalCard = humanCardPlayed;
 
         let dropPct = Math.min(65, Math.max(15, Math.round(Math.abs(worstDrop) / (team1Target || 16) * 100)));
         let winProbDropStr = `-${dropPct}%`;
@@ -5256,8 +5272,10 @@ class TwentyEightEngine {
         let counterfactualExplanation = "";
         if (trickBlunder) {
             counterfactualExplanation = trickBlunder.details;
+        } else if (isForcedPlay || optimalCard === humanCardPlayed) {
+            counterfactualExplanation = `Trick ${tpNum} was an unavoidable honor capture by opponents (${tpTrick.points} pts); playing ${humanCardPlayed} was your only legal move in suit.`;
         } else {
-            counterfactualExplanation = `Trick ${tpNum} was the critical inflection point where Team 2 seized ${tpTrick.points} points. Discarding a low non-honor (${optimalCard}) would have preserved control.`;
+            counterfactualExplanation = `Trick ${tpNum} swung momentum by ${winProbDropStr} when opponents took ${tpTrick.points} points. Playing legal ${optimalCard} instead of ${humanCardPlayed} would have minimized point bleed.`;
         }
 
         let turningPointData = {
@@ -5270,15 +5288,15 @@ class TwentyEightEngine {
         };
 
         // 3. Phase 1 Bidding Audit
-        let deal1Cards = (this.deal1Hands && this.deal1Hands[0]) ? this.deal1Hands[0].map(c => `${c.rank}${c.suit}`) : [];
-        let deal2Cards = (this.deal2Hands && this.deal2Hands[0]) ? this.deal2Hands[0].map(c => `${c.rank}${c.suit}`) : [];
-        let d1Points = (this.deal1Hands && this.deal1Hands[0]) ? this.deal1Hands[0].reduce((s, c) => s + (c.value || 0), 0) : 0;
-        let d2Points = (this.deal2Hands && this.deal2Hands[0]) ? this.deal2Hands[0].reduce((s, c) => s + (c.value || 0), 0) : 0;
+        let deal1Cards = (this.deal1Hands && this.deal1Hands[humanSeat]) ? this.deal1Hands[humanSeat].map(c => `${c.rank}${c.suit}`) : [];
+        let deal2Cards = (this.deal2Hands && this.deal2Hands[humanSeat]) ? this.deal2Hands[humanSeat].map(c => `${c.rank}${c.suit}`) : [];
+        let d1Points = (this.deal1Hands && this.deal1Hands[humanSeat]) ? this.deal1Hands[humanSeat].reduce((s, c) => s + (c.value || 0), 0) : 0;
+        let d2Points = (this.deal2Hands && this.deal2Hands[humanSeat]) ? this.deal2Hands[humanSeat].reduce((s, c) => s + (c.value || 0), 0) : 0;
 
         let suitPoints = {'♥':0, '♦':0, '♣':0, '♠':0};
         let suitLengths = {'♥':0, '♦':0, '♣':0, '♠':0};
-        if (this.deal1Hands && this.deal1Hands[0]) {
-            this.deal1Hands[0].forEach(c => {
+        if (this.deal1Hands && this.deal1Hands[humanSeat]) {
+            this.deal1Hands[humanSeat].forEach(c => {
                 suitPoints[c.suit] += (c.value || 0);
                 suitLengths[c.suit]++;
             });
@@ -5292,8 +5310,11 @@ class TwentyEightEngine {
         let ev = 14 + (suitPoints[bestSuit] * 1.5) + (suitLengths[bestSuit]);
 
         let biddingRating = "Optimal";
-        let humanBid = (this.playerBids && this.playerBids[0] && this.playerBids[0] !== 'Pass') ? parseInt(this.playerBids[0]) : null;
-        if (humanBid) {
+        let humanBid = (this.playerBids && this.playerBids[humanSeat] && this.playerBids[humanSeat] !== 'Pass') ? parseInt(this.playerBids[humanSeat]) : null;
+        let isHumanBidWinner = (this.highestBidder === humanSeat);
+        let bidderName = this.playerNames[this.highestBidder] || COMPASS_FULL[this.highestBidder] || `Player ${this.highestBidder}`;
+
+        if (isHumanBidWinner && humanBid) {
             if (humanBid <= Math.round(ev) + 1) {
                 if (d2Points <= 1 && !this.roundSuccess) biddingRating = "Variance / Bad Luck";
                 else biddingRating = "Optimal";
@@ -5307,16 +5328,16 @@ class TwentyEightEngine {
         }
 
         let biddingSummary = "";
-        if (humanBid) {
+        if (isHumanBidWinner && humanBid) {
             if (biddingRating === "Variance / Bad Luck") {
                 biddingSummary = `Your ${humanBid} bid on [${deal1Cards.join(', ')}] was mathematically textbook; drawing zero honors in the second deal was pure variance.`;
             } else if (biddingRating === "Aggressive Overbid") {
-                biddingSummary = `Bidding ${humanBid} exceeded your 4-card EV (${Math.round(ev * 10)/10}); tucking high honors face-down starved your trick firepower.`;
+                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] exceeded 4-card EV (${Math.round(ev * 10)/10}); choosing ${bestSuit} faced heavy defensive resistance.`;
             } else {
-                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] was spot-on, and selecting ${bestSuit} kept your high honors active.`;
+                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] was spot-on, leveraging your high ${bestSuit} honors.`;
             }
         } else {
-            biddingSummary = `Passing on [${deal1Cards.join(', ')}] was ${biddingRating.toLowerCase()}, preventing overextension.`;
+            biddingSummary = `Holding [${deal1Cards.join(', ')}], passing against ${bidderName}'s ${this.currentBid} contract was a ${biddingRating.toLowerCase()}, preserving your honors for defense.`;
         }
 
         let biddingAuditData = {
@@ -5324,7 +5345,10 @@ class TwentyEightEngine {
             summary: biddingSummary,
             deal1_cards: deal1Cards,
             deal2_cards: deal2Cards,
-            human_bid: humanBid || 'Pass',
+            human_bid: isHumanBidWinner ? (humanBid || 'Pass') : 'Pass',
+            is_contractor: isHumanBidWinner,
+            contractor_name: bidderName,
+            contract_bid: this.currentBid,
             ev: Math.round(ev * 10) / 10
         };
 
@@ -8174,7 +8198,17 @@ class UIController {
             }).join('');
         }
         let bSumEl = document.getElementById('trc-bidding-summary');
-        if (bSumEl) bSumEl.innerText = bData.summary || '';
+        let finalBSummary = bData.summary || '';
+        let actualD1 = (telemetry && telemetry.bidding_audit && telemetry.bidding_audit.deal1_cards) ? telemetry.bidding_audit.deal1_cards : [];
+        let actualSuits = actualD1.map(c => c.slice(-1));
+        let isBidWinner = telemetry && telemetry.bidding_audit && telemetry.bidding_audit.is_contractor;
+        // Check for hallucinations (e.g. mentioning Hearts when player only held Spades, or claiming player bid 16 when player passed)
+        let hasFakeSuit = (finalBSummary.includes('Hearts') || finalBSummary.includes('♥')) && !actualSuits.includes('♥');
+        let hasFakeBid = !isBidWinner && (finalBSummary.toLowerCase().includes('bidding 16') || finalBSummary.toLowerCase().includes('picking'));
+        if (hasFakeSuit || hasFakeBid || !finalBSummary) {
+            finalBSummary = (telemetry && telemetry.bidding_audit && telemetry.bidding_audit.summary) ? telemetry.bidding_audit.summary : finalBSummary;
+        }
+        if (bSumEl) bSumEl.innerText = finalBSummary;
 
         // 2. Turning Point Section
         let tpData = (res && res.turningPointTrick) ? res.turningPointTrick : (telemetry ? telemetry.turning_point : {});
