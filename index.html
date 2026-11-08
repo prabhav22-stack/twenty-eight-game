@@ -16,7 +16,6 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
 <!-- Modern UI Enhancements: Confetti, Lucide Icons, VanillaTilt 3D Sheen -->
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
@@ -2205,11 +2204,17 @@ function getAudioContext() {
     return audioCtx;
 }
 
+function unlockAudio() {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+    }
+}
 if (typeof window !== 'undefined') {
-    ['click', 'touchstart', 'keydown'].forEach(evt => {
+    ['click', 'touchstart', 'touchend', 'keydown'].forEach(evt => {
         window.addEventListener(evt, () => {
-            getAudioContext();
-        }, { once: true, passive: true });
+            unlockAudio();
+        }, { passive: true });
     });
 }
 
@@ -3219,7 +3224,7 @@ function handleHostProcessMessage(conn, data) {
         let s = conn.seat !== undefined ? conn.seat : data.seat;
         if (s !== undefined && s !== null) {
             try {
-                conn.send(JSON.stringify({ type: 'STATE_UPDATE', target: s, state: game.exportStateForClient(s) }));
+                conn.send(JSON.stringify({ type: 'STATE_UPDATE', target: s, state: this.engine.exportStateForClient(s) }));
             } catch(e) {}
         }
     }
@@ -3279,11 +3284,17 @@ function handleIncomingNetworkMessage(sourceConn, data) {
     }
     else if (data.type === 'STATE_UPDATE') {
         if (!isHost && (data.target === mySeat || data.target === 'ALL' || mySeat === 99)) {
-            game.syncFromMasterState(data.state);
-            if (!ui.dealingAnimationActive) {
-                ui.renderStaticBoard();
-                ui.syncTable();
-                ui.gameLoop();
+            if (data.state && typeof data.state === 'object' && data.state.phase) {
+                try {
+                    game.syncFromMasterState(data.state);
+                    if (!ui.dealingAnimationActive) {
+                        ui.renderStaticBoard();
+                        ui.syncTable();
+                        ui.gameLoop();
+                    }
+                } catch (netSyncErr) {
+                    console.warn("Failed to sync state from master:", netSyncErr);
+                }
             }
         }
     }
@@ -3722,13 +3733,36 @@ class ISMCTS {
         const defendingNeeded = (29 - currentBid) - (isContractorSide ? oppTeamPts : myTeamPts);
 
         // Framework 2: Dynamic Objective Weight Vector w = [w_imm, w_pres, w_rev, w_ctrl, w_feed]
-        const w = utilityWeights || {
-            immediatePts: (defendingNeeded <= 4 || currentBid >= 19) ? 0.95 : 0.70,
-            preserveHonors: (defendingNeeded <= 4 || currentBid >= 19) ? 0.10 : 0.50,
-            forceTrumpReveal: 0.20,
-            suitControl: 0.65,
-            partnerFeed: 0.75
-        };
+        let defaultWeights;
+        if (currentBid >= 24) {
+            // Tier 3: Grand Slam / All-In (24-28 pts)
+            defaultWeights = {
+                immediatePts: 0.98,
+                preserveHonors: 0.05,
+                forceTrumpReveal: 0.60,
+                suitControl: 0.95,
+                partnerFeed: 0.90
+            };
+        } else if (currentBid >= 20 || defendingNeeded <= 3) {
+            // Tier 2: Aggressive High Stakes (20-23 pts or critical defense)
+            defaultWeights = {
+                immediatePts: 0.90,
+                preserveHonors: (defendingNeeded <= 3) ? 0.08 : 0.22,
+                forceTrumpReveal: 0.45,
+                suitControl: 0.80,
+                partnerFeed: 0.85
+            };
+        } else {
+            // Tier 1: Standard Tactical Play (16-19 pts)
+            defaultWeights = {
+                immediatePts: (defendingNeeded <= 4) ? 0.85 : 0.70,
+                preserveHonors: (defendingNeeded <= 4) ? 0.20 : 0.50,
+                forceTrumpReveal: 0.25,
+                suitControl: 0.65,
+                partnerFeed: 0.75
+            };
+        }
+        const w = utilityWeights || defaultWeights;
 
         // Framework 4: Opponent Behavioral Calibrations (Bait Frequency)
         const thetaBait = (opponentProfile && typeof opponentProfile.thetaBait === 'number') ? opponentProfile.thetaBait : 0.20;
@@ -4455,9 +4489,10 @@ class TwentyEightEngine {
                 hands: this.players.map(h => (h || []).map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })))
             });
         }
-        if (pIndex === 0 && this.players[0] && this.players[0][cardIndex]) {
-            let cardToPlay = this.players[0][cardIndex];
-            let handBeforePlay = this.players[0].map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power }));
+        let humanSeat = (typeof mySeat !== 'undefined' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) ? mySeat : 0;
+        if (pIndex === humanSeat && this.players[pIndex] && this.players[pIndex][cardIndex]) {
+            let cardToPlay = this.players[pIndex][cardIndex];
+            let handBeforePlay = this.players[pIndex].map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power }));
             this.detectHumanBlunder(this.roundTricks.length + 1, cardToPlay, handBeforePlay, this.trickCards);
         }
         let card = hand.splice(cardIndex, 1)[0];
@@ -5548,18 +5583,18 @@ class UIController {
                         ease: "power2.in",
                         onComplete: () => {
                             if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
-                            else { game.playCard(mySeat, cardIndex); ui.gameLoop(); }
+                            else { this.engine.playCard(mySeat, cardIndex); this.gameLoop(); }
                         }
                     });
                 } else {
                     if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
-                    else { game.playCard(mySeat, cardIndex); ui.gameLoop(); }
+                    else { this.engine.playCard(mySeat, cardIndex); this.gameLoop(); }
                 }
             } else if (!hasMoved) {
                 // Click/tap to play
                 uiLocked = true;
                 if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
-                else { game.playCard(mySeat, cardIndex); ui.gameLoop(); }
+                else { this.engine.playCard(mySeat, cardIndex); this.gameLoop(); }
             } else {
                 // Snap back into hand
                 if (window.gsap) {
@@ -6480,13 +6515,13 @@ class UIController {
                 });
             }
 
-            // Dramatic luminous flare when cutting with Trump
+            // Dramatic luminous flare when cutting with Trump (GPU filter)
             let isTrump = (this.engine.trumpRevealed && card.suit === this.engine.trumpSuit);
             if (isTrump) {
                 let trumpGlow = (card.suit === '♥' || card.suit === '♦') ? 'rgba(239, 68, 68, 0.9)' : 'rgba(56, 189, 248, 0.9)';
                 gsap.fromTo(div,
-                    { boxShadow: `0 0 28px ${trumpGlow}, 0 6px 16px rgba(0,0,0,0.7)` },
-                    { boxShadow: "0 3px 8px rgba(0,0,0,0.55)", duration: 0.85, ease: "power1.out", delay: 0.1 }
+                    { filter: `drop-shadow(0 0 16px ${trumpGlow})` },
+                    { filter: 'drop-shadow(0 0 0px transparent)', duration: 0.85, ease: "power1.out", delay: 0.1 }
                 );
             }
         }
@@ -6539,14 +6574,18 @@ class UIController {
         if(this.animatingTrick) return;
         const table = document.getElementById('center-table'); 
         if (!table) return;
-        if (this.engine.trickCards.length === 0) { table.innerHTML = ''; return; }
-        if (table.children.length > this.engine.trickCards.length) { table.innerHTML = ''; } 
-        while(table.children.length < this.engine.trickCards.length) {
+        if (this.engine.trickCards.length === 0) {
+            table.innerHTML = '';
+            return;
+        }
+        while (table.children.length > this.engine.trickCards.length) {
+            table.removeChild(table.lastChild);
+        }
+        while (table.children.length < this.engine.trickCards.length) {
             let indexToRender = table.children.length;
             let play = this.engine.trickCards[indexToRender];
             if (play) this.renderPlayedCard(play.card, play.player);
         }
-
     }
 
     playTrumpRevealAnimation(suit) {
@@ -6595,7 +6634,7 @@ class UIController {
                 gsap.killTweensOf(blast);
                 gsap.fromTo(blast,
                     { scale: 0.2, opacity: 0, xPercent: -50, yPercent: -50 },
-                    { scale: 1, opacity: 1, xPercent: -50, yPercent: -50, duration: 0.32 * speedMult, ease: "back.out(1.4)" }
+                    { scale: 1, opacity: 1, xPercent: -50, yPercent: -50, duration: 0.32, ease: "back.out(1.4)" }
                 );
             }
 
@@ -6625,7 +6664,7 @@ class UIController {
                     gsap.to(cardEl, {
                         rotationY: 180,
                         scale: 1.25,
-                        duration: 0.65 * speedMult,
+                        duration: 0.65,
                         ease: "back.out(1.4)"
                     });
                 } else if (cardEl) {
@@ -6636,7 +6675,7 @@ class UIController {
                 if (trumpPill && window.gsap) {
                     gsap.fromTo(trumpPill,
                         { scale: 1.35, color: 'var(--gold-bright)' },
-                        { scale: 1, color: 'inherit', duration: 0.5 * speedMult, ease: "back.out(2)", delay: 0.3 * speedMult }
+                        { scale: 1, color: 'inherit', duration: 0.5, ease: "back.out(2)", delay: 0.3 }
                     );
                 }
 
@@ -6649,7 +6688,7 @@ class UIController {
                             scale: 0.35,
                             opacity: 0,
                             y: -50,
-                            duration: 0.4 * speedMult,
+                            duration: 0.4,
                             ease: "power2.in"
                         });
                     }
@@ -6657,7 +6696,7 @@ class UIController {
                         gsap.to(blast, {
                             scale: 0.85,
                             opacity: 0,
-                            duration: 0.35 * speedMult,
+                            duration: 0.35,
                             ease: "power2.in",
                             onComplete: () => {
                                 blast.style.display = 'none';
@@ -6740,8 +6779,8 @@ class UIController {
                 winningCardEl.style.zIndex = '80';
                 gsap.to(winningCardEl, {
                     scale: 1.08,
-                    boxShadow: `0 0 28px ${glowColor}, 0 10px 25px rgba(0,0,0,0.85)`,
-                    duration: 0.35 * speedMult,
+                    filter: `drop-shadow(0 0 14px ${glowColor})`,
+                    duration: 0.35,
                     ease: "back.out(1.5)"
                 });
             }
@@ -6770,7 +6809,7 @@ class UIController {
                 if (window.gsap) {
                     gsap.fromTo(floatBadge,
                         { y: 0, opacity: 1, scale: 0.8 },
-                        { y: -28, opacity: 0, scale: 1.15, duration: 0.85 * speedMult, ease: "power2.out", onComplete: () => floatBadge.remove() }
+                        { y: -28, opacity: 0, scale: 1.15, duration: 0.85, ease: "power2.out", onComplete: () => floatBadge.remove() }
                     );
                 } else {
                     setTimeout(() => floatBadge.remove(), 800);
@@ -6812,8 +6851,8 @@ class UIController {
                             y: 0,
                             rotation: (i) => (i - 1.5) * 4,
                             scale: 1.04,
-                            boxShadow: `0 0 20px ${glowColor}, 0 8px 20px rgba(0,0,0,0.75)`,
-                            duration: 0.22 * speedMult,
+                            filter: `drop-shadow(0 0 10px ${glowColor})`,
+                            duration: 0.22,
                             ease: "power2.out"
                         });
 
@@ -6840,7 +6879,7 @@ class UIController {
                             scale: 0.16,
                             opacity: 0,
                             rotation: "+=45",
-                            duration: 0.42 * speedMult,
+                            duration: 0.42,
                             ease: "power3.in",
                             stagger: 0.02
                         });
@@ -6850,7 +6889,7 @@ class UIController {
                             if (targetEl && window.gsap) {
                                 gsap.fromTo(targetEl,
                                     { scale: 1.25 },
-                                    { scale: 1, duration: 0.32 * speedMult, ease: "back.out(2)" }
+                                    { scale: 1, duration: 0.32, ease: "back.out(2)" }
                                 );
                             }
                         });
@@ -7428,7 +7467,7 @@ class UIController {
     onDeclarePairClick() {
         document.getElementById('pair-btn').style.display = 'none';
         if(gameMode === 'multi') sendNetMessage({type:'DECLARE_PAIR', player: mySeat});
-        else { game.declarePair(mySeat); this.gameLoop(); }
+        else { this.engine.declarePair(mySeat); this.gameLoop(); }
     }
 
     startNewRound() {
@@ -7449,7 +7488,7 @@ class UIController {
         const watermark = document.getElementById('lead-suit-watermark'); if (watermark) { watermark.className = ''; watermark.innerHTML = ''; }
         if(isHost) {
             if(gameMode === 'multi') broadcastNetMessage({type:'NEW_ROUND_RESET'});
-            game.startRound();
+            this.engine.startRound();
             this.gameLoop();
         }
     }
