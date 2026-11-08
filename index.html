@@ -1469,41 +1469,78 @@ body::before {
 
 /* ===== QoL UI IMPROVEMENTS ===== */
 
-/* Your-Turn floating banner */
+/* Your-Turn floating banner - positioned in visible open table area above hand */
 #your-turn-banner {
-    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%) translateY(100%);
-    background: linear-gradient(135deg, #1a3a1a 0%, #0e1c0e 100%);
-    border: 1.5px solid var(--gold-primary); border-bottom: none;
-    border-radius: 14px 14px 0 0; padding: 7px 20px 4px 20px;
-    color: var(--gold-bright); font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em;
-    z-index: 1200; pointer-events: none; white-space: nowrap;
-    box-shadow: 0 -4px 24px rgba(229,193,88,0.35);
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    position: fixed;
+    bottom: calc(var(--card-h) + clamp(42px, 8vh, 65px));
+    left: 50%;
+    transform: translateX(-50%) translateY(14px) scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(135deg, rgba(16, 52, 25, 0.96) 0%, rgba(6, 22, 11, 0.96) 100%);
+    border: 1.8px solid var(--gold-bright);
+    border-radius: 30px;
+    padding: 7px 22px;
+    color: var(--gold-bright);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: clamp(0.74rem, 1.4vh, 0.84rem);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    z-index: 9999;
+    white-space: nowrap;
+    box-shadow: 0 0 25px rgba(229, 193, 88, 0.65), 0 8px 30px rgba(0, 0, 0, 0.85);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
 }
-#your-turn-banner.visible { transform: translateX(-50%) translateY(0); }
+#your-turn-banner.visible {
+    transform: translateX(-50%) translateY(0) scale(1);
+    opacity: 1;
+}
 #your-turn-banner span { animation: yourTurnPulse 0.9s ease-in-out infinite alternate; display: inline-block; }
 @keyframes yourTurnPulse {
     from { text-shadow: 0 0 6px rgba(229,193,88,0.5); }
     to   { text-shadow: 0 0 18px rgba(229,193,88,1), 0 0 30px rgba(229,193,88,0.4); }
 }
 
-/* Playable card pulse ring (replaces old static shadow) */
-@keyframes playableRing {
-    0%   { box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 0 0 rgba(229,193,88,0.8); border-color: var(--gold-primary); }
-    70%  { box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 0 6px rgba(229,193,88,0.0); border-color: var(--gold-bright); }
-    100% { box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 0 0 rgba(229,193,88,0); border-color: var(--gold-primary); }
+#trick-hud-pill.your-turn-active {
+    border-color: var(--gold-bright) !important;
+    box-shadow: 0 0 22px var(--gold-glow), 0 4px 16px rgba(0,0,0,0.8) !important;
+    animation: pillTurnGlow 0.9s ease-in-out infinite alternate !important;
 }
+@keyframes pillTurnGlow {
+    from { transform: translateX(-50%) scale(1); }
+    to { transform: translateX(-50%) scale(1.05); }
+}
+
+/* Playable legal cards on your turn: lift up and pulse clearly */
 .my-cards-row .card.playable {
     cursor: pointer;
-    border: 2px solid var(--gold-primary);
-    animation: playableRing 1.6s ease-out infinite;
+    border: 2px solid var(--gold-bright) !important;
+    animation: playablePulse 1.5s ease-in-out infinite alternate !important;
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) - 10px)) scale(1.03) !important;
+    z-index: 85 !important;
+}
+@keyframes playablePulse {
+    0% {
+        box-shadow: 0 8px 18px rgba(0,0,0,0.65), 0 0 8px rgba(229, 193, 88, 0.5);
+        border-color: var(--gold-primary);
+    }
+    100% {
+        box-shadow: 0 12px 24px rgba(0,0,0,0.75), 0 0 18px rgba(251, 191, 36, 0.95);
+        border-color: #ffffff;
+    }
 }
 .my-cards-row .card.playable:hover, .my-cards-row .card.playable:active {
-    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) - 18px)) scale(1.08) !important;
-    box-shadow: 0 14px 28px rgba(0,0,0,0.85), 0 0 20px var(--gold-glow) !important;
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) - 20px)) scale(1.1) !important;
+    box-shadow: 0 16px 32px rgba(0,0,0,0.85), 0 0 24px var(--gold-glow) !important;
     z-index: 99 !important;
-    animation: none !important;
+}
+
+/* Unplayable cards dim prominently */
+.my-cards-row .card.unplayable {
+    filter: brightness(0.42) saturate(0.4) contrast(0.85) !important;
+    opacity: 0.52 !important;
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) + 8px)) scale(0.93) !important;
+    cursor: not-allowed !important;
 }
 
 /* Card index keyboard hint */
@@ -1516,24 +1553,30 @@ body::before {
 }
 body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 
-/* Trump card glow in hand after reveal */
+/* Trump card in hand after reveal */
 .my-cards-row .card.is-trump-card {
-    border-color: rgba(251, 191, 36, 0.9) !important;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 10px rgba(251,191,36,0.6), inset 0 0 8px rgba(251,191,36,0.1) !important;
-    animation: none !important;
-}
-.my-cards-row .card.is-trump-card.playable {
-    animation: playableRing 1.6s ease-out infinite !important;
-    border-color: rgba(251, 191, 36, 0.9) !important;
+    border: 2px solid #f59e0b !important;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.65), inset 0 0 10px rgba(245, 158, 11, 0.2) !important;
 }
 .my-cards-row .card.is-trump-card::after {
-    content: '★'; position: absolute; top: 2px; left: 3px;
-    font-size: 0.45rem; color: rgba(251,191,36,0.9); pointer-events: none;
+    content: '★ TRUMP';
+    position: absolute;
+    bottom: 3px;
+    right: 4px;
+    background: rgba(245, 158, 11, 0.92);
+    color: #000;
+    font-size: 0.44rem;
+    font-weight: 900;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    pointer-events: none;
+    letter-spacing: 0.5px;
 }
 .my-cards-row .card.is-trump-card.unplayable {
-    filter: brightness(0.5) saturate(0.65) !important;
-    box-shadow: none !important; border-color: rgba(100,80,20,0.5) !important;
-    animation: none !important;
+    filter: brightness(0.45) saturate(0.5) !important;
+    box-shadow: none !important;
+    border-color: rgba(140, 90, 15, 0.5) !important;
 }
 
 /* Score flash animation on trick win */
@@ -2034,7 +2077,27 @@ function installPWA() {
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW reg error:', err));
+        navigator.serviceWorker.register('/sw.js').then((reg) => {
+            reg.update();
+            reg.onupdatefound = () => {
+                const installing = reg.installing;
+                if (!installing) return;
+                installing.onstatechange = () => {
+                    if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                        console.log('Twenty-Eight updated! Auto-reloading with latest features...');
+                        window.location.reload();
+                    }
+                };
+            };
+        }).catch(err => console.log('SW reg error:', err));
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+                refreshing = true;
+                window.location.reload();
+            }
+        });
     });
 }
 
@@ -6191,9 +6254,11 @@ class UIController {
             ptsPill.innerText = `${potLabel}: 0 ${ptsWord}`;
             // Show your-turn banner if it's human's lead
             if (this.engine.currentTurn === mySeat && mySeat !== 99) {
+                pill.classList.add('your-turn-active');
                 if (typeof showYourTurnBanner === 'function') showYourTurnBanner('✨ YOUR TURN — Lead a Card', 0);
                 if (typeof showKbdHintBar === 'function') showKbdHintBar();
             } else {
+                pill.classList.remove('your-turn-active');
                 if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
             }
         } else {
@@ -6223,8 +6288,10 @@ class UIController {
             pill.innerHTML = `<span style="color:${leadColor}; font-weight:800;">${this.engine.leadSuit}</span> &bull; <b style="color:${winColor};">${winWho}</b> (${winner.card.rank}${winner.card.suit})`;
             // Show/hide banner based on whose turn it is mid-trick
             if (this.engine.currentTurn === mySeat && mySeat !== 99) {
+                pill.classList.add('your-turn-active');
                 if (typeof showYourTurnBanner === 'function') showYourTurnBanner('✨ YOUR TURN — Follow Suit', 0);
             } else {
+                pill.classList.remove('your-turn-active');
                 if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
             }
             const ptsValEl = document.getElementById('trick-pts-val');
@@ -6819,6 +6886,9 @@ class UIController {
             let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
             let caller = (this.engine.justRevealedBy >= 0) ? this.engine.justRevealedBy : (this.engine.justRevealedByPlayer >= 0 ? this.engine.justRevealedByPlayer : 0);
             let callerName = (caller === 0) ? (currentLang === 'hi' ? 'आपने' : 'You') : (this.playerNames[caller] || COMPASS_FULL[caller] || 'Opponent');
+            if (typeof showGameToast === 'function') {
+                showGameToast(`🚨 ${callerName} revealed Trump: ${suit}!`, 3000);
+            }
             let isRed = (suit === '♥' || suit === '♦' || suit === 'hearts' || suit === 'diamonds');
             let suitColor = isRed ? '#ef4444' : '#38bdf8';
             let suitName = suit;
@@ -7194,6 +7264,14 @@ class UIController {
                     this.engine.resolveTrick();
                     if (typeof flashTrickHUD === 'function') flashTrickHUD();
                     if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
+                    if (typeof showGameToast === 'function' && winner) {
+                        let trickNum = this.engine.roundTricksCount;
+                        if (winner.player === mySeat) {
+                            showGameToast(`🏆 You won Trick ${trickNum}! (+${trickPts} pts)`, 2400);
+                        } else if (winner.player === (mySeat + 2) % 4) {
+                            showGameToast(`🤝 Partner won Trick ${trickNum}! (+${trickPts} pts)`, 2200);
+                        }
+                    }
                     if (isHost) this.broadcastGameState();
                     this.animatingTrick = false;
                     if (!isHost && this.pendingMasterState) {
@@ -8078,6 +8156,31 @@ document.addEventListener('keydown', function(e) {
         if (trackerDrawer && trackerDrawer.classList.contains('open') && ui && ui.toggleTrackerDrawer) ui.toggleTrackerDrawer();
     }
 });
+
+
+// ==================== TEST HARNESS FOR UI FEATURES ====================
+window.testUIFeatures = function() {
+    console.log("Testing UI features...");
+    if (typeof showYourTurnBanner === 'function') {
+        showYourTurnBanner("✨ YOUR TURN — Lead a Card (Test Demo)", 4000);
+    }
+    if (typeof showGameToast === 'function') {
+        showGameToast("🏆 Test Toast: You won Trick 3! (+5 pts)", 3000);
+        setTimeout(() => showGameToast("🚨 Test Toast: Trump Revealed: ♥ Hearts!", 3000), 1200);
+    }
+    if (typeof flashTrickHUD === 'function') {
+        flashTrickHUD();
+    }
+    const pill = document.getElementById('trick-hud-pill');
+    if (pill) {
+        pill.classList.add('your-turn-active');
+        setTimeout(() => pill.classList.remove('your-turn-active'), 4000);
+    }
+    // Also test card hints
+    document.body.classList.add('kbd-mode');
+    if (typeof showKbdHintBar === 'function') showKbdHintBar();
+    setTimeout(() => document.body.classList.remove('kbd-mode'), 5000);
+};
 
 const game = new TwentyEightEngine();
 const ui = new UIController(game);

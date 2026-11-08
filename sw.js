@@ -1,5 +1,5 @@
 // Twenty-Eight (28) Royal Casino - Service Worker
-const CACHE_NAME = 'twentyeight-v3.0.0';
+const CACHE_NAME = 'twentyeight-v3.5.0';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -9,10 +9,11 @@ const STATIC_ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js'
+  'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
@@ -20,7 +21,6 @@ self.addEventListener('install', (event) => {
       });
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -29,34 +29,50 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('Purging old SW cache:', key);
             return caches.delete(key);
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  // Let API requests pass through to backend (Groq AI, deal, play, recap)
+  // Let API requests pass directly to backend
   if (event.request.url.includes('/api/')) {
     event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
     return;
   }
 
-  // Network first with cache fallback for static assets
+  // HTML navigation: Network-first to prevent serving stale versions
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request) || caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // Static assets: Cache-first with network background update
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
+    caches.match(event.request).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return networkResponse;
-      })
-      .catch(() => caches.match(event.request))
+      }).catch(() => cachedResponse);
+
+      return cachedResponse || fetchPromise;
+    })
   );
 });
