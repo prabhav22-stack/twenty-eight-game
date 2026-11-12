@@ -7397,7 +7397,9 @@ class UIController {
                         const tl = gsap.timeline({
                             onComplete: () => {
                                 if (animToken !== this._trickAnimSeq) return;
-                                this.clearActiveTrickAnimation();
+                                clearTimeout(this._trickAnimationWatchdog);
+                                this._trickAnimationWatchdog = null;
+                                this.activeTrickTimeline = null;
                                 table.innerHTML = '';
                                 this.clearTrickWinnerHalo();
                                 if (this.engine.trickCards && this.engine.trickCards.length === 4) {
@@ -7482,7 +7484,8 @@ class UIController {
                         });
                     } else {
                         if (animToken !== this._trickAnimSeq) return;
-                        this.clearActiveTrickAnimation();
+                        clearTimeout(this._trickAnimationWatchdog);
+                        this._trickAnimationWatchdog = null;
                         table.innerHTML = '';
                         this.clearTrickWinnerHalo();
                         if (this.engine.trickCards && this.engine.trickCards.length === 4) {
@@ -7512,7 +7515,6 @@ class UIController {
                     }
                 } catch (innerErr) {
                     console.error("Trick sweep animation error:", innerErr);
-                    if (animToken !== this._trickAnimSeq) return;
                     this.clearActiveTrickAnimation();
                     table.innerHTML = '';
                     this.clearTrickWinnerHalo();
@@ -7537,9 +7539,9 @@ class UIController {
             }, beat2Duration);
         } catch (outerErr) {
             console.error("animateTrickWinnerAndResolve error:", outerErr);
-            if (animToken !== this._trickAnimSeq) return;
             this.clearActiveTrickAnimation();
-            table.innerHTML = '';
+            const table = document.getElementById('center-table');
+            if (table) table.innerHTML = '';
             this.clearTrickWinnerHalo();
             if (this.engine.trickCards && this.engine.trickCards.length === 4) {
                 this.engine.resolveTrick();
