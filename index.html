@@ -4998,6 +4998,10 @@ class TwentyEightEngine {
     }
 
     resolveTrick() {
+        if (!this.trickCards || this.trickCards.length !== 4) {
+            console.warn(`[resolveTrick] Aborted: trick has ${this.trickCards ? this.trickCards.length : 0} cards (expected 4)`);
+            return;
+        }
         let winningPlay = this._getCurrentTrickWinner();
         if (!winningPlay) winningPlay = { player: 0, card: null };
         let trickPoints = Number(this._countPointsInTrick()) || 0;
@@ -5067,7 +5071,7 @@ class TwentyEightEngine {
         this.currentTurn = winningPlay.player;
         
         let totalRemaining = this.players[0].length + this.players[1].length + this.players[2].length + this.players[3].length;
-        if (totalRemaining === 0 || this.roundTricks.length >= 8) {
+        if (totalRemaining === 0 && this.roundTricks.length >= 8) {
             if (!this.trumpRevealed) this.revealTrump(this.highestBidder, true);
             this.calculateRoundScore();
             this.phase = 'ROUND_OVER';
@@ -5508,6 +5512,38 @@ class UIController {
         this.isCardDragging = false;
         this.pendingMasterState = null;
         this.animQueue = new AnimationQueue();
+        this.activeTrickTimeline = null;
+        this.trickBeat2Timer = null;
+        this.trickBreathingTimer = null;
+        this._trickAnimSeq = 0;
+    }
+
+    clearActiveTrickAnimation() {
+        if (this._trickAnimationWatchdog) {
+            clearTimeout(this._trickAnimationWatchdog);
+            this._trickAnimationWatchdog = null;
+        }
+        if (this.trickTimer) {
+            clearTimeout(this.trickTimer);
+            this.trickTimer = null;
+        }
+        if (this.trickBeat2Timer) {
+            clearTimeout(this.trickBeat2Timer);
+            this.trickBeat2Timer = null;
+        }
+        if (this.trickBreathingTimer) {
+            clearTimeout(this.trickBreathingTimer);
+            this.trickBreathingTimer = null;
+        }
+        if (this.activeTrickTimeline) {
+            try { this.activeTrickTimeline.kill(); } catch (e) {}
+            this.activeTrickTimeline = null;
+        }
+        const table = document.getElementById('center-table');
+        if (table && window.gsap) {
+            try { gsap.killTweensOf(table.querySelectorAll('.trick-card')); } catch (e) {}
+        }
+        this._trickAnimSeq = (this._trickAnimSeq || 0) + 1;
     }
 
     handleRemoteBidUI(pIndex, val, won) {
@@ -7235,24 +7271,30 @@ class UIController {
     }
 
     animateTrickWinnerAndResolve(winnerIndex) {
-        if (!this.engine.trickCards || this.engine.trickCards.length === 0) {
+        if (!this.engine.trickCards || this.engine.trickCards.length < 4) {
             this.animatingTrick = false;
-            this.engine.phase = (this.engine.roundTricks.length >= 8) ? 'ROUND_OVER' : 'PLAYING';
+            let totalRemaining = this.engine.players.reduce((sum, p) => sum + (p ? p.length : 0), 0);
+            this.engine.phase = (totalRemaining === 0 && this.engine.roundTricks.length >= 8) ? 'ROUND_OVER' : 'PLAYING';
             this.gameLoop();
             return;
         }
+        this.clearActiveTrickAnimation();
         this.animatingTrick = true;
+        const animToken = this._trickAnimSeq;
         let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
 
         // Watchdog Safety (5s): Guarantees table cards NEVER stay frozen
-        clearTimeout(this._trickAnimationWatchdog);
         this._trickAnimationWatchdog = setTimeout(() => {
-            if (this.animatingTrick) {
+            if (this.animatingTrick && animToken === this._trickAnimSeq) {
                 console.warn("Watchdog: Trick animation exceeded timeout, forcing resolution!");
+                this.clearActiveTrickAnimation();
                 const tEl = document.getElementById('center-table');
                 if (tEl) tEl.innerHTML = '';
                 this.clearTrickWinnerHalo();
-                this.engine.resolveTrick();
+                if (this.engine.trickCards && this.engine.trickCards.length === 4) {
+                    this.engine.resolveTrick();
+                    if (typeof flashTrickHUD === 'function') flashTrickHUD();
+                }
                 if (isHost) this.broadcastGameState();
                 this.animatingTrick = false;
                 if (!isHost && this.pendingMasterState) {
@@ -7344,7 +7386,9 @@ class UIController {
 
             let beat2Duration = Math.round(550 * speedMult);
 
-            setTimeout(() => {
+            this.trickBeat2Timer = setTimeout(() => {
+                this.trickBeat2Timer = null;
+                if (animToken !== this._trickAnimSeq) return;
                 try {
                     // Beat 3: Gather & Sweep
                     playSound('rustle');
@@ -7352,11 +7396,14 @@ class UIController {
                     if (window.gsap && cards.length > 0) {
                         const tl = gsap.timeline({
                             onComplete: () => {
-                                clearTimeout(this._trickAnimationWatchdog);
-                                this._trickAnimationWatchdog = null;
+                                if (animToken !== this._trickAnimSeq) return;
+                                this.clearActiveTrickAnimation();
                                 table.innerHTML = '';
                                 this.clearTrickWinnerHalo();
-                                this.engine.resolveTrick();
+                                if (this.engine.trickCards && this.engine.trickCards.length === 4) {
+                                    this.engine.resolveTrick();
+                                    if (typeof flashTrickHUD === 'function') flashTrickHUD();
+                                }
                                 if (isHost) {
                                     this.broadcastGameState();
                                 }
@@ -7364,7 +7411,9 @@ class UIController {
                                 // Breathing gap before next trick with host multiplayer headroom
                                 let extraNetBuffer = (gameMode === 'multi' && isHost) ? 350 : 0;
                                 let breathingGap = Math.round((400 + extraNetBuffer) * speedMult);
-                                setTimeout(() => {
+                                this.trickBreathingTimer = setTimeout(() => {
+                                    this.trickBreathingTimer = null;
+                                    if (animToken !== this._trickAnimSeq) return;
                                     this.animatingTrick = false;
                                     if (!isHost && this.pendingMasterState) {
                                         let pState = this.pendingMasterState;
@@ -7379,6 +7428,7 @@ class UIController {
                                 }, breathingGap);
                             }
                         });
+                        this.activeTrickTimeline = tl;
 
                         // Stack cards together in center
                         tl.to(cards, {
@@ -7431,18 +7481,22 @@ class UIController {
                             }
                         });
                     } else {
-                        clearTimeout(this._trickAnimationWatchdog);
-                        this._trickAnimationWatchdog = null;
+                        if (animToken !== this._trickAnimSeq) return;
+                        this.clearActiveTrickAnimation();
                         table.innerHTML = '';
                         this.clearTrickWinnerHalo();
-                        this.engine.resolveTrick();
-                        if (typeof flashTrickHUD === 'function') flashTrickHUD();
+                        if (this.engine.trickCards && this.engine.trickCards.length === 4) {
+                            this.engine.resolveTrick();
+                            if (typeof flashTrickHUD === 'function') flashTrickHUD();
+                        }
                         if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
                         if (isHost) {
                             this.broadcastGameState();
                         }
                         let extraNetBuffer = (gameMode === 'multi' && isHost) ? 350 : 0;
-                        setTimeout(() => {
+                        this.trickBreathingTimer = setTimeout(() => {
+                            this.trickBreathingTimer = null;
+                            if (animToken !== this._trickAnimSeq) return;
                             this.animatingTrick = false;
                             if (!isHost && this.pendingMasterState) {
                                 let pState = this.pendingMasterState;
@@ -7458,21 +7512,15 @@ class UIController {
                     }
                 } catch (innerErr) {
                     console.error("Trick sweep animation error:", innerErr);
-                    clearTimeout(this._trickAnimationWatchdog);
-                    this._trickAnimationWatchdog = null;
+                    if (animToken !== this._trickAnimSeq) return;
+                    this.clearActiveTrickAnimation();
                     table.innerHTML = '';
                     this.clearTrickWinnerHalo();
-                    this.engine.resolveTrick();
-                    if (typeof flashTrickHUD === 'function') flashTrickHUD();
-                    if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
-                    if (typeof showGameToast === 'function' && winner) {
-                        let trickNum = this.engine.roundTricksCount;
-                        if (winner.player === mySeat) {
-                            showGameToast(`🏆 You won Trick ${trickNum}! (+${trickPts} pts)`, 2400);
-                        } else if (winner.player === (mySeat + 2) % 4) {
-                            showGameToast(`🤝 Partner won Trick ${trickNum}! (+${trickPts} pts)`, 2200);
-                        }
+                    if (this.engine.trickCards && this.engine.trickCards.length === 4) {
+                        this.engine.resolveTrick();
+                        if (typeof flashTrickHUD === 'function') flashTrickHUD();
                     }
+                    if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
                     if (isHost) this.broadcastGameState();
                     this.animatingTrick = false;
                     if (!isHost && this.pendingMasterState) {
@@ -7489,11 +7537,13 @@ class UIController {
             }, beat2Duration);
         } catch (outerErr) {
             console.error("animateTrickWinnerAndResolve error:", outerErr);
-            clearTimeout(this._trickAnimationWatchdog);
-            this._trickAnimationWatchdog = null;
+            if (animToken !== this._trickAnimSeq) return;
+            this.clearActiveTrickAnimation();
             table.innerHTML = '';
             this.clearTrickWinnerHalo();
-            this.engine.resolveTrick();
+            if (this.engine.trickCards && this.engine.trickCards.length === 4) {
+                this.engine.resolveTrick();
+            }
             if (isHost) this.broadcastGameState();
             this.animatingTrick = false;
             if (!isHost && this.pendingMasterState) {
@@ -7569,7 +7619,8 @@ class UIController {
                     this.animateTrickWinnerAndResolve(winningPlay.player);
                 }, freezeDuration);
             } else {
-                this.engine.phase = (this.engine.roundTricks.length >= 8) ? 'ROUND_OVER' : 'PLAYING';
+                let totalRemaining = this.engine.players.reduce((sum, p) => sum + (p ? p.length : 0), 0);
+                this.engine.phase = (totalRemaining === 0 && this.engine.roundTricks.length >= 8) ? 'ROUND_OVER' : 'PLAYING';
                 this.gameLoop();
             }
             return;
@@ -7577,8 +7628,16 @@ class UIController {
 
         // 2. ROUND OVER: Immediate modal display
         if (this.engine.phase === 'ROUND_OVER') {
-            this.showEndModal();
-            return;
+            let totalRemaining = this.engine.players.reduce((sum, p) => sum + (p ? p.length : 0), 0);
+            if (totalRemaining > 0) {
+                console.warn(`[gameLoop] Premature ROUND_OVER blocked: ${totalRemaining} cards still in players' hands!`);
+                this.engine.phase = 'PLAYING';
+                this.renderStaticBoard();
+                this.syncTable();
+            } else {
+                this.showEndModal();
+                return;
+            }
         }
 
         // 3. DEALING PHASES
@@ -7728,7 +7787,7 @@ class UIController {
                 // AI Watchdog Timer (4.5s): Guarantees the bot will NEVER freeze the table
                 clearTimeout(this._aiWatchdogTimer);
                 this._aiWatchdogTimer = setTimeout(() => {
-                    if (this.isAIThinking && this.engine.phase === 'PLAYING' && this.engine.currentTurn === turnPlayer) {
+                    if (this.isAIThinking && this.engine.phase === 'PLAYING' && this.engine.currentTurn === turnPlayer && !humanSeats.includes(turnPlayer) && turnPlayer !== mySeat) {
                         console.warn(`Watchdog: Bot ${turnPlayer} took too long, forcing move!`);
                         this.resetBotPrePlayTell();
                         this.isAIThinking = false;
@@ -8097,6 +8156,13 @@ class UIController {
     }
 
     showEndModal() { 
+        let totalRemaining = this.engine.players.reduce((sum, p) => sum + (p ? p.length : 0), 0);
+        if (totalRemaining > 0) {
+            console.warn(`[showEndModal] Aborted: ${totalRemaining} cards still held by players!`);
+            this.engine.phase = 'PLAYING';
+            this.gameLoop();
+            return;
+        }
         document.getElementById('end-modal').style.display = 'block'; 
         let bidTeam = (this.engine.highestBidder === 0 || this.engine.highestBidder === 2) ? 1 : 2;
         let pts = bidTeam === 1 ? this.engine.t1TrickPts : this.engine.t2TrickPts;
@@ -8417,6 +8483,45 @@ window.testUIFeatures = function() {
 
 const game = new TwentyEightEngine();
 const ui = new UIController(game);
+
+// Document Visibility Listener: Prevents desync when tab is minimized or switched
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // Tab hidden / window minimized: cleanly finish running trick animations so GSAP ticker pause does not desync timers
+        if (typeof ui !== 'undefined' && ui && ui.animatingTrick) {
+            console.log("[visibilitychange] Tab hidden during trick animation: fast-resolving active trick");
+            ui.clearActiveTrickAnimation();
+            const table = document.getElementById('center-table');
+            if (table) table.innerHTML = '';
+            ui.clearTrickWinnerHalo();
+            if (ui.engine && ui.engine.trickCards && ui.engine.trickCards.length === 4) {
+                ui.engine.resolveTrick();
+                if (typeof flashTrickHUD === 'function') flashTrickHUD();
+            }
+            ui.animatingTrick = false;
+            if (typeof isHost !== 'undefined' && isHost) ui.broadcastGameState();
+        }
+    } else {
+        // Tab returned to visible: wake GSAP ticker and sync UI board and hand
+        console.log("[visibilitychange] Tab restored to foreground");
+        if (window.gsap && gsap.ticker && gsap.ticker.wake) {
+            gsap.ticker.wake();
+        }
+        if (typeof ui !== 'undefined' && ui && ui.engine) {
+            ui.syncTable();
+            ui.renderStaticBoard();
+            if (ui.engine.phase === 'PLAYING' && ui.engine.currentTurn === mySeat && mySeat !== 99) {
+                if (typeof updateYourTurnBanner === 'function') {
+                    updateYourTurnBanner(ui.engine, mySeat);
+                }
+            }
+            if (!ui.animatingTrick && !ui.animatingReveal && !ui.dealingAnimationActive && ui.engine.phase !== 'ROUND_OVER') {
+                ui.gameLoop();
+            }
+        }
+    }
+});
+
 window.addEventListener('DOMContentLoaded', () => {
     initTableSpeed();
     applyLanguage();
