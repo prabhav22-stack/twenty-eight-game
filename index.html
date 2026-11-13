@@ -1662,7 +1662,7 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <div class="bar-quick-actions">
         <button class="bar-icon-btn" id="top-diff-btn" onclick="cycleDifficulty()" title="AI Difficulty: Click to change" style="font-weight:700; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5);"><span id="top-diff-dot" style="width:7px; height:7px; border-radius:50%; background:#eab308;"></span><span id="top-diff-label">Medium</span></button>
         <button class="bar-icon-btn" id="table-speed-btn" onclick="cycleTableSpeed()" title="Table Pace: 1x (Realistic)" style="font-weight:800; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5); color:var(--gold-bright); cursor:pointer;"><span id="table-speed-icon">⚡</span> <span id="table-speed-label">1x</span></button>
-        <div id="ai-status-pill" style="display:inline-flex; align-items:center; gap:5px; font-size:0.68rem; font-weight:800; color:#86efac; background:rgba(34,197,94,0.18); border:1px solid rgba(74,222,128,0.4); padding:3px 9px; border-radius:14px; white-space:nowrap;"><span style="width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span> 🧠 Groq AI</div>
+        <div id="ai-status-pill" title="AI Intelligence: OpenRouter (nvidia/nemotron-3.5-super-vl)" style="display:inline-flex; align-items:center; gap:5px; font-size:0.68rem; font-weight:800; color:#86efac; background:rgba(34,197,94,0.18); border:1px solid rgba(74,222,128,0.4); padding:3px 9px; border-radius:14px; white-space:nowrap;"><span style="width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span> 🧠 Nemotron AI</div>
         <button class="bar-icon-btn" onclick="openStatsModal()" id="stats-icon-btn" title="Career Stats & Elo" style="font-weight:700;">🏆 <span id="stats-btn-text">Stats</span></button>
         <button class="bar-icon-btn" onclick="toggleLanguage()" id="lang-toggle-btn" title="Language / भाषा">🌐 हिन्दी</button>
         <button class="bar-icon-btn" onclick="toggleLogModal()" id="log-icon-btn" title="Game History / Log">📜 <span id="log-btn-text">Log</span></button>
@@ -3571,7 +3571,7 @@ function hostStartGame() {
         document.getElementById('start-screen').style.display = 'none';
         ui.updatePlayerNames(); 
         ui.renderLog("🎮 Match Started!");
-        ui.renderLog("🧠 <b>AI Intelligence:</b> Groq Cloud LLM Active");
+        ui.renderLog("🧠 <b>AI Intelligence:</b> OpenRouter (Nemotron 3.5 Super VL) Active");
         game.startRound(); ui.gameLoop();
     } else if (isHost) {
         broadcastNetMessage({ type: 'START_GAME', humanSeats: humanSeats, playerNames: playerCustomNames, speedMultiplier: window.GAME_SPEED_MULTIPLIER || 1.0 });
@@ -6172,7 +6172,7 @@ class UIController {
     }
 
     async fetchMathPriorsInFlight(nextPlayer) {
-        // Zero Perceived Lag Pipeline: Pre-fetch Groq math priors during card animation flight
+        // Zero Perceived Lag Pipeline: Pre-fetch OpenRouter Nemotron math priors during card animation flight
         try {
             if (nextPlayer === mySeat || this.engine.phase !== 'PLAYING') return;
             let hand = this.engine.players[nextPlayer] || [];
@@ -8197,7 +8197,7 @@ class UIController {
         document.getElementById('next-round-btn').innerText = t.dealNextRound;
         document.getElementById('next-round-btn').style.display = isHost ? 'inline-flex' : 'none';
 
-        // Groq AI Post-Round Match Analysis / Coach
+        // OpenRouter Nemotron AI Post-Round Match Analysis / Coach
         const coachBox = document.getElementById('end-coach-box');
         if (coachBox) {
             coachBox.style.display = 'block';

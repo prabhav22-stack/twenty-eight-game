@@ -65,6 +65,24 @@ BOT_PERSONALITIES = {
     }
 }
 
+DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3.5-super-vl:free"
+
+def get_openrouter_api_key():
+    """Retrieves OPENROUTER_API_KEY from environment or local .env.local file without committing secrets."""
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if key and key.strip():
+        return key.strip()
+    try:
+        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env.local')
+        if os.path.exists(env_path):
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('OPENROUTER_API_KEY='):
+                        return line.strip().split('=', 1)[1].strip()
+    except Exception:
+        pass
+    return None
+
 def get_groq_api_key():
     """Retrieves GROQ_API_KEY from environment or local .env.local file without committing secrets."""
     key = os.environ.get("GROQ_API_KEY")
@@ -81,22 +99,23 @@ def get_groq_api_key():
         pass
     return None
 
-def call_groq(messages, timeout=1.8, preferred_model=None):
-    """Executes ultra-low latency inference on Groq Cloud with fast fallbacks."""
-    key = get_groq_api_key()
+def call_openrouter(messages, timeout=4.5, preferred_model=None):
+    """Executes AI inference via OpenRouter (defaults to nvidia/nemotron-3.5-super-vl:free)."""
+    key = get_openrouter_api_key()
     if not key:
         return None
-    url = "https://api.groq.com/openai/v1/chat/completions"
+    url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
-        "User-Agent": "TwentyEightGame/1.0"
+        "HTTP-Referer": "https://twenty-eight-game-nine.vercel.app",
+        "X-Title": "Twenty-Eight Card Game"
     }
-    models = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b", "llama-3.1-8b-instant", "qwen/qwen3.8-27b"]
-    if preferred_model:
-        if preferred_model in models:
-            models.remove(preferred_model)
-        models.insert(0, preferred_model)
+    target_model = preferred_model or os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
+    models = [target_model]
+    if target_model != DEFAULT_OPENROUTER_MODEL:
+        models.append(DEFAULT_OPENROUTER_MODEL)
+    models.extend(["meta-llama/llama-3.3-70b-instruct:free", "google/gemini-2.0-flash-exp:free"])
 
     for model_name in models:
         payload = {
@@ -109,11 +128,56 @@ def call_groq(messages, timeout=1.8, preferred_model=None):
             req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 res = json.loads(response.read().decode('utf-8'))
-                content = res['choices'][0]['message']['content']
+                raw_content = res['choices'][0]['message']['content'].strip()
+                if raw_content.startswith("```"):
+                    lines = raw_content.split("\n")
+                    if len(lines) > 2 and lines[0].startswith("```"):
+                        raw_content = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+                return json.loads(raw_content)
+        except Exception:
+            continue
+    return None
+
+def call_groq(messages, timeout=4.5, preferred_model=None):
+    """Unified AI dispatcher: Uses OpenRouter (nvidia/nemotron-3.5-super-vl:free) as primary, with Groq fallback."""
+    # 1. Primary: OpenRouter with user-selected nvidia/nemotron-3.5-super-vl:free
+    res = call_openrouter(messages, timeout=timeout, preferred_model=preferred_model)
+    if res:
+        return res
+
+    # 2. Secondary: Groq Cloud fallback
+    key = get_groq_api_key()
+    if not key:
+        return None
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "User-Agent": "TwentyEightGame/1.0"
+    }
+    groq_models = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b", "llama-3.1-8b-instant"]
+    for model_name in groq_models:
+        payload = {
+            "model": model_name,
+            "response_format": {"type": "json_object"},
+            "temperature": 0.2,
+            "messages": messages
+        }
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                res = json.loads(response.read().decode('utf-8'))
+                content = res['choices'][0]['message']['content'].strip()
+                if content.startswith("```"):
+                    lines = content.split("\n")
+                    if len(lines) > 2 and lines[0].startswith("```"):
+                        content = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
                 return json.loads(content)
         except Exception:
             continue
     return None
+
+call_llm = call_groq
 
 def create_full_deck():
     """Generates the standard 32-card deck for 28."""
@@ -888,7 +952,7 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
         {"role": "user", "content": user_prompt}
     ]
 
-    res = call_groq(messages, timeout=4.5, preferred_model="openai/gpt-oss-120b")
+    res = call_groq(messages, timeout=5.0, preferred_model=DEFAULT_OPENROUTER_MODEL)
     if res and isinstance(res, dict) and 'biddingVerdict' in res and 'turningPointTrick' in res:
         res['verdict'] = verdict_hi if language == 'hi' else verdict_en
         res['recap'] = res.get('turningPointTrick', {}).get('explanation', '') or res.get('biddingVerdict', {}).get('summary', '')
@@ -1527,8 +1591,11 @@ class handler(BaseHTTPRequestHandler):
         raw_path = self.headers.get('x-matched-path') or self.path or ''
         self._send_json(200, {
             'status': 'healthy',
-            'service': '28-game-groq-ai-backend',
-            'version': '2.3.0',
+            'service': '28-game-ai-backend',
+            'version': '2.4.0',
+            'provider': 'openrouter',
+            'model': DEFAULT_OPENROUTER_MODEL,
+            'openrouter_active': bool(get_openrouter_api_key()),
             'groq_active': bool(get_groq_api_key()),
             'received_path': raw_path,
             'endpoints': ['/api/bot-math', '/api/bot-brain', '/api/deal', '/api/bid', '/api/trump', '/api/play', '/api/recap', '/api/health']
