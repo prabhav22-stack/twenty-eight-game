@@ -3942,6 +3942,367 @@ class InferenceMatrix {
     }
 }
 
+const DDS_SUITS = ['♠', '♥', '♣', '♦'];
+const DDS_RANKS = ['J', '9', 'A', '10', 'K', 'Q', '8', '7'];
+const DDS_RANK_VALUES = [3, 2, 1, 1, 0, 0, 0, 0];
+const DDS_RANK_POWERS = [8, 7, 6, 5, 4, 3, 2, 1];
+const DDS_SUIT_MASKS = [
+    0x000000FF,
+    0x0000FF00,
+    0x00FF0000,
+    (0xFF000000 | 0)
+];
+
+class TwentyEightDDS {
+    static cardToId(card) {
+        if (!card) return -1;
+        const s = DDS_SUITS.indexOf(card.suit);
+        const r = DDS_RANKS.indexOf(card.rank);
+        if (s === -1 || r === -1) return -1;
+        return (s << 3) | r;
+    }
+
+    static idToCard(id) {
+        if (id < 0 || id > 31) return null;
+        const s = id >> 3;
+        const r = id & 7;
+        return {
+            suit: DDS_SUITS[s],
+            rank: DDS_RANKS[r],
+            value: DDS_RANK_VALUES[r],
+            power: DDS_RANK_POWERS[r]
+        };
+    }
+
+    static handToBitmask(cards) {
+        let mask = 0;
+        if (!cards) return mask;
+        for (let c of cards) {
+            const id = (typeof c === 'number') ? c : TwentyEightDDS.cardToId(c);
+            if (id >= 0) mask |= (1 << id);
+        }
+        return mask;
+    }
+
+    static getLegalMovesMask(handMask, leadSuitIdx) {
+        if (leadSuitIdx < 0 || leadSuitIdx > 3) return handMask;
+        const suitMask = DDS_SUIT_MASKS[leadSuitIdx];
+        const inSuit = handMask & suitMask;
+        return (inSuit !== 0) ? inSuit : handMask;
+    }
+
+    static getCardIdsFromMask(mask) {
+        const ids = [];
+        let m = mask;
+        while (m !== 0) {
+            const lowest = m & (-m);
+            const id = 31 - Math.clz32(lowest);
+            ids.push(id);
+            m ^= lowest;
+        }
+        return ids;
+    }
+
+    static evalTrickWinner(trickPlays, trumpSuitIdx, trumpRevealed) {
+        let winPlay = trickPlays[0];
+        let winCardId = winPlay.cardId;
+        let winSuit = winCardId >> 3;
+        let winPower = DDS_RANK_POWERS[winCardId & 7];
+        let leadSuit = winSuit;
+        let winIsTrump = trumpRevealed && (trumpSuitIdx >= 0) && (winSuit === trumpSuitIdx);
+
+        for (let i = 1; i < trickPlays.length; i++) {
+            const play = trickPlays[i];
+            const cid = play.cardId;
+            const suit = cid >> 3;
+            const power = DDS_RANK_POWERS[cid & 7];
+            const isTrump = trumpRevealed && (trumpSuitIdx >= 0) && (suit === trumpSuitIdx);
+
+            if (isTrump && !winIsTrump) {
+                winPlay = play;
+                winCardId = cid;
+                winSuit = suit;
+                winPower = power;
+                winIsTrump = true;
+            } else if (isTrump && winIsTrump) {
+                if (power > winPower) {
+                    winPlay = play;
+                    winCardId = cid;
+                    winPower = power;
+                }
+            } else if (!winIsTrump && suit === leadSuit) {
+                if (power > winPower) {
+                    winPlay = play;
+                    winCardId = cid;
+                    winPower = power;
+                }
+            }
+        }
+        return winPlay;
+    }
+
+    static fastRollout(handsBitmask, startPlayer, trumpSuitIdx, trumpRevealed) {
+        const hands = new Uint32Array(handsBitmask);
+        let turn = startPlayer;
+        let t1Pts = 0;
+
+        while (hands[0] !== 0 || hands[1] !== 0 || hands[2] !== 0 || hands[3] !== 0) {
+            const trick = [];
+            let leadSuitIdx = -1;
+
+            for (let seat = 0; seat < 4; seat++) {
+                const player = (turn + seat) % 4;
+                const legalMask = TwentyEightDDS.getLegalMovesMask(hands[player], leadSuitIdx);
+                const legalIds = TwentyEightDDS.getCardIdsFromMask(legalMask);
+                if (legalIds.length === 0) continue;
+
+                let chosenId = legalIds[0];
+                if (legalIds.length > 1) {
+                    const rnd = Math.floor(Math.random() * legalIds.length);
+                    chosenId = legalIds[rnd];
+                }
+
+                hands[player] ^= (1 << chosenId);
+                trick.push({ player, cardId: chosenId });
+                if (seat === 0) leadSuitIdx = chosenId >> 3;
+            }
+
+            if (trick.length === 4) {
+                const winPlay = TwentyEightDDS.evalTrickWinner(trick, trumpSuitIdx, trumpRevealed);
+                let pts = 0;
+                for (let p of trick) pts += DDS_RANK_VALUES[p.cardId & 7];
+                if (winPlay.player === 0 || winPlay.player === 2) t1Pts += pts;
+                turn = winPlay.player;
+            } else {
+                break;
+            }
+        }
+        return t1Pts;
+    }
+
+    static solve(hands, turnPlayer, currentTrick, trumpSuitIdx, trumpRevealed, alpha, beta, tt, depth = 0) {
+        if (hands[0] === 0 && hands[1] === 0 && hands[2] === 0 && hands[3] === 0 && currentTrick.length === 0) {
+            return 0;
+        }
+
+        let trickKey = 0;
+        for (let i = 0; i < currentTrick.length; i++) {
+            trickKey = (trickKey << 8) | (currentTrick[i].player << 5) | (currentTrick[i].cardId & 31);
+        }
+        const ttKey = `${hands[0]}_${hands[1]}_${hands[2]}_${hands[3]}_${turnPlayer}_${trickKey}`;
+        if (tt && tt.has(ttKey)) {
+            return tt.get(ttKey);
+        }
+
+        const isTeam1 = (turnPlayer === 0 || turnPlayer === 2);
+        const leadSuitIdx = (currentTrick.length > 0) ? (currentTrick[0].cardId >> 3) : -1;
+        const legalMask = TwentyEightDDS.getLegalMovesMask(hands[turnPlayer], leadSuitIdx);
+        const legalIds = TwentyEightDDS.getCardIdsFromMask(legalMask);
+
+        if (legalIds.length === 0) return 0;
+
+        legalIds.sort((a, b) => {
+            const vA = DDS_RANK_VALUES[a & 7];
+            const vB = DDS_RANK_VALUES[b & 7];
+            return isTeam1 ? (vB - vA) : (vA - vB);
+        });
+
+        let bestVal = isTeam1 ? -Infinity : Infinity;
+
+        for (const cid of legalIds) {
+            hands[turnPlayer] ^= (1 << cid);
+            const nextTrick = currentTrick.concat([{ player: turnPlayer, cardId: cid }]);
+            let score = 0;
+
+            if (nextTrick.length === 4) {
+                const winnerPlay = TwentyEightDDS.evalTrickWinner(nextTrick, trumpSuitIdx, trumpRevealed);
+                let trickPts = 0;
+                for (let p of nextTrick) trickPts += DDS_RANK_VALUES[p.cardId & 7];
+                const ptsForTeam1 = (winnerPlay.player === 0 || winnerPlay.player === 2) ? trickPts : 0;
+
+                const restScore = TwentyEightDDS.solve(
+                    hands,
+                    winnerPlay.player,
+                    [],
+                    trumpSuitIdx,
+                    trumpRevealed,
+                    alpha,
+                    beta,
+                    tt,
+                    depth + 1
+                );
+                score = ptsForTeam1 + restScore;
+            } else {
+                const nextPlayer = (turnPlayer + 1) % 4;
+                score = TwentyEightDDS.solve(
+                    hands,
+                    nextPlayer,
+                    nextTrick,
+                    trumpSuitIdx,
+                    trumpRevealed,
+                    alpha,
+                    beta,
+                    tt,
+                    depth + 1
+                );
+            }
+
+            hands[turnPlayer] |= (1 << cid);
+
+            if (isTeam1) {
+                if (score > bestVal) bestVal = score;
+                if (score > alpha) alpha = score;
+            } else {
+                if (score < bestVal) bestVal = score;
+                if (score < beta) beta = score;
+            }
+
+            if (beta <= alpha) {
+                break;
+            }
+        }
+
+        if (tt && tt.size < 100000) {
+            tt.set(ttKey, bestVal);
+        }
+        return bestVal;
+    }
+
+    static evaluateMoveEquities(handsArray, turnPlayer, currentTrickCards, trumpSuitIdx, trumpRevealed, candidateCards) {
+        const hands = new Uint32Array(4);
+        let totalCards = 0;
+        for (let i = 0; i < 4; i++) {
+            hands[i] = (typeof handsArray[i] === 'number') ? handsArray[i] : TwentyEightDDS.handToBitmask(handsArray[i]);
+            let m = hands[i];
+            while (m !== 0) { totalCards++; m &= (m - 1); }
+        }
+
+        const currentTrick = (currentTrickCards || []).map(tc => ({
+            player: tc.player,
+            cardId: (typeof tc.card === 'number') ? tc.card : TwentyEightDDS.cardToId(tc.card)
+        }));
+
+        const isTeam1 = (turnPlayer === 0 || turnPlayer === 2);
+        const equities = {};
+        const leadSuitIdx = (currentTrick.length > 0) ? (currentTrick[0].cardId >> 3) : -1;
+        const legalMask = TwentyEightDDS.getLegalMovesMask(hands[turnPlayer], leadSuitIdx);
+        const legalIds = TwentyEightDDS.getCardIdsFromMask(legalMask);
+
+        const cardsToTest = candidateCards
+            ? candidateCards.map(c => (typeof c === 'number' ? c : TwentyEightDDS.cardToId(c))).filter(id => (legalMask & (1 << id)))
+            : legalIds;
+
+        if (totalCards <= 20) {
+            const tt = new Map();
+            for (const cid of cardsToTest) {
+                hands[turnPlayer] ^= (1 << cid);
+                const nextTrick = currentTrick.concat([{ player: turnPlayer, cardId: cid }]);
+                let score = 0;
+
+                if (nextTrick.length === 4) {
+                    const winnerPlay = TwentyEightDDS.evalTrickWinner(nextTrick, trumpSuitIdx, trumpRevealed);
+                    let trickPts = 0;
+                    for (let p of nextTrick) trickPts += DDS_RANK_VALUES[p.cardId & 7];
+                    const ptsForTeam1 = (winnerPlay.player === 0 || winnerPlay.player === 2) ? trickPts : 0;
+
+                    score = ptsForTeam1 + TwentyEightDDS.solve(
+                        hands,
+                        winnerPlay.player,
+                        [],
+                        trumpSuitIdx,
+                        trumpRevealed,
+                        -Infinity,
+                        Infinity,
+                        tt,
+                        0
+                    );
+                } else {
+                    const nextPlayer = (turnPlayer + 1) % 4;
+                    score = TwentyEightDDS.solve(
+                        hands,
+                        nextPlayer,
+                        nextTrick,
+                        trumpSuitIdx,
+                        trumpRevealed,
+                        -Infinity,
+                        Infinity,
+                        tt,
+                        0
+                    );
+                }
+
+                hands[turnPlayer] |= (1 << cid);
+                const cardObj = TwentyEightDDS.idToCard(cid);
+                equities[`${cardObj.rank}${cardObj.suit}`] = score;
+            }
+        } else {
+            const numSamples = 40;
+            for (const cid of cardsToTest) {
+                hands[turnPlayer] ^= (1 << cid);
+                const nextTrick = currentTrick.concat([{ player: turnPlayer, cardId: cid }]);
+                let totalPts = 0;
+
+                for (let s = 0; s < numSamples; s++) {
+                    let sTrickPts = 0;
+                    let nextPlayer = (turnPlayer + 1) % 4;
+                    if (nextTrick.length === 4) {
+                        const win = TwentyEightDDS.evalTrickWinner(nextTrick, trumpSuitIdx, trumpRevealed);
+                        let pts = 0;
+                        for (let p of nextTrick) pts += DDS_RANK_VALUES[p.cardId & 7];
+                        if (win.player === 0 || win.player === 2) sTrickPts += pts;
+                        nextPlayer = win.player;
+                        totalPts += sTrickPts + TwentyEightDDS.fastRollout(hands, nextPlayer, trumpSuitIdx, trumpRevealed);
+                    } else {
+                        const tempHands = new Uint32Array(hands);
+                        const fillTrick = [...nextTrick];
+                        let curP = nextPlayer;
+                        let lSuit = fillTrick[0].cardId >> 3;
+                        while (fillTrick.length < 4) {
+                            const lMask = TwentyEightDDS.getLegalMovesMask(tempHands[curP], lSuit);
+                            const lIds = TwentyEightDDS.getCardIdsFromMask(lMask);
+                            const pick = lIds[Math.floor(Math.random() * lIds.length)];
+                            tempHands[curP] ^= (1 << pick);
+                            fillTrick.push({ player: curP, cardId: pick });
+                            curP = (curP + 1) % 4;
+                        }
+                        const win = TwentyEightDDS.evalTrickWinner(fillTrick, trumpSuitIdx, trumpRevealed);
+                        let pts = 0;
+                        for (let p of fillTrick) pts += DDS_RANK_VALUES[p.cardId & 7];
+                        if (win.player === 0 || win.player === 2) sTrickPts += pts;
+                        totalPts += sTrickPts + TwentyEightDDS.fastRollout(tempHands, win.player, trumpSuitIdx, trumpRevealed);
+                    }
+                }
+
+                hands[turnPlayer] |= (1 << cid);
+                const cardObj = TwentyEightDDS.idToCard(cid);
+                equities[`${cardObj.rank}${cardObj.suit}`] = Math.round((totalPts / numSamples) * 10) / 10;
+            }
+        }
+
+        return equities;
+    }
+
+    static solvePar(handsArray, turnPlayer, trumpSuitIdx, trumpRevealed) {
+        const hands = new Uint32Array(4);
+        let totalCards = 0;
+        for (let i = 0; i < 4; i++) {
+            hands[i] = (typeof handsArray[i] === 'number') ? handsArray[i] : TwentyEightDDS.handToBitmask(handsArray[i]);
+            let m = hands[i];
+            while (m !== 0) { totalCards++; m &= (m - 1); }
+        }
+        if (totalCards <= 20) {
+            const tt = new Map();
+            return TwentyEightDDS.solve(hands, turnPlayer, [], trumpSuitIdx, trumpRevealed, -Infinity, Infinity, tt, 0);
+        } else {
+            let total = 0;
+            for (let i = 0; i < 50; i++) {
+                total += TwentyEightDDS.fastRollout(hands, turnPlayer, trumpSuitIdx, trumpRevealed);
+            }
+            return Math.round((total / 50) * 10) / 10;
+        }
+    }
+}
+
 class ISMCTS {
     static selectBestPlay(params) {
         const {
@@ -4040,7 +4401,53 @@ class ISMCTS {
         }
         handCounts[playerIdx] = hand.length;
 
-        // PUCT Selection Loop
+        // Upgrade 1: Hybrid Search - Exact Double Dummy Solver for Endgame (Tricks 4-8, <= 5 cards)
+        if (hand.length <= 5 && hand.length > 1) {
+            try {
+                const moveScores = {};
+                for (let idx of validIndices) moveScores[idx] = 0;
+                const numWorlds = 20;
+
+                for (let w = 0; w < numWorlds; w++) {
+                    const sampledTrump = trumpRevealed ? trumpSuit : (inference ? inference.sampleSecretTrump(trumpPriors) : (trumpSuit || '♠'));
+                    const sTrumpIdx = DDS_SUITS.indexOf(sampledTrump);
+                    const simHands = inference
+                        ? inference.sampleHypotheticalWorld(playerIdx, hand, handCounts)
+                        : [[...hand], [...hand], [...hand], [...hand]];
+
+                    const candidateCardObjs = validIndices.map(i => hand[i]);
+                    const equities = TwentyEightDDS.evaluateMoveEquities(
+                        simHands,
+                        playerIdx,
+                        trickCards,
+                        sTrumpIdx,
+                        trumpRevealed,
+                        candidateCardObjs
+                    );
+
+                    for (let idx of validIndices) {
+                        const cKey = `${hand[idx].rank}${hand[idx].suit}`;
+                        const eq = (equities[cKey] !== undefined) ? equities[cKey] : 0;
+                        const myTeamVal = (myTeam === 1) ? eq : (28 - eq);
+                        moveScores[idx] += myTeamVal;
+                    }
+                }
+
+                let bestIdx = validIndices[0];
+                let bestScore = -Infinity;
+                for (let idx of validIndices) {
+                    if (moveScores[idx] > bestScore) {
+                        bestScore = moveScores[idx];
+                        bestIdx = idx;
+                    }
+                }
+                return bestIdx;
+            } catch (err) {
+                console.warn("Endgame DDS fallback to PUCT:", err);
+            }
+        }
+
+        // PUCT Selection Loop for Early Game (Tricks 1-3)
         for (let r = 0; r < numRollouts; r++) {
             const totalN = Object.values(N).reduce((a, b) => a + b, 0);
             let selectedIdx = validIndices[0];
@@ -4105,7 +4512,28 @@ class ISMCTS {
 
             let phi_feed = 0;
             if (isWinnerPartner && card.value > 0) {
-                phi_feed = (card.value / 3.0);
+                // Upgrade 3: 4th-seat ruff danger check for North (seat 2)
+                const westVoidInLead = inference && inference.voidInSuit && inference.voidInSuit[3] && leadSuit && inference.voidInSuit[3][leadSuit];
+                if (playerIdx === 2 && seatInTrick === 2 && westVoidInLead) {
+                    phi_feed = -2.5; // Do NOT feed points into 4th seat over-ruff!
+                } else {
+                    phi_feed = (card.value / 3.0);
+                }
+            }
+
+            // Royal Pair (K+Q) Protection
+            if (isContractorSide && card.suit === activeTrump && (card.rank === 'K' || card.rank === 'Q')) {
+                phi_preserve += 0.8;
+            }
+
+            // Upgrade 4: East/West SetTarget dynamics & Tenace Trapping
+            if (!isContractorSide) {
+                if (seatInTrick === 1 && card.power >= 5 && !isBoss && defendingNeeded > 4) {
+                    phi_control -= 0.5; // West 2nd seat tenace ducking in Phase A
+                }
+                if (defendingNeeded <= 4) {
+                    if (isWinnerMe && trickPts > 0) phi_immediate += 0.6; // Phase B: Cash masters immediately!
+                }
             }
 
             // Total Dynamic Utility
@@ -5185,163 +5613,189 @@ class TwentyEightEngine {
         let bidTeam = (this.highestBidder === 0 || this.highestBidder === 2) ? 1 : 2;
         let isDeclarer = (this.highestBidder === 0);
         let team1Target = (bidTeam === 1) ? this.currentBid : (29 - this.currentBid);
+        let humanSeat = (typeof mySeat !== 'undefined' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) ? mySeat : 0;
+        let isHumanBidWinner = (this.highestBidder === humanSeat);
+        let trumpIdx = DDS_SUITS.indexOf(this.trumpSuit);
 
-        // 1. Contract Pace Delta Graph across tricks 1..8
-        // PaceDelta(t) = TeamPoints_t - (BidTarget * PointsPlayedSoFar_t / 28)
+        // 1. Initial Deal & Double-Dummy Par Points (P_par)
+        let initialHands = (this.trickSnapshots && this.trickSnapshots[0] && this.trickSnapshots[0].hands)
+            ? this.trickSnapshots[0].hands
+            : (this.deal1Hands && this.deal2Hands ? [
+                [...(this.deal1Hands[0]||[]), ...(this.deal2Hands[0]||[])],
+                [...(this.deal1Hands[1]||[]), ...(this.deal2Hands[1]||[])],
+                [...(this.deal1Hands[2]||[]), ...(this.deal2Hands[2]||[])],
+                [...(this.deal1Hands[3]||[]), ...(this.deal2Hands[3]||[])]
+              ] : null);
+
+        let parPoints = 16;
+        if (initialHands) {
+            try {
+                parPoints = Math.round(TwentyEightDDS.solvePar(initialHands, 0, trumpIdx, true));
+            } catch (e) {
+                console.warn("DDS solvePar fallback:", e);
+            }
+        }
+
+        // 2. Expected Contract Equity (ECE) & Multi-Trick Rollback Regret
         let paceGraph = [];
-        let prevPace = 0;
-        let worstDrop = 0;
-        let worstTrickIndex = 0;
+        let maxRegret = -1;
+        let bestInflectionTrick = 0;
+        let bestCardPlayed = null;
+        let bestOptimalCard = null;
+        let bestInflectionDetail = "";
+        let prevECE = 0;
 
         for (let i = 0; i < this.roundTricks.length; i++) {
             let t = this.roundTricks[i];
-            let t1Pts = t.t1TotalAfter || 0;
+            let snap = (this.trickSnapshots && this.trickSnapshots[i]) ? this.trickSnapshots[i] : null;
+            let trickNum = t.trickNum || (i + 1);
+
+            // Compute ECE(t) = (Team 1 pts won so far + remaining Par) - team1Target
+            let t1PtsSoFar = t.t1TotalAfter || 0;
+            let remainingPar = 0;
+            if (snap && snap.hands && i < this.roundTricks.length - 1) {
+                try {
+                    let nextLead = (t.winningPlayer !== undefined) ? t.winningPlayer : (t.plays && t.plays[0] ? t.plays[0].player : 0);
+                    remainingPar = TwentyEightDDS.solvePar(snap.hands, nextLead, trumpIdx, this.trumpRevealed);
+                } catch (e) {}
+            }
+            let currentECE = (t1PtsSoFar + remainingPar) - team1Target;
+            let deltaECE = currentECE - prevECE;
+            prevECE = currentECE;
+
+            // UI compatibility: paceDelta and deltaChange
             let totalPts = (t.t1TotalAfter || 0) + (t.t2TotalAfter || 0);
-            let pace = t1Pts - (team1Target * (totalPts / 28.0));
-            let delta = pace - prevPace;
-            prevPace = pace;
+            let legacyPace = t1PtsSoFar - (team1Target * (totalPts / 28.0));
 
             paceGraph.push({
-                trickNum: t.trickNum,
-                paceDelta: Math.round(pace * 10) / 10,
-                deltaChange: Math.round(delta * 10) / 10,
+                trickNum: trickNum,
+                ece: Math.round(currentECE * 10) / 10,
+                paceDelta: Math.round(legacyPace * 10) / 10,
+                deltaChange: Math.round(deltaECE * 10) / 10,
                 pointsInTrick: t.points,
                 winningTeam: t.winningTeam
             });
 
-            if (delta < worstDrop) {
-                worstDrop = delta;
-                worstTrickIndex = i;
-            }
-        }
+            // Multi-Trick Regret Evaluation for Human Player
+            if (snap && snap.hands && snap.hands[humanSeat]) {
+                let humanHandAtTrick = snap.hands[humanSeat];
+                let humanPlay = t.plays ? t.plays.find(p => p.player === humanSeat) : null;
+                let cardPlayedStr = humanPlay && humanPlay.card ? `${humanPlay.card.rank}${humanPlay.card.suit}` : null;
 
-        // 2. Turning Point Trick
-        let tpTrick = this.roundTricks[worstTrickIndex] || this.roundTricks[0] || { trickNum: 4, points: 3 };
-        let tpNum = tpTrick.trickNum || (worstTrickIndex + 1);
-        let tpSnapshot = this.trickSnapshots[worstTrickIndex] || null;
+                if (cardPlayedStr && humanHandAtTrick.length > 1) {
+                    let leadSuit = (t.plays && t.plays.length > 0 && t.plays[0].card) ? t.plays[0].card.suit : null;
+                    let legalCards = humanHandAtTrick;
+                    if (leadSuit && humanHandAtTrick.some(c => c.suit === leadSuit)) {
+                        legalCards = humanHandAtTrick.filter(c => c.suit === leadSuit);
+                    }
 
-        let humanSeat = (typeof mySeat !== 'undefined' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) ? mySeat : 0;
-        let humanCardPlayed = null;
-        if (tpTrick && tpTrick.plays) {
-            let p = tpTrick.plays.find(play => play.player === humanSeat);
-            if (p && p.card) humanCardPlayed = `${p.card.rank}${p.card.suit}`;
-        }
-        if (!humanCardPlayed && tpTrick && tpTrick.honors) {
-            let h = tpTrick.honors.find(hon => hon.player === humanSeat);
-            if (h) humanCardPlayed = `${h.rank}${h.suit}`;
-        }
-        if (!humanCardPlayed) {
-            if (tpSnapshot && tpSnapshot.hands && tpSnapshot.hands[humanSeat] && tpSnapshot.hands[humanSeat].length > 0) {
-                let firstC = tpSnapshot.hands[humanSeat][0];
-                humanCardPlayed = `${firstC.rank}${firstC.suit}`;
-            } else if (this.playedCardsHistory && this.playedCardsHistory.length > 0) {
-                let firstC = this.playedCardsHistory[0];
-                humanCardPlayed = `${firstC.rank}${firstC.suit}`;
-            } else {
-                humanCardPlayed = '7♠';
-            }
-        }
+                    if (legalCards.length > 1) {
+                        try {
+                            let playsBeforeHuman = [];
+                            if (t.plays) {
+                                for (let p of t.plays) {
+                                    if (p.player === humanSeat) break;
+                                    playsBeforeHuman.push({ player: p.player, card: p.card });
+                                }
+                            }
+                            let equities = TwentyEightDDS.evaluateMoveEquities(
+                                snap.hands,
+                                humanSeat,
+                                playsBeforeHuman,
+                                trumpIdx,
+                                this.trumpRevealed,
+                                legalCards
+                            );
 
-        let trickBlunder = this.humanBlunders.find(b => b.trickNum === tpNum);
-        let optimalCard = trickBlunder ? trickBlunder.optimalCard : '';
-        let isForcedPlay = false;
+                            let playedVal = equities[cardPlayedStr] !== undefined ? equities[cardPlayedStr] : -Infinity;
+                            let maxVal = -Infinity;
+                            let optCard = cardPlayedStr;
 
-        if (!optimalCard) {
-            let hand = (tpSnapshot && tpSnapshot.hands && tpSnapshot.hands[humanSeat]) ? tpSnapshot.hands[humanSeat] : [];
-            let leadSuit = (tpTrick.plays && tpTrick.plays.length > 0 && tpTrick.plays[0].card) 
-                ? tpTrick.plays[0].card.suit 
-                : (tpTrick.leadSuit || null);
+                            for (let cKey in equities) {
+                                if (equities[cKey] > maxVal) {
+                                    maxVal = equities[cKey];
+                                    optCard = cKey;
+                                }
+                            }
 
-            // Filter for strictly LEGAL plays in human's hand for this trick
-            let legalCards = hand;
-            if (leadSuit && hand.some(c => c.suit === leadSuit)) {
-                legalCards = hand.filter(c => c.suit === leadSuit);
-            }
-            if (legalCards.length > 0) {
-                let alts = legalCards.filter(c => `${c.rank}${c.suit}` !== humanCardPlayed);
-                if (alts.length > 0) {
-                    alts.sort((a, b) => (a.power || 0) - (b.power || 0));
-                    optimalCard = `${alts[0].rank}${alts[0].suit}`;
-                } else {
-                    optimalCard = humanCardPlayed;
-                    isForcedPlay = true;
+                            let trickRegret = (maxVal > -Infinity && playedVal > -Infinity) ? (maxVal - playedVal) : 0;
+                            if (trickRegret > maxRegret) {
+                                maxRegret = trickRegret;
+                                bestInflectionTrick = trickNum;
+                                bestCardPlayed = cardPlayedStr;
+                                bestOptimalCard = optCard;
+                                bestInflectionDetail = `Playing ${optCard} instead of ${cardPlayedStr} preserves ${Math.round(trickRegret * 10) / 10} points of contract equity.`;
+                            }
+                        } catch (e) {
+                            console.warn("DDS regret eval error:", e);
+                        }
+                    }
                 }
             }
         }
-        if (!optimalCard) optimalCard = humanCardPlayed;
 
-        let dropPct = Math.min(65, Math.max(15, Math.round(Math.abs(worstDrop) / (team1Target || 16) * 100)));
+        // 3. Fallback / Alignment for Turning Point
+        let trickBlunder = this.humanBlunders && this.humanBlunders.length > 0 ? this.humanBlunders[0] : null;
+        if (maxRegret <= 0.5) {
+            if (trickBlunder) {
+                bestInflectionTrick = trickBlunder.trickNum || 4;
+                bestCardPlayed = trickBlunder.cardPlayed || '7♠';
+                bestOptimalCard = trickBlunder.optimalCard || bestCardPlayed;
+                bestInflectionDetail = trickBlunder.details || "Opponents pressured honors on this trick.";
+            } else {
+                bestInflectionTrick = 4;
+                if (!bestCardPlayed) bestCardPlayed = '7♠';
+                if (!bestOptimalCard) bestOptimalCard = bestCardPlayed;
+                bestInflectionDetail = `Unavoidable defensive pressure from opponents; legal moves were constrained.`;
+            }
+        }
+
+        let dropPct = Math.min(65, Math.max(15, Math.round((Math.max(1.0, maxRegret) / (team1Target || 16)) * 100)));
         let winProbDropStr = `-${dropPct}%`;
 
-        let counterfactualExplanation = "";
-        if (trickBlunder) {
-            counterfactualExplanation = trickBlunder.details;
-        } else if (isForcedPlay || optimalCard === humanCardPlayed) {
-            counterfactualExplanation = `Trick ${tpNum} was an unavoidable honor capture by opponents (${tpTrick.points} pts); playing ${humanCardPlayed} was your only legal move in suit.`;
-        } else {
-            counterfactualExplanation = `Trick ${tpNum} swung momentum by ${winProbDropStr} when opponents took ${tpTrick.points} points. Playing legal ${optimalCard} instead of ${humanCardPlayed} would have minimized point bleed.`;
-        }
-
         let turningPointData = {
-            trickNumber: tpNum,
+            trickNumber: bestInflectionTrick || 4,
             winProbDrop: winProbDropStr,
-            cardPlayed: (trickBlunder && trickBlunder.cardPlayed) ? trickBlunder.cardPlayed : humanCardPlayed,
-            optimalCard: optimalCard,
-            explanation: counterfactualExplanation,
-            allHands: tpSnapshot ? tpSnapshot.hands : null
+            cardPlayed: bestCardPlayed || '7♠',
+            optimalCard: bestOptimalCard || bestCardPlayed || '7♠',
+            explanation: bestInflectionDetail,
+            allHands: (this.trickSnapshots && this.trickSnapshots[bestInflectionTrick - 1]) ? this.trickSnapshots[bestInflectionTrick - 1].hands : null
         };
 
-        // 3. Phase 1 Bidding Audit
+        // 4. Rubric-Anchored Bidding Audit
         let deal1Cards = (this.deal1Hands && this.deal1Hands[humanSeat]) ? this.deal1Hands[humanSeat].map(c => `${c.rank}${c.suit}`) : [];
         let deal2Cards = (this.deal2Hands && this.deal2Hands[humanSeat]) ? this.deal2Hands[humanSeat].map(c => `${c.rank}${c.suit}`) : [];
-        let d1Points = (this.deal1Hands && this.deal1Hands[humanSeat]) ? this.deal1Hands[humanSeat].reduce((s, c) => s + (c.value || 0), 0) : 0;
-        let d2Points = (this.deal2Hands && this.deal2Hands[humanSeat]) ? this.deal2Hands[humanSeat].reduce((s, c) => s + (c.value || 0), 0) : 0;
-
-        let suitPoints = {'♥':0, '♦':0, '♣':0, '♠':0};
-        let suitLengths = {'♥':0, '♦':0, '♣':0, '♠':0};
-        if (this.deal1Hands && this.deal1Hands[humanSeat]) {
-            this.deal1Hands[humanSeat].forEach(c => {
-                suitPoints[c.suit] += (c.value || 0);
-                suitLengths[c.suit]++;
-            });
-        }
-        let bestSuit = '♥';
-        let maxSuitScore = -1;
-        for (let s in suitLengths) {
-            let sc = suitLengths[s] * 2 + suitPoints[s] * 3;
-            if (sc > maxSuitScore) { maxSuitScore = sc; bestSuit = s; }
-        }
-        let ev = 14 + (suitPoints[bestSuit] * 1.5) + (suitLengths[bestSuit]);
-
-        let biddingRating = "Optimal";
         let humanBid = (this.playerBids && this.playerBids[humanSeat] && this.playerBids[humanSeat] !== 'Pass') ? parseInt(this.playerBids[humanSeat]) : null;
-        let isHumanBidWinner = (this.highestBidder === humanSeat);
         let bidderName = this.playerNames[this.highestBidder] || COMPASS_FULL[this.highestBidder] || `Player ${this.highestBidder}`;
 
+        let biddingRating = "Optimal";
         if (isHumanBidWinner && humanBid) {
-            if (humanBid <= Math.round(ev) + 1) {
+            if (humanBid > parPoints + 2) {
+                biddingRating = "Aggressive Overbid";
+            } else if (parPoints - humanBid >= 3) {
+                biddingRating = "Underbid";
+            } else {
+                let d2Points = (this.deal2Hands && this.deal2Hands[humanSeat]) ? this.deal2Hands[humanSeat].reduce((s, c) => s + (c.value || 0), 0) : 0;
                 if (d2Points <= 1 && !this.roundSuccess) biddingRating = "Variance / Bad Luck";
                 else biddingRating = "Optimal";
-            } else if (humanBid > Math.round(ev) + 2) {
-                biddingRating = "Aggressive Overbid";
-            } else {
-                biddingRating = "Aggressive";
             }
         } else {
-            biddingRating = (ev >= 18) ? "Conservative Pass" : "Disciplined Pass";
+            biddingRating = (parPoints >= 18) ? "Conservative Pass" : "Disciplined Pass";
         }
 
         let biddingSummary = "";
         if (isHumanBidWinner && humanBid) {
             if (biddingRating === "Variance / Bad Luck") {
-                biddingSummary = `Your ${humanBid} bid on [${deal1Cards.join(', ')}] was mathematically textbook; drawing zero honors in the second deal was pure variance.`;
+                biddingSummary = `Your ${humanBid} bid on [${deal1Cards.join(', ')}] was mathematically sound (Par: ${parPoints}); drawing zero honors in the second deal was bad variance.`;
             } else if (biddingRating === "Aggressive Overbid") {
-                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] exceeded 4-card EV (${Math.round(ev * 10)/10}); choosing ${bestSuit} faced heavy defensive resistance.`;
+                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] exceeded deal Par (${parPoints}); opponents had sufficient defensive trump control.`;
+            } else if (biddingRating === "Underbid") {
+                biddingSummary = `Bidding ${humanBid} left value on the table (Deal Par: ${parPoints}); your strong honors could have supported a higher contract.`;
             } else {
-                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] was spot-on, leveraging your high ${bestSuit} honors.`;
+                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] was optimal against Par (${parPoints}), leveraging your high honors.`;
             }
         } else {
-            biddingSummary = `Holding [${deal1Cards.join(', ')}], passing against ${bidderName}'s ${this.currentBid} contract was a ${biddingRating.toLowerCase()}, preserving your honors for defense.`;
+            biddingSummary = `Holding [${deal1Cards.join(', ')}], passing against ${bidderName}'s ${this.currentBid} contract was a ${biddingRating.toLowerCase()}, preserving honors for defense.`;
         }
 
         let biddingAuditData = {
@@ -5353,35 +5807,83 @@ class TwentyEightEngine {
             is_contractor: isHumanBidWinner,
             contractor_name: bidderName,
             contract_bid: this.currentBid,
-            ev: Math.round(ev * 10) / 10
+            par_points: parPoints,
+            ev: parPoints
         };
 
-        // 4. Partner Synergy Score
-        let synergyScore = 75;
-        if (this.humanBlunders.some(b => b.tag === 'MISSED_FATTENING')) synergyScore -= 15;
-        if (this.humanBlunders.some(b => b.tag === 'PREMATURE_TRUMP_REVEAL')) synergyScore -= 10;
-        if (this.roundSuccess) synergyScore += 12;
-        synergyScore = Math.max(30, Math.min(98, synergyScore));
+        // 5. Deterministic Partner Synergy Rating (0–100%)
+        let synergyScore = 70;
+        for (let t of this.roundTricks) {
+            if (t.winningPlayer === humanSeat) {
+                let northPlay = t.plays ? t.plays.find(p => p.player === 2) : null;
+                if (northPlay && northPlay.card && northPlay.card.value > 0) {
+                    synergyScore += northPlay.card.value * 4;
+                }
+            } else if (t.winningTeam === 2) {
+                let northPlay = t.plays ? t.plays.find(p => p.player === 2) : null;
+                if (northPlay && northPlay.card && northPlay.card.value > 0) {
+                    synergyScore -= northPlay.card.value * 5;
+                }
+            }
+        }
+        if (this.roundSuccess) synergyScore += 8;
+        else synergyScore -= 6;
+        synergyScore = Math.max(30, Math.min(98, Math.round(synergyScore)));
 
         let synergyNote = this.roundSuccess
-            ? "Wingman held solid defense and supported your leads on critical tricks."
-            : "Coordination faltered on key honor feeds, missing critical point transfers.";
+            ? (synergyScore >= 80 ? "Superb synergy: Wingman fed critical honors onto your winning leads." : "Solid partnership defense held up through the final tricks.")
+            : (synergyScore < 60 ? "Coordination faltered on honor feeds; points were intercepted by East & West." : "Decent teamwork, but opponents capitalized on split honours.");
 
-        // 5. Bot Locker Room Reaction
+        // 6. Bot Locker Room Reaction
         let botSpeaker = "Saboteur (West)";
         let botTaunt = "";
         if (this.roundSuccess) {
             botSpeaker = "Wingman (North)";
             botTaunt = `Textbook teamwork! Our ${this.trumpSuit || 'trump'} control shut down East and West cleanly.`;
         } else {
-            if (this.humanBlunders.some(b => b.tag === 'DRY_9_AMBUSH')) {
+            if (this.humanBlunders && this.humanBlunders.some(b => b.tag === 'DRY_9_AMBUSH')) {
                 botSpeaker = "Saboteur (West)";
-                botTaunt = `Thanks for feeding that 9 on Trick ${tpNum}—made breaking your ${this.currentBid} contract a walk in the park.`;
+                botTaunt = `Thanks for feeding that 9 on Trick ${bestInflectionTrick}—made breaking your ${this.currentBid} contract a walk in the park.`;
             } else {
                 botSpeaker = "Striker (East)";
                 botTaunt = `You overextended on the ${this.currentBid} contract—we had trump defense mapped from Trick 1.`;
             }
         }
+
+        // 7. Causal Ledger
+        let auditLedger = {
+            bidding: {
+                rating: biddingRating,
+                par_points: parPoints,
+                contract: this.currentBid,
+                deal1_cards: deal1Cards,
+                deal2_cards: deal2Cards,
+                human_bid: isHumanBidWinner ? (humanBid || 'Pass') : 'Pass',
+                is_contractor: isHumanBidWinner,
+                summary: biddingSummary
+            },
+            inflection_point: {
+                trick_number: bestInflectionTrick || 4,
+                card_played: bestCardPlayed || '7♠',
+                optimal_card: bestOptimalCard || bestCardPlayed || '7♠',
+                regret_pts: Math.round(maxRegret * 10) / 10,
+                win_pace_drop: winProbDropStr,
+                explanation: bestInflectionDetail
+            },
+            partner_synergy: {
+                score: synergyScore,
+                note: synergyNote
+            },
+            grounding_facts: {
+                bidding_winner: this.highestBidder,
+                bidding_team: bidTeam,
+                trump_suit: this.trumpSuit,
+                trump_revealed: this.trumpRevealed,
+                t1_points: this.t1TrickPts,
+                t2_points: this.t2TrickPts,
+                success: this.roundSuccess
+            }
+        };
 
         return {
             blunders: this.humanBlunders,
@@ -5389,7 +5891,8 @@ class TwentyEightEngine {
             turning_point: turningPointData,
             bidding_audit: biddingAuditData,
             partner_synergy: { score: synergyScore, note: synergyNote },
-            bot_locker_room: { speaker: botSpeaker, taunt: botTaunt }
+            bot_locker_room: { speaker: botSpeaker, taunt: botTaunt },
+            audit_ledger: auditLedger
         };
     }
 

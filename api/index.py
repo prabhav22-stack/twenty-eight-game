@@ -66,6 +66,7 @@ BOT_PERSONALITIES = {
 }
 
 DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3.5-super-vl:free"
+RECAP_PREFERRED_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 
 def get_openrouter_api_key():
     """Retrieves OPENROUTER_API_KEY from environment or local .env.local file without committing secrets."""
@@ -811,8 +812,9 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
             verdict_en = f"Contract Defeated (-{abs_diff} pts)"
             verdict_hi = f"अनुबंध असफल (-{abs_diff} अंक)"
 
-    # Parse telemetry elements
+    # Parse telemetry elements and Causal Ledger
     telemetry = telemetry or {}
+    audit_ledger = telemetry.get('audit_ledger') or {}
     blunders = telemetry.get('blunders', [])
     turning_point = telemetry.get('turning_point', {})
     bidding_audit = telemetry.get('bidding_audit', {})
@@ -820,8 +822,12 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
     partner_synergy = telemetry.get('partner_synergy', {})
     bot_locker_room = telemetry.get('bot_locker_room', {})
 
-    # Extract turning point trick
-    tp_trick_num = turning_point.get('trickNumber') or turning_point.get('trickNum')
+    al_bidding = audit_ledger.get('bidding', {})
+    al_inflection = audit_ledger.get('inflection_point', {})
+    al_synergy = audit_ledger.get('partner_synergy', {})
+
+    # Extract turning point trick grounded in causal ledger
+    tp_trick_num = al_inflection.get('trick_number') or turning_point.get('trickNumber') or turning_point.get('trickNum')
     if not tp_trick_num:
         if tricks and len(tricks) > 0:
             max_t = max(tricks, key=lambda t: t.get('points', 0) if isinstance(t, dict) else 0)
@@ -829,14 +835,14 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
         else:
             tp_trick_num = 4
 
-    tp_drop = turning_point.get('winProbDrop') or turning_point.get('paceDrop') or "-28%"
-    tp_card_played = turning_point.get('cardPlayed') or turning_point.get('southCard') or ""
+    tp_drop = al_inflection.get('win_pace_drop') or turning_point.get('winProbDrop') or turning_point.get('paceDrop') or "-25%"
+    tp_card_played = al_inflection.get('card_played') or turning_point.get('cardPlayed') or turning_point.get('southCard') or ""
     if tp_card_played == "Card":
         tp_card_played = ""
-    tp_optimal_card = turning_point.get('optimalCard') or ""
+    tp_optimal_card = al_inflection.get('optimal_card') or turning_point.get('optimalCard') or ""
     if tp_optimal_card == "Safe Exit":
         tp_optimal_card = ""
-    tp_explanation = turning_point.get('explanation') or turning_point.get('reason') or ""
+    tp_explanation = al_inflection.get('explanation') or turning_point.get('explanation') or turning_point.get('reason') or ""
 
     # Calculate overall grade based on outcome and blunders
     blunder_count = len(blunders)
@@ -868,35 +874,25 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
             f"Your move in Trick {tp_trick_num} handed us the momentum—breaking {contract} was easy."
         )
 
-    # Telemetry blunders summary for the prompt
-    blunder_lines = []
-    for b in blunders:
-        if isinstance(b, dict):
-            tag = b.get('tag', 'BLUNDER')
-            t_num = b.get('trickNum', '?')
-            msg = b.get('details') or b.get('message') or f"{tag} on Trick {t_num}"
-            blunder_lines.append(f"  * [{tag}] {msg}")
-        elif isinstance(b, str):
-            blunder_lines.append(f"  * {b}")
-    blunders_text = "\n".join(blunder_lines) if blunder_lines else "  * None: Flawless card discipline with zero detectable blunders."
-
     # First 4 cards bidding details
-    deal1_cards = bidding_audit.get('deal1_cards', [])
+    deal1_cards = al_bidding.get('deal1_cards') or bidding_audit.get('deal1_cards', [])
     deal1_str = ", ".join(deal1_cards) if deal1_cards else "Standard deal"
-    deal2_cards = bidding_audit.get('deal2_cards', [])
+    deal2_cards = al_bidding.get('deal2_cards') or bidding_audit.get('deal2_cards', [])
     deal2_str = ", ".join(deal2_cards) if deal2_cards else "Standard deal"
-    b_rating = bidding_audit.get('rating', 'Optimal' if success else 'Aggressive')
-    b_ev = bidding_audit.get('ev', 16)
-    human_bid_val = bidding_audit.get('human_bid', contract)
+    b_rating = al_bidding.get('rating') or bidding_audit.get('rating', 'Optimal' if success else 'Aggressive')
+    b_ev = al_bidding.get('par_points') or bidding_audit.get('ev', 16)
+    human_bid_val = al_bidding.get('human_bid') or bidding_audit.get('human_bid', contract)
+    b_summary_base = al_bidding.get('summary') or bidding_audit.get('summary', '')
 
-    # Call Groq Cloud LLM for grandmaster commentary
+    synergy_score = al_synergy.get('score') if 'score' in al_synergy else partner_synergy.get('score', 75 if success else 60)
+    synergy_note_base = al_synergy.get('note') or partner_synergy.get('note', '')
+
+    # Call LLM for narrative styling only (using pure-text reasoning model)
     is_human_declarer = (bidding_winner == 0)
-    b_summary_base = bidding_audit.get('summary', '')
-    synergy_note_base = partner_synergy.get('note', '')
 
     system_prompt = (
         "You are an elite Twenty-Eight (28) card game grandmaster coach.\n"
-        "Deliver an insightful, razor-sharp tactical post-match analysis strictly grounded in the telemetry provided.\n\n"
+        "Deliver an insightful, razor-sharp tactical post-match analysis strictly grounded in the causal ledger provided.\n\n"
         "CRITICAL COACHING RULES FOR TWENTY-EIGHT (28):\n"
         "1. STRICT TRUTH: Reference ONLY the exact cards and suits South actually held in Deal 1. If South held Spades and Hearts, NEVER mention Clubs or Diamonds. Do not hallucinate cards!\n"
         "2. ROLE ACCURACY: If South did not win the bid, South was the DEFENDER. NEVER say South bid 16 or selected trump when South was defending!\n"
@@ -904,7 +900,7 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
         "4. LEGAL PLAYS ONLY: The optimalCard is pre-computed as a strictly legal play for that trick. Do not suggest other cards.\n"
         "5. Respect 28 card hierarchy: strictly J (3pts) > 9 (2pts) > A (1pt) > 10 (1pt) > K (0) > Q (0) > 8 (0) > 7 (0).\n"
         "6. Return ONLY valid JSON format matching the schema exactly.\n\n"
-        "OUTPUT JSON SCHEMA (Do not copy example cards; use the exact match telemetry):\n"
+        "OUTPUT JSON SCHEMA:\n"
         "{\n"
         '  "overallGrade": "<A+|A|B+|B|B-|C+|C|D>",\n'
         '  "biddingVerdict": {\n'
@@ -932,19 +928,19 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
 
     role_desc = "South was the DECLARER / CONTRACTOR" if is_human_declarer else f"South was DEFENDER against {winner_name}'s {contract}-pt contract"
     user_prompt = (
-        f"Match Context & Pre-Computed Telemetry:\n"
+        f"Match Context & Pre-Computed Causal Ledger:\n"
         f"- Player Role: {role_desc}\n"
         f"- Contract Bid: {contract} pts by {winner_name} | Trump: {suit_en} ({trump_suit})\n"
         f"- Final Score: Team 1 (South & North) = {t1_pts}/28 pts | Team 2 (East & West) = {t2_pts}/28 pts\n"
         f"- Match Outcome: {'VICTORY (Contract Fulfilled)' if success else f'DEFEATED by {abs_diff} pts'}\n"
-        f"- South's Deal 1 (First 4 cards): [{deal1_str}] | South Action: {'Bid ' + str(human_bid_val) if is_human_declarer else 'Passed'} | EV: {b_ev} | Rating: {b_rating}\n"
-        f"- Ground-Truth Bidding Assessment: {b_summary_base}\n"
+        f"- South's Deal 1: [{deal1_str}] | South Action: {'Bid ' + str(human_bid_val) if is_human_declarer else 'Passed'} | Par: {b_ev} | Rating: {b_rating}\n"
+        f"- Deterministic Bidding Assessment: {b_summary_base}\n"
         f"- Critical Inflection Point: Trick {tp_trick_num} (Win Pace Drop: {tp_drop})\n"
         f"  * South Card Played: {tp_card_played}\n"
         f"  * Recommended Legal Card: {tp_optimal_card}\n"
         f"  * Tactical Context: {tp_explanation}\n"
-        f"- Partner Synergy Baseline: {partner_synergy.get('score', 65)}% - {synergy_note_base}\n"
-        f"Generate the exact structured JSON Tactical Report Card strictly adhering to these factual details."
+        f"- Partner Synergy Score: {synergy_score}% - {synergy_note_base}\n"
+        f"Generate the exact structured JSON Tactical Report Card translating these verified facts into narrative prose."
     )
 
     messages = [
@@ -952,17 +948,39 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
         {"role": "user", "content": user_prompt}
     ]
 
-    res = call_groq(messages, timeout=5.0, preferred_model=DEFAULT_OPENROUTER_MODEL)
+    res = call_groq(messages, timeout=6.0, preferred_model=RECAP_PREFERRED_MODEL)
     if res and isinstance(res, dict) and 'biddingVerdict' in res and 'turningPointTrick' in res:
+        # Invert pipeline: Strictly enforce deterministic truth from ledger
         res['verdict'] = verdict_hi if language == 'hi' else verdict_en
-        res['recap'] = res.get('turningPointTrick', {}).get('explanation', '') or res.get('biddingVerdict', {}).get('summary', '')
+        if not isinstance(res.get('biddingVerdict'), dict):
+            res['biddingVerdict'] = {}
+        res['biddingVerdict']['rating'] = b_rating
+        if not res['biddingVerdict'].get('summary') or 'hallucinat' in res['biddingVerdict'].get('summary', ''):
+            res['biddingVerdict']['summary'] = b_summary_base
+
+        if not isinstance(res.get('turningPointTrick'), dict):
+            res['turningPointTrick'] = {}
+        res['turningPointTrick']['trickNumber'] = tp_trick_num
+        res['turningPointTrick']['cardPlayed'] = tp_card_played
+        res['turningPointTrick']['optimalCard'] = tp_optimal_card
+        res['turningPointTrick']['winProbDrop'] = tp_drop
+        if not res['turningPointTrick'].get('explanation'):
+            res['turningPointTrick']['explanation'] = tp_explanation
+
+        if not isinstance(res.get('partnerSynergy'), dict):
+            res['partnerSynergy'] = {}
+        res['partnerSynergy']['score'] = synergy_score
+        if not res['partnerSynergy'].get('note'):
+            res['partnerSynergy']['note'] = synergy_note_base
+
+        res['recap'] = res['turningPointTrick'].get('explanation', '') or res['biddingVerdict'].get('summary', '')
         return res
 
-    # Structured Grandmaster Fallback built purely on telemetry
+    # Structured Grandmaster Fallback built purely on causal ledger
     fallback_b_summary = (
         f"आपकी {human_bid_val} की बोली ({deal1_str}) सांख्यिकीय रूप से {b_rating.lower()} थी। हुकुम {suit_hi} का चुनाव रणनीतिक था।"
         if language == 'hi' else
-        f"Your {human_bid_val} bid on [{deal1_str}] was mathematically {b_rating.lower()}, keeping trump control active."
+        f"Your {human_bid_val} bid on [{deal1_str}] was mathematically {b_rating.lower()} against deal Par ({b_ev})."
     )
     fallback_tp_explanation = (
         f"ट्रिक {tp_trick_num} मैच का मुख्य मोड़ रहा जहाँ {tp_card_played or 'पत्ता'} खेलने से गति धीमी हो गई। {tp_optimal_card or 'सुरक्षित पत्ता'} खेलना अधिक प्रभावी रहता।"
@@ -979,7 +997,7 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
         "overallGrade": grade,
         "biddingVerdict": {
             "rating": b_rating,
-            "summary": bidding_audit.get('summary') or fallback_b_summary
+            "summary": b_summary_base or fallback_b_summary
         },
         "turningPointTrick": {
             "trickNumber": tp_trick_num,
@@ -989,11 +1007,11 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
             "explanation": tp_explanation or fallback_tp_explanation
         },
         "partnerSynergy": {
-            "score": partner_synergy.get('score', 75 if success else 60),
-            "note": partner_synergy.get('note') or fallback_synergy_note
+            "score": synergy_score,
+            "note": synergy_note_base or fallback_synergy_note
         },
         "verdict": verdict_hi if language == 'hi' else verdict_en,
-        "recap": fallback_tp_explanation
+        "recap": tp_explanation or fallback_tp_explanation
     }
 
 # ==================== HYBRID "BRAIN + PERSONA" BOT BACKEND ====================
