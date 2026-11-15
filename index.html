@@ -88,16 +88,87 @@ body.theme-crimson {
     color: var(--gold-primary);
 }
 .lobby-player-slot {
-    font-size: 0.75rem;
+    font-size: 0.74rem;
     color: #e2e8f0;
-    padding: 2px 0;
+    padding: 5px 8px;
+    margin: 4px 0;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+.lobby-player-slot.me {
+    border-color: rgba(56, 189, 248, 0.6);
+    background: rgba(14, 116, 144, 0.24);
+}
+.lobby-player-slot.is-host {
+    border-color: rgba(229, 193, 88, 0.65);
+    background: rgba(229, 193, 88, 0.12);
+    box-shadow: 0 0 10px rgba(229, 193, 88, 0.25);
+}
+.slot-dir-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+.slot-dir-badge.dir-south { color: #38bdf8; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); }
+.slot-dir-badge.dir-north { color: #bae6fd; background: rgba(186, 230, 253, 0.15); border: 1px solid rgba(186, 230, 253, 0.3); }
+.slot-dir-badge.dir-east { color: #fb7185; background: rgba(251, 113, 133, 0.15); border: 1px solid rgba(251, 113, 133, 0.3); }
+.slot-dir-badge.dir-west { color: #fda4af; background: rgba(253, 164, 175, 0.15); border: 1px solid rgba(253, 164, 175, 0.3); }
+
+.slot-identity {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+.slot-avatar { font-size: 0.82rem; }
+.slot-player-name {
+    font-weight: 700;
+    color: #f1f5f9;
+}
+.lobby-player-slot.me .slot-player-name {
+    color: var(--gold-bright);
+}
+.slot-tags {
     display: flex;
     align-items: center;
     gap: 4px;
 }
-.lobby-player-slot.me {
-    color: var(--gold-bright);
+.slot-tag-host {
+    font-size: 0.62rem;
+    font-weight: 900;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #e5c158, #ca8a04);
+    color: #000;
+    box-shadow: 0 0 8px rgba(229, 193, 88, 0.5);
+    letter-spacing: 0.3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+.slot-tag-you {
+    font-size: 0.6rem;
     font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: #0284c7;
+    color: #fff;
 }
 .partner-selection-box {
     background: rgba(229, 193, 88, 0.1);
@@ -106,37 +177,98 @@ body.theme-crimson {
     padding: 8px 10px;
     font-size: 0.75rem;
     line-height: 1.35;
-}
-.partner-chips-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
     margin-top: 6px;
 }
-.partner-chip-btn {
-    background: rgba(0, 0, 0, 0.6);
-    border: 1.5px solid var(--gold-border);
-    color: #fff;
-    padding: 4px 10px;
-    border-radius: 14px;
+.partner-change-btn {
+    background: linear-gradient(135deg, #e5c158, #ca8a04);
+    color: #000;
+    font-weight: 800;
     font-size: 0.72rem;
-    font-weight: 700;
+    padding: 4px 10px;
+    border: none;
+    border-radius: 12px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: transform 0.15s ease, background 0.2s ease;
     display: inline-flex;
     align-items: center;
     gap: 4px;
 }
-.partner-chip-btn:hover {
-    border-color: var(--gold-bright);
-    background: rgba(229, 193, 88, 0.25);
+.partner-change-btn:hover {
     transform: translateY(-1px);
+    background: linear-gradient(135deg, #facc15, #eab308);
 }
-.partner-chip-btn.current {
-    background: rgba(56, 189, 248, 0.25);
-    border-color: var(--team1-blue);
+.partner-pending-banner {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.95);
+    border: 1px solid var(--team1-blue);
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     color: #bae6fd;
-    cursor: default;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* ==================== PARTNER CHANGE MODALS ==================== */
+.custom-partner-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(6px);
+}
+.custom-partner-modal-box {
+    background: radial-gradient(circle at 50% 0%, #173824 0%, #081a10 100%);
+    border: 2px solid var(--gold-primary);
+    border-radius: 16px;
+    padding: 18px 20px;
+    max-width: 370px;
+    width: 90%;
+    color: #fff;
+    text-align: center;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.85);
+}
+.custom-partner-modal-box h3 {
+    margin: 0 0 6px 0;
+    color: var(--gold-bright);
+    font-size: 1.15rem;
+    font-family: 'Cinzel', serif;
+}
+.custom-partner-sub {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    margin: 0 0 10px 0;
+    line-height: 1.4;
+}
+.partner-candidates-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 12px 0;
+}
+.partner-candidate-btn {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1.5px solid var(--gold-border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #fff;
+}
+.partner-candidate-btn:hover {
+    border-color: var(--gold-bright);
+    background: rgba(229, 193, 88, 0.2);
+    transform: translateY(-1px);
 }
 /* ==================== SVG TURN COUNTDOWN RING & POLISH ==================== */
 .turn-ring-container {
@@ -171,6 +303,24 @@ body.theme-crimson {
     transition: stroke-dashoffset 0.85s linear, stroke 0.3s ease;
 }
 .turn-ring-container.warning .turn-ring-circle-progress {
+    stroke: #f59e0b;
+    filter: drop-shadow(0 0 7px rgba(245, 158, 11, 0.88));
+}
+.turn-ring-container.critical .turn-ring-circle-progress {
+    stroke: #ef4444;
+    filter: drop-shadow(0 0 9px rgba(239, 68, 68, 0.95));
+}
+.turn-timer-badge.warning {
+    background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+    border-color: #fef08a !important;
+    animation: pulseGlow 0.8s infinite alternate;
+}
+.turn-timer-badge.critical {
+    background: linear-gradient(135deg, #ef4444, #b91c1c) !important;
+    border-color: #fca5a5 !important;
+    animation: pulseGlow 0.5s infinite alternate;
+}
+.turn-ring-container.warning_old .turn-ring-circle-progress {
     stroke: #ef4444;
     filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.85));
 }
@@ -2192,6 +2342,43 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <span>🤖 Auto-Sub Active (Taking turns while away)</span>
     <button class="resume-btn" style="background:var(--gold-bright); color:#000; border:none; border-radius:12px; font-weight:800; padding:4px 12px; cursor:pointer; font-size:0.75rem; margin-left:6px; box-shadow:0 2px 8px rgba(0,0,0,0.4);">👋 I'm Back!</button>
 </div>
+<!-- ==================== PARTNER CHANGE SELECTION MODAL ==================== -->
+<div id="partner-change-modal" class="custom-partner-modal" style="display:none;">
+    <div class="custom-partner-modal-box">
+        <h3>🤝 Change Partner</h3>
+        <p class="custom-partner-sub">Select who you want to pair up with. An invite will be sent to them to accept or reject:</p>
+        <div id="partner-candidates-list" class="partner-candidates-list"></div>
+        <button class="modal-pass-btn" style="margin-top:8px; width:100%;" onclick="closePartnerChangeModal()">Keep Current Partner</button>
+    </div>
+</div>
+
+<!-- ==================== INCOMING PARTNER REQUEST MODAL ==================== -->
+<div id="partner-request-incoming-modal" class="custom-partner-modal" style="display:none;">
+    <div class="custom-partner-modal-box">
+        <div style="font-size:2rem; margin-bottom:4px;">🤝</div>
+        <h3>Partner Request!</h3>
+        <p id="partner-request-incoming-text" class="custom-partner-sub"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+            <button class="menu-btn primary-gold" id="partner-accept-btn" style="flex:1; justify-content:center;">✅ Accept</button>
+            <button class="modal-pass-btn" id="partner-decline-btn" style="flex:1; justify-content:center;">❌ Decline</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== PARTNER REQUEST REJECTED MODAL ==================== -->
+<div id="partner-rejected-modal" class="custom-partner-modal" style="display:none;">
+    <div class="custom-partner-modal-box">
+        <div style="font-size:2rem; margin-bottom:4px; color:#ef4444;">❌</div>
+        <h3>Request Declined</h3>
+        <p id="partner-rejected-text" class="custom-partner-sub"></p>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
+            <button class="menu-btn primary-gold" id="partner-retry-btn" style="justify-content:center;">🔁 Ask Again</button>
+            <button class="menu-btn" id="partner-ask-other-btn" style="justify-content:center; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2);">🔄 Ask Someone Else</button>
+            <button class="modal-pass-btn" onclick="closePartnerRejectedModal()" style="justify-content:center;">👍 Continue with Current Partner</button>
+        </div>
+    </div>
+</div>
+
 <div id="dramatic-reveal"></div>
 <div id="royal-pair-splash"></div>
 
@@ -2200,6 +2387,8 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 let seatSessionTokens = [null, null, null, null];
 let autoPlaySeats = [false, false, false, false];
 let consecutiveTimeouts = [0, 0, 0, 0];
+let hostSeat = 0;
+let pendingPartnerRequestTarget = -1;
 let tableOrientation = localStorage.getItem('twentyeight_orientation') || 'FIRST_PERSON';
 
 function getVisualPosition(pIndex) {
@@ -2303,6 +2492,8 @@ function renderLobbyRoster() {
 
     let t1Name = getTeamDisplayName(1);
     let t2Name = getTeamDisplayName(2);
+    let hSeat = (typeof hostSeat !== 'undefined') ? hostSeat : 0;
+    let hostName = playerCustomNames[hSeat] || COMPASS_FULL[hSeat];
 
     let myPartnerSeat = (mySeat === 0) ? 2 : (mySeat === 2 ? 0 : (mySeat === 1 ? 3 : 1));
     let partnerName = playerCustomNames[myPartnerSeat] || COMPASS_FULL[myPartnerSeat];
@@ -2316,7 +2507,8 @@ function renderLobbyRoster() {
                 swapOptions.push({
                     seat: s,
                     name: playerCustomNames[s] || COMPASS_FULL[s],
-                    dir: COMPASS_FULL[s]
+                    dir: COMPASS_FULL[s],
+                    isHost: (s === hSeat)
                 });
             }
         }
@@ -2325,37 +2517,62 @@ function renderLobbyRoster() {
     let partnerStatusHtml = '';
     if (mySeat === 99) {
         partnerStatusHtml = `<div class="partner-selection-box">📺 <b>Spectator Mode:</b> Watching as Center Table Display.</div>`;
-    } else if (swapOptions.length > 0) {
-        let chips = `<button class="partner-chip-btn current">🤝 ${partnerName} (${COMPASS_SHORT[myPartnerSeat]}) • Current</button>`;
-        for (let opt of swapOptions) {
-            chips += `<button class="partner-chip-btn" onclick="choosePartner(${opt.seat})">🔄 Pair with ${opt.name} (${COMPASS_SHORT[opt.seat]})</button>`;
-        }
-        partnerStatusHtml = `
-            <div class="partner-selection-box">
-                <div style="font-weight:800; color:var(--gold-bright); margin-bottom:2px;">🤝 Choose Your Partner:</div>
-                <div style="font-size:0.72rem; color:#cbd5e1; margin-bottom:4px;">You are currently paired with <b>${partnerName}</b>. Tap a player below to team up:</div>
-                <div class="partner-chips-row">${chips}</div>
-            </div>
-        `;
     } else {
         let partnerDesc = isPartnerHuman 
             ? `<b>${partnerName} (${COMPASS_FULL[myPartnerSeat]})</b>`
             : `<b>🤖 ${COMPASS_FULL[myPartnerSeat]} Bot</b>`;
-        let reasonNote = humanSeats.length <= 1 
-            ? `(Waiting for friends to join... Share your Room Code!)`
-            : `(You are already paired with the only other player in the room.)`;
 
-        partnerStatusHtml = `
-            <div class="partner-selection-box">
-                <div style="font-weight:800; color:var(--gold-bright);">🤝 Your Partner: ${partnerDesc}</div>
-                <div style="font-size:0.72rem; color:#94a3b8; margin-top:2px;">${reasonNote}</div>
+        if (swapOptions.length > 0) {
+            partnerStatusHtml = `
+                <div class="partner-selection-box">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                        <div>
+                            <div style="font-weight:800; color:var(--gold-bright);">🤝 Your Partner: ${partnerDesc}</div>
+                            <div style="font-size:0.72rem; color:#cbd5e1; margin-top:2px;">Want to partner with someone else?</div>
+                        </div>
+                        <button class="partner-change-btn" onclick="openPartnerChangeModal()">🔄 Change Partner</button>
+                    </div>
+                </div>
+            `;
+        } else {
+            let reasonNote = humanSeats.length <= 1 
+                ? `(Waiting for friends to join... Share your Room Code!)`
+                : `(You are already paired with the only other player in the room.)`;
+
+            partnerStatusHtml = `
+                <div class="partner-selection-box">
+                    <div style="font-weight:800; color:var(--gold-bright);">🤝 Your Partner: ${partnerDesc}</div>
+                    <div style="font-size:0.72rem; color:#94a3b8; margin-top:2px;">${reasonNote}</div>
+                </div>
+            `;
+        }
+    }
+
+    function renderSlot(s) {
+        let isHuman = humanSeats.includes(s);
+        let isMe = (mySeat === s);
+        let isHst = (s === hSeat);
+        let dir = COMPASS_FULL[s];
+        let pName = isHuman ? (playerCustomNames[s] || dir) : `${dir} Bot`;
+
+        return `
+            <div class="lobby-player-slot ${isMe ? 'me' : ''} ${isHst ? 'is-host' : ''}">
+                <div class="slot-dir-badge dir-${dir.toLowerCase()}">🧭 ${dir}</div>
+                <div class="slot-identity">
+                    <span class="slot-avatar">${isHuman ? '👤' : '🤖'}</span>
+                    <span class="slot-player-name">${pName}</span>
+                </div>
+                <div class="slot-tags">
+                    ${isHst ? '<span class="slot-tag-host">👑 HOST</span>' : ''}
+                    ${isMe ? '<span class="slot-tag-you">YOU</span>' : ''}
+                </div>
             </div>
         `;
     }
 
     let roleBadge = isHost 
-        ? `👑 Room Host (<span style="color:var(--gold-bright); font-weight:800;">${currentRoom}</span>)`
-        : `Connected to Host (<span style="color:var(--gold-bright); font-weight:800;">${currentRoom}</span>)`;
+        ? `👑 You are Host (<span style="color:var(--gold-bright); font-weight:800;">${currentRoom}</span>)`
+        : `Connected • 👑 Host: <b>${hostName}</b> (<span style="color:var(--gold-bright); font-weight:800;">${currentRoom}</span>)`;
 
     lobbyStatus.innerHTML = `
         <div class="lobby-roster-card">
@@ -2366,38 +2583,280 @@ function renderLobbyRoster() {
             <div class="lobby-teams-grid">
                 <div class="lobby-team-column team1">
                     <div class="lobby-team-title">${t1Name}</div>
-                    <div class="lobby-player-slot ${mySeat === 0 ? 'me' : ''}">
-                        <span>${humanSeats.includes(0) ? '👤' : '🤖'}</span>
-                        <span>${playerCustomNames[0] || 'South'}${mySeat === 0 ? ' (You)' : ''}</span>
-                    </div>
-                    <div class="lobby-player-slot ${mySeat === 2 ? 'me' : ''}">
-                        <span>${humanSeats.includes(2) ? '👤' : '🤖'}</span>
-                        <span>${playerCustomNames[2] || 'North'}${mySeat === 2 ? ' (You)' : ''}</span>
-                    </div>
+                    ${renderSlot(0)}
+                    ${renderSlot(2)}
                 </div>
                 <div class="lobby-team-column team2">
                     <div class="lobby-team-title">${t2Name}</div>
-                    <div class="lobby-player-slot ${mySeat === 1 ? 'me' : ''}">
-                        <span>${humanSeats.includes(1) ? '👤' : '🤖'}</span>
-                        <span>${playerCustomNames[1] || 'East'}${mySeat === 1 ? ' (You)' : ''}</span>
-                    </div>
-                    <div class="lobby-player-slot ${mySeat === 3 ? 'me' : ''}">
-                        <span>${humanSeats.includes(3) ? '👤' : '🤖'}</span>
-                        <span>${playerCustomNames[3] || 'West'}${mySeat === 3 ? ' (You)' : ''}</span>
-                    </div>
+                    ${renderSlot(1)}
+                    ${renderSlot(3)}
                 </div>
             </div>
             ${partnerStatusHtml}
+            <div id="partner-pending-notice" style="display:none;" class="partner-pending-banner"></div>
         </div>
     `;
 }
 
-function choosePartner(targetSeat) {
+function openPartnerChangeModal() {
+    closePartnerRejectedModal();
+    const modal = document.getElementById('partner-change-modal');
+    const list = document.getElementById('partner-candidates-list');
+    if (!modal || !list) return;
+
+    let hSeat = (typeof hostSeat !== 'undefined') ? hostSeat : 0;
     let myPartnerSeat = (mySeat === 0) ? 2 : (mySeat === 2 ? 0 : (mySeat === 1 ? 3 : 1));
+    let swapOptions = [];
+    if (mySeat !== 99) {
+        for (let s of [0, 1, 2, 3]) {
+            if (s !== mySeat && s !== myPartnerSeat && humanSeats.includes(s)) {
+                swapOptions.push({
+                    seat: s,
+                    name: playerCustomNames[s] || COMPASS_FULL[s],
+                    dir: COMPASS_FULL[s],
+                    isHost: (s === hSeat)
+                });
+            }
+        }
+    }
+
+    if (swapOptions.length === 0) {
+        if (typeof showGameToast === 'function') showGameToast("No other human players available to pair with.", 2500);
+        return;
+    }
+
+    list.innerHTML = swapOptions.map(opt => `
+        <div class="partner-candidate-btn" onclick="sendPartnerRequest(${opt.seat})">
+            <div style="text-align:left;">
+                <div style="font-weight:800; color:#fff; font-size:0.85rem;">👤 ${opt.name}</div>
+                <div style="font-size:0.7rem; color:#94a3b8;">🧭 ${opt.dir} ${opt.isHost ? '• 👑 Host' : ''}</div>
+            </div>
+            <div style="font-size:0.72rem; color:var(--gold-bright); font-weight:800;">Request 🤝</div>
+        </div>
+    `).join('');
+
+    modal.style.display = 'flex';
+}
+
+function closePartnerChangeModal() {
+    const modal = document.getElementById('partner-change-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function sendPartnerRequest(targetSeat) {
+    closePartnerChangeModal();
+    closePartnerRejectedModal();
+    pendingPartnerRequestTarget = targetSeat;
+
+    let targetName = playerCustomNames[targetSeat] || COMPASS_FULL[targetSeat];
+    let notice = document.getElementById('partner-pending-notice');
+    if (notice) {
+        notice.innerHTML = `
+            <span>⏳ Sent request to <b>${targetName}</b>. Waiting for response...</span>
+            <button class="modal-pass-btn" style="padding:2px 8px; font-size:0.68rem;" onclick="cancelPartnerRequest()">Cancel</button>
+        `;
+        notice.style.display = 'flex';
+    }
+
+    triggerHaptic('turn');
+
+    let msg = {
+        type: 'PARTNER_REQUEST',
+        fromSeat: mySeat,
+        toSeat: targetSeat,
+        fromName: playerCustomNames[mySeat] || (myNickname || ('Player ' + (mySeat + 1))),
+        fromDir: COMPASS_FULL[mySeat]
+    };
+
     if (isHost) {
-        executeSeatSwap(myPartnerSeat, targetSeat);
+        handleHostPartnerRequest(msg);
     } else {
-        sendNetMessage({ type: 'CHOOSE_PARTNER', fromSeat: mySeat, targetSeat: targetSeat });
+        sendNetMessage(msg);
+    }
+}
+
+function cancelPartnerRequest() {
+    let target = pendingPartnerRequestTarget;
+    pendingPartnerRequestTarget = -1;
+    let notice = document.getElementById('partner-pending-notice');
+    if (notice) notice.style.display = 'none';
+
+    if (target !== -1) {
+        let msg = { type: 'CANCEL_PARTNER_REQUEST', fromSeat: mySeat, toSeat: target };
+        if (isHost) {
+            handleHostCancelPartnerRequest(msg);
+        } else {
+            sendNetMessage(msg);
+        }
+    }
+}
+
+function showIncomingPartnerRequestModal(data) {
+    const modal = document.getElementById('partner-request-incoming-modal');
+    const textEl = document.getElementById('partner-request-incoming-text');
+    const acceptBtn = document.getElementById('partner-accept-btn');
+    const declineBtn = document.getElementById('partner-decline-btn');
+    if (!modal || !textEl || !acceptBtn || !declineBtn) return;
+
+    playSound('deal');
+    triggerHaptic('turn');
+
+    textEl.innerHTML = `<b>${data.fromName}</b> (${data.fromDir}) wants to pair up with you on the same team!`;
+
+    acceptBtn.onclick = () => {
+        modal.style.display = 'none';
+        respondToPartnerRequest(data.fromSeat, true);
+    };
+
+    declineBtn.onclick = () => {
+        modal.style.display = 'none';
+        respondToPartnerRequest(data.fromSeat, false);
+    };
+
+    modal.style.display = 'flex';
+}
+
+function closeIncomingPartnerModalIfAny(fromSeat) {
+    const modal = document.getElementById('partner-request-incoming-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function respondToPartnerRequest(fromSeat, accepted) {
+    let msg = {
+        type: 'PARTNER_RESPONSE',
+        fromSeat: fromSeat,
+        responderSeat: mySeat,
+        responderName: playerCustomNames[mySeat] || (myNickname || ('Player ' + (mySeat + 1))),
+        accepted: accepted
+    };
+    if (isHost) {
+        handleHostPartnerResponse(msg);
+    } else {
+        sendNetMessage(msg);
+    }
+}
+
+function showPartnerRejectedModal(responderName, responderSeat) {
+    pendingPartnerRequestTarget = -1;
+    let notice = document.getElementById('partner-pending-notice');
+    if (notice) notice.style.display = 'none';
+
+    const modal = document.getElementById('partner-rejected-modal');
+    const textEl = document.getElementById('partner-rejected-text');
+    const retryBtn = document.getElementById('partner-retry-btn');
+    const askOtherBtn = document.getElementById('partner-ask-other-btn');
+    if (!modal || !textEl) return;
+
+    textEl.innerHTML = `<b>${responderName}</b> declined the partner change request.<br>Would you like to ask again, choose someone else, or continue?`;
+
+    if (retryBtn) {
+        retryBtn.onclick = () => {
+            modal.style.display = 'none';
+            sendPartnerRequest(responderSeat);
+        };
+    }
+    if (askOtherBtn) {
+        askOtherBtn.onclick = () => {
+            modal.style.display = 'none';
+            openPartnerChangeModal();
+        };
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closePartnerRejectedModal() {
+    const modal = document.getElementById('partner-rejected-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function handlePartnerResolvedLocal(data) {
+    pendingPartnerRequestTarget = -1;
+    let notice = document.getElementById('partner-pending-notice');
+    if (notice) notice.style.display = 'none';
+
+    const incModal = document.getElementById('partner-request-incoming-modal');
+    if (incModal) incModal.style.display = 'none';
+    closePartnerChangeModal();
+    closePartnerRejectedModal();
+
+    if (mySeat === data.fromSeat || mySeat === data.responderSeat) {
+        triggerHaptic('pair');
+        if (typeof showGameToast === 'function') {
+            showGameToast(`🎉 ${data.fromName} and ${data.responderName} are now teammates!`, 4000);
+        }
+    }
+    renderLobbyRoster();
+}
+
+function handleHostPartnerRequest(data) {
+    if (data.toSeat === mySeat) {
+        showIncomingPartnerRequestModal(data);
+    } else {
+        for (let connId in clientConns) {
+            let conn = clientConns[connId];
+            if (conn && conn.seat === data.toSeat) {
+                conn.send(JSON.stringify(data));
+                break;
+            }
+        }
+    }
+}
+
+function handleHostCancelPartnerRequest(data) {
+    if (data.toSeat === mySeat) {
+        closeIncomingPartnerModalIfAny(data.fromSeat);
+    } else {
+        for (let connId in clientConns) {
+            let conn = clientConns[connId];
+            if (conn && conn.seat === data.toSeat) {
+                conn.send(JSON.stringify(data));
+                break;
+            }
+        }
+    }
+}
+
+function handleHostPartnerResponse(data) {
+    let fromSeat = data.fromSeat;
+    let responderSeat = data.responderSeat;
+    let accepted = !!data.accepted;
+    let responderName = data.responderName || playerCustomNames[responderSeat] || COMPASS_FULL[responderSeat];
+    let fromName = playerCustomNames[fromSeat] || COMPASS_FULL[fromSeat];
+
+    if (accepted) {
+        // Swap requester's current partner seat with the responder's seat
+        let reqPartnerSeat = (fromSeat === 0) ? 2 : (fromSeat === 2 ? 0 : (fromSeat === 1 ? 3 : 1));
+        executeSeatSwap(reqPartnerSeat, responderSeat);
+
+        let resolvedMsg = {
+            type: 'PARTNER_RESOLVED',
+            fromSeat: fromSeat,
+            responderSeat: responderSeat,
+            accepted: true,
+            fromName: fromName,
+            responderName: responderName
+        };
+        broadcastNetMessage(resolvedMsg);
+        handlePartnerResolvedLocal(resolvedMsg);
+    } else {
+        let rejMsg = {
+            type: 'PARTNER_REJECTED',
+            fromSeat: fromSeat,
+            responderSeat: responderSeat,
+            responderName: responderName
+        };
+        if (fromSeat === mySeat) {
+            showPartnerRejectedModal(responderName, responderSeat);
+        } else {
+            for (let connId in clientConns) {
+                let conn = clientConns[connId];
+                if (conn && conn.seat === fromSeat) {
+                    conn.send(JSON.stringify(rejMsg));
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -2421,23 +2880,27 @@ function executeSeatSwap(seatA, seatB) {
     if (hasB) humanSeats.push(seatA);
     humanSeats.sort();
 
-    // 4. Update client connections
+    // 4. Update hostSeat if either seat is hostSeat
+    if (hostSeat === seatA) hostSeat = seatB;
+    else if (hostSeat === seatB) hostSeat = seatA;
+
+    // 5. Update client connections
     for (let connId in clientConns) {
         let conn = clientConns[connId];
         if (!conn) continue;
         if (conn.seat === seatA) {
             conn.seat = seatB;
-            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seatB, playerNames: playerCustomNames, humanSeats: humanSeats }));
+            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seatB, playerNames: playerCustomNames, humanSeats: humanSeats, hostSeat: hostSeat }));
         } else if (conn.seat === seatB) {
             conn.seat = seatA;
-            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seatA, playerNames: playerCustomNames, humanSeats: humanSeats }));
+            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seatA, playerNames: playerCustomNames, humanSeats: humanSeats, hostSeat: hostSeat }));
         }
     }
 
     if (mySeat === seatA) mySeat = seatB;
     else if (mySeat === seatB) mySeat = seatA;
 
-    broadcastNetMessage({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames });
+    broadcastNetMessage({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames, hostSeat: hostSeat });
     updateTopCompassBar();
     renderLobbyRoster();
 }
@@ -3902,6 +4365,15 @@ function handleHostProcessMessage(conn, data) {
             conn.send(JSON.stringify({ type: 'FULL_LOBBY' }));
         }
     }
+    else if (data.type === 'PARTNER_REQUEST') {
+        handleHostPartnerRequest(data);
+    }
+    else if (data.type === 'CANCEL_PARTNER_REQUEST') {
+        handleHostCancelPartnerRequest(data);
+    }
+    else if (data.type === 'PARTNER_RESPONSE') {
+        handleHostPartnerResponse(data);
+    }
     else if (data.type === 'CHOOSE_PARTNER') {
         if (isHost && (!game.phase || game.phase === 'LOBBY')) {
             let fromSeat = data.fromSeat;
@@ -3942,6 +4414,7 @@ function handleHostProcessMessage(conn, data) {
 function handleIncomingNetworkMessage(sourceConn, data) {
     if (data.type === 'ASSIGN_SEAT') {
         mySeat = data.seat; isHost = (mySeat === 0);
+        if (data.hostSeat !== undefined) hostSeat = data.hostSeat;
         if (!humanSeats.includes(mySeat)) humanSeats.push(mySeat);
         if (data.playerNames) playerCustomNames = data.playerNames;
         updateTopCompassBar();
@@ -3961,6 +4434,7 @@ function handleIncomingNetworkMessage(sourceConn, data) {
     }
     else if (data.type === 'SYNC_LOBBY') {
         humanSeats = data.humanSeats;
+        if (data.hostSeat !== undefined) hostSeat = data.hostSeat;
         if (data.playerNames) playerCustomNames = data.playerNames;
         updateTopCompassBar();
         renderLobbyRoster();
@@ -3969,6 +4443,24 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         if (data.speedMultiplier) {
             window.GAME_SPEED_MULTIPLIER = data.speedMultiplier;
             updateTableSpeedUI();
+        }
+    }
+    else if (data.type === 'PARTNER_REQUEST') {
+        if (data.toSeat === mySeat) {
+            showIncomingPartnerRequestModal(data);
+        }
+    }
+    else if (data.type === 'CANCEL_PARTNER_REQUEST') {
+        if (data.toSeat === mySeat) {
+            closeIncomingPartnerModalIfAny(data.fromSeat);
+        }
+    }
+    else if (data.type === 'PARTNER_RESOLVED') {
+        handlePartnerResolvedLocal(data);
+    }
+    else if (data.type === 'PARTNER_REJECTED') {
+        if (data.fromSeat === mySeat) {
+            showPartnerRejectedModal(data.responderName, data.responderSeat);
         }
     }
     else if (data.type === 'SEAT_TAKEOVER') {
@@ -6612,7 +7104,7 @@ class UIController {
         this._dealAnimSeq = 0;
         this.dealFlyerTimers = [];
         this.lastStateUpdateTime = Date.now();
-        this.turnSecondsLeft = 20;
+        this.turnSecondsLeft = 60;
         this.turnCountdownTimer = null;
         this.turnTimerSeat = -1;
         this.animQueue = new AnimationQueue();
@@ -8708,7 +9200,7 @@ class UIController {
 
         this.stopTurnCountdown();
         this.turnTimerSeat = turnPlayer;
-        this.turnSecondsLeft = 20;
+        this.turnSecondsLeft = 60; // 60-Second Turn Countdown
 
         // If it's my turn, trigger crisp turn haptics
         if (turnPlayer === mySeat && mySeat !== 99) {
@@ -8753,13 +9245,36 @@ class UIController {
                 }
                 const progressPath = ring.querySelector('.turn-ring-circle-progress');
                 const label = ring.querySelector('.turn-ring-label');
-                let dashOffset = ((20 - this.turnSecondsLeft) / 20) * 100;
+                let dashOffset = ((60 - this.turnSecondsLeft) / 60) * 100;
                 if (progressPath) progressPath.setAttribute('stroke-dashoffset', dashOffset);
                 if (label) label.innerText = this.turnSecondsLeft;
 
+                // Sync turn-timer-badge text pill
+                let badge = pBox.querySelector('.turn-timer-badge');
+                if (!badge) {
+                    badge = document.createElement('div');
+                    badge.className = 'turn-timer-badge';
+                    pBox.appendChild(badge);
+                }
+                badge.innerText = `⏱️ ${this.turnSecondsLeft}s`;
+                badge.style.display = 'block';
+
                 ring.style.display = 'flex';
-                if (this.turnSecondsLeft <= 5) ring.classList.add('warning');
-                else ring.classList.remove('warning');
+                // In the final 15 seconds, turn into a glowing red/amber warning badge
+                if (this.turnSecondsLeft <= 15) {
+                    ring.classList.add('warning');
+                    badge.classList.add('warning');
+                    if (this.turnSecondsLeft <= 5) {
+                        ring.classList.add('critical');
+                        badge.classList.add('critical');
+                    } else {
+                        ring.classList.remove('critical');
+                        badge.classList.remove('critical');
+                    }
+                } else {
+                    ring.classList.remove('warning', 'critical');
+                    badge.classList.remove('warning', 'critical');
+                }
             }
 
             if (turnPlayer === mySeat && mySeat !== 99) {
@@ -8767,6 +9282,11 @@ class UIController {
                 if (banner && banner.style.display === 'block') {
                     let sub = banner.querySelector('.turn-sub');
                     if (sub) sub.innerText = `⏱️ ${this.turnSecondsLeft}s remaining`;
+                    if (this.turnSecondsLeft <= 15) {
+                        banner.classList.add('warning-pulse');
+                    } else {
+                        banner.classList.remove('warning-pulse');
+                    }
                 }
             }
         };
@@ -8777,7 +9297,8 @@ class UIController {
             this.turnSecondsLeft--;
             updateTimerBadge();
 
-            if (this.turnSecondsLeft <= 5 && this.turnSecondsLeft > 0) {
+            // In the final 15 seconds, audible tick
+            if (this.turnSecondsLeft <= 15 && this.turnSecondsLeft > 0) {
                 playSound('tick');
             }
 
