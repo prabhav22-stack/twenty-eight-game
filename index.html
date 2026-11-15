@@ -138,6 +138,71 @@ body.theme-crimson {
     color: #bae6fd;
     cursor: default;
 }
+/* ==================== SVG TURN COUNTDOWN RING & POLISH ==================== */
+.turn-ring-container {
+    position: absolute;
+    top: -14px;
+    right: -12px;
+    width: 36px;
+    height: 36px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 60;
+    pointer-events: none;
+}
+.turn-ring-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+.turn-ring-circle-bg {
+    fill: rgba(15, 23, 42, 0.88);
+    stroke: rgba(255, 255, 255, 0.22);
+    stroke-width: 3.2;
+}
+.turn-ring-circle-progress {
+    fill: none;
+    stroke: #38bdf8;
+    stroke-width: 3.6;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.85s linear, stroke 0.3s ease;
+}
+.turn-ring-container.warning .turn-ring-circle-progress {
+    stroke: #ef4444;
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.85));
+}
+.turn-ring-label {
+    position: relative;
+    z-index: 2;
+    font-size: 0.68rem;
+    font-weight: 900;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+#player-top .my-cards-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 4px;
+}
+#player-left .my-cards-row, #player-right .my-cards-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 4px;
+}
+#player-left .my-cards-row .card, #player-right .my-cards-row .card {
+    margin-left: 0 !important;
+    margin-top: -38px !important;
+}
+#player-left .my-cards-row .card:first-child, #player-right .my-cards-row .card:first-child {
+    margin-top: 0 !important;
+}
+
 .turn-timer-badge {
     position: absolute;
     top: -12px;
@@ -1800,7 +1865,8 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     </div>
     <div class="bar-quick-actions">
         <button class="bar-icon-btn" id="top-diff-btn" onclick="cycleDifficulty()" title="AI Difficulty: Click to change" style="font-weight:700; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5);"><span id="top-diff-dot" style="width:7px; height:7px; border-radius:50%; background:#eab308;"></span><span id="top-diff-label">Medium</span></button>
-        <button class="bar-icon-btn" id="table-speed-btn" onclick="cycleTableSpeed()" title="Table Pace: 1x (Realistic)" style="font-weight:800; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5); color:var(--gold-bright); cursor:pointer;"><span id="table-speed-icon">⚡</span> <span id="table-speed-label">1x</span></button>
+        <button class="bar-icon-btn" id="orientation-toggle-btn" onclick="toggleTableOrientation()" title="Table View: 1st-Person vs Compass" style="font-weight:700; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5); color:var(--gold-bright); cursor:pointer;"><span style="font-size:0.85rem;">🧭</span> <span id="orientation-btn-text">1st-Person</span></button>
+        <button class="bar-icon-btn" id="table-speed-btn"  onclick="cycleTableSpeed()" title="Table Pace: 1x (Realistic)" style="font-weight:800; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5); color:var(--gold-bright); cursor:pointer;"><span id="table-speed-icon">⚡</span> <span id="table-speed-label">1x</span></button>
         <div id="ai-status-pill" title="AI Intelligence: OpenRouter (nvidia/nemotron-3.5-super-vl)" style="display:inline-flex; align-items:center; gap:5px; font-size:0.68rem; font-weight:800; color:#86efac; background:rgba(34,197,94,0.18); border:1px solid rgba(74,222,128,0.4); padding:3px 9px; border-radius:14px; white-space:nowrap;"><span style="width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span> 🧠 Nemotron AI</div>
         <button class="bar-icon-btn" onclick="openStatsModal()" id="stats-icon-btn" title="Career Stats & Elo" style="font-weight:700;">🏆 <span id="stats-btn-text">Stats</span></button>
         <button class="bar-icon-btn" onclick="toggleLanguage()" id="lang-toggle-btn" title="Language / भाषा">🌐 हिन्दी</button>
@@ -2123,8 +2189,8 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 </div>
 
 <div id="afk-resume-banner" onclick="ui.resumeManualControl()">
-    <span>🤖 Auto-Play Active (Taking turns while away)</span>
-    <span style="color:var(--gold-bright); text-decoration:underline; font-weight:800; margin-left:4px;">👋 Click to Take Over</span>
+    <span>🤖 Auto-Sub Active (Taking turns while away)</span>
+    <button class="resume-btn" style="background:var(--gold-bright); color:#000; border:none; border-radius:12px; font-weight:800; padding:4px 12px; cursor:pointer; font-size:0.75rem; margin-left:6px; box-shadow:0 2px 8px rgba(0,0,0,0.4);">👋 I'm Back!</button>
 </div>
 <div id="dramatic-reveal"></div>
 <div id="royal-pair-splash"></div>
@@ -2133,6 +2199,62 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 // ==================== MULTIPLAYER TEAM & SESSION HELPERS ====================
 let seatSessionTokens = [null, null, null, null];
 let autoPlaySeats = [false, false, false, false];
+let consecutiveTimeouts = [0, 0, 0, 0];
+let tableOrientation = localStorage.getItem('twentyeight_orientation') || 'FIRST_PERSON';
+
+function getVisualPosition(pIndex) {
+    if (mySeat === 99 || tableOrientation === 'COMPASS') return pIndex;
+    return (pIndex - mySeat + 4) % 4;
+}
+
+function getPlayerAtVisualPosition(posIndex) {
+    if (mySeat === 99 || tableOrientation === 'COMPASS') return posIndex;
+    return (mySeat + posIndex) % 4;
+}
+
+function triggerHaptic(type) {
+    if (typeof navigator === 'undefined' || !('vibrate' in navigator) || typeof navigator.vibrate !== 'function') return;
+    try {
+        if (type === 'turn') {
+            // Short, multiple crisp pulse (25ms) when it becomes Your Turn to play or bid
+            navigator.vibrate([25, 40, 25]);
+        } else if (type === 'pair') {
+            // Double-pulse (40ms) when a Royal Pair (K+Q) is declared
+            navigator.vibrate([40, 50, 40]);
+        } else if (type === 'reveal') {
+            // Dramatic heavy vibration (80ms) when the Secret Trump is Revealed
+            navigator.vibrate([80, 50, 120]);
+        }
+    } catch(e) {}
+}
+
+function toggleTableOrientation() {
+    tableOrientation = (tableOrientation === 'FIRST_PERSON') ? 'COMPASS' : 'FIRST_PERSON';
+    try {
+        localStorage.setItem('twentyeight_orientation', tableOrientation);
+    } catch(e) {}
+    updateOrientationUI();
+    if (typeof ui !== 'undefined' && ui) {
+        ui.updatePlayerNames();
+        ui.renderStaticBoard();
+        ui.syncTable();
+    }
+    triggerHaptic('turn');
+}
+
+function updateOrientationUI() {
+    const btn = document.getElementById('orientation-toggle-btn');
+    const label = document.getElementById('orientation-btn-text');
+    if (!btn || !label) return;
+    let isHi = (typeof currentLang !== 'undefined' && currentLang === 'hi');
+    if (tableOrientation === 'FIRST_PERSON') {
+        label.innerText = isHi ? '1st-पर्सन' : '1st-Person';
+        btn.title = isHi ? 'टेबल दृश्य: 1st-पर्सन (आप नीचे) — क्लिक करके कंपास बदलें' : 'Table View: 1st-Person (You at Bottom) — Click for Fixed Compass';
+    } else {
+        label.innerText = isHi ? 'कंपास' : 'Compass';
+        btn.title = isHi ? 'टेबल दृश्य: कंपास (स्थिर दिशाएँ) — क्लिक करके 1st-पर्सन बदलें' : 'Table View: Fixed Compass (S/E/N/W) — Click for 1st-Person View';
+    }
+}
 
 function getOrCreateSessionToken(roomCode) {
     try {
@@ -3284,6 +3406,7 @@ function toggleLanguage() {
 }
 
 function applyLanguage() {
+    updateOrientationUI();
     const t = I18N[currentLang];
     const el = (id) => document.getElementById(id);
     if (el('start-logo-title')) el('start-logo-title').innerText = t.appName;
@@ -3846,6 +3969,14 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         if (data.speedMultiplier) {
             window.GAME_SPEED_MULTIPLIER = data.speedMultiplier;
             updateTableSpeedUI();
+        }
+    }
+    else if (data.type === 'SEAT_TAKEOVER') {
+        autoPlaySeats[data.seat] = !!data.autoPlay;
+        if (data.seat === mySeat) {
+            const banner = document.getElementById('afk-resume-banner');
+            if (banner) banner.style.display = data.autoPlay ? 'flex' : 'none';
+            if (data.autoPlay) triggerHaptic('turn');
         }
     }
     else if (data.type === 'START_GAME') {
@@ -6653,7 +6784,7 @@ class UIController {
 
     showSeatFloatingBid(pIndex, val, won) {
         const positions = ['bottom', 'right', 'top', 'left'];
-        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
+        let visualPos = getVisualPosition(pIndex);
         const seatEl = document.getElementById(`player-${positions[visualPos]}`);
         if (!seatEl) return;
         const badgeEl = seatEl.querySelector('.player-badge');
@@ -6742,7 +6873,7 @@ class UIController {
 
     async animateBotPrePlayTell(pIndex, isSaboteurBluff = false) {
         const positions = ['bottom', 'right', 'top', 'left'];
-        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
+        let visualPos = getVisualPosition(pIndex);
         const seatEl = document.getElementById(`player-${positions[visualPos]}`);
         if (!seatEl || !window.gsap) return;
 
@@ -6785,7 +6916,7 @@ class UIController {
 
     async animateCardHoverFakeout(pIndex, cardRaw) {
         const positions = ['bottom', 'right', 'top', 'left'];
-        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
+        let visualPos = getVisualPosition(pIndex);
         const seatEl = document.getElementById(`player-${positions[visualPos]}`);
         if (!seatEl) return;
 
@@ -6935,12 +7066,14 @@ class UIController {
                         duration: 0.15,
                         ease: "power2.in",
                         onComplete: () => {
+                            if (autoPlaySeats[mySeat]) { this.resumeManualControl(); }
                             if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
                             else { this.engine.playCard(mySeat, cardIndex); this.gameLoop(); }
                         }
                     });
                 } else {
-                    if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
+                    if (autoPlaySeats[mySeat]) { this.resumeManualControl(); }
+                            if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
                     else { this.engine.playCard(mySeat, cardIndex); this.gameLoop(); }
                 }
             } else if (!hasMoved) {
@@ -7090,7 +7223,7 @@ class UIController {
 
         const bidderIdx = this.engine.highestBidder;
         const positions = ['bottom', 'right', 'top', 'left'];
-        let visualPos = (mySeat === 99) ? bidderIdx : (bidderIdx - mySeat + 4) % 4;
+        let visualPos = getVisualPosition(bidderIdx);
         const seatEl = document.getElementById(`player-${positions[visualPos]}`);
         const boardEl = document.getElementById('board');
         if (!seatEl || !boardEl) { vault.style.display = 'none'; return; }
@@ -7290,7 +7423,7 @@ class UIController {
         }
 
         const positions = ['bottom', 'right', 'top', 'left'];
-        let visualPos = (mySeat === 99) ? winner.player : (winner.player - mySeat + 4) % 4;
+        let visualPos = getVisualPosition(winner.player);
         let myTeam = (mySeat === 0 || mySeat === 2 || mySeat === 99) ? 1 : 2;
         let winTeam = (winner.player === 0 || winner.player === 2) ? 1 : 2;
         let isFriend = (winTeam === myTeam);
@@ -7490,11 +7623,13 @@ class UIController {
         let userValidPlays = (this.engine.phase === 'PLAYING' && this.engine.currentTurn === mySeat && mySeat !== 99) ? this.engine.getValidPlayIndices(mySeat) : [];
 
         for (let i = 0; i < 4; i++) {
-            let actualPlayerIndex = (mySeat === 99) ? i : (mySeat + i) % 4;
+            let actualPlayerIndex = getPlayerAtVisualPosition(i);
             const el = document.getElementById(`player-${positions[i]}`);
             if (!el) continue;
             
-            let badgeClass = (i === 2 && mySeat !== 99) ? 'player-badge partner' : (i === 0 ? 'player-badge' : 'player-badge enemy');
+            let isMe = (actualPlayerIndex === mySeat && mySeat !== 99);
+            let isPartner = (actualPlayerIndex === (mySeat + 2) % 4 && mySeat !== 99);
+            let badgeClass = isPartner ? 'player-badge partner' : (isMe ? 'player-badge' : 'player-badge enemy');
             let isDealing = (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2');
             let isCurrent = (actualPlayerIndex === this.engine.currentTurn && this.engine.phase !== 'ROUND_OVER' && !isDealing);
             if (isCurrent) badgeClass += ' active-turn'; 
@@ -7656,7 +7791,7 @@ class UIController {
 
         const seatTargets = [];
         for (let i = 0; i < 4; i++) {
-            let actualPlayerIndex = (mySeat === 99) ? i : (mySeat + i) % 4;
+            let actualPlayerIndex = getPlayerAtVisualPosition(i);
             const el = document.getElementById(`player-${positions[i]}`);
             let destX = 0, destY = 0;
             if (el) {
@@ -7840,8 +7975,8 @@ class UIController {
         const table = document.getElementById('center-table');
         if (!table) return;
         const div = document.createElement('div');
-        let visualPos = (mySeat === 99) ? pIndex : (pIndex - mySeat + 4) % 4;
-        let partnerClass = (visualPos === 2 && mySeat !== 99) ? 'partner-card' : '';
+        let visualPos = getVisualPosition(pIndex);
+        let partnerClass = (pIndex === (mySeat + 2) % 4 && mySeat !== 99) ? 'partner-card' : '';
         let ptBadge = card.value > 0 ? `<div class="card-pt-badge">+${card.value}</div>` : '';
         let isRed = (card.suit === '♥' || card.suit === '♦' || card.suit === 'hearts' || card.suit === 'diamonds');
         
@@ -8007,6 +8142,7 @@ class UIController {
     }
 
     playRoyalPairAnimation(pIndex, onComplete) {
+        triggerHaptic('pair');
         const splash = document.getElementById('royal-pair-splash');
         if (!splash) {
             if (onComplete) onComplete();
@@ -8126,6 +8262,7 @@ class UIController {
     }
 
     playTrumpRevealAnimation(suit) {
+        triggerHaptic('reveal');
         this.animatingReveal = true;
         const blast = document.getElementById('dramatic-reveal');
         if (!blast) {
@@ -8328,7 +8465,7 @@ class UIController {
         try {
             const cards = table.querySelectorAll('.trick-card');
             let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
-            let visualPos = (mySeat === 99) ? winnerIndex : (winnerIndex - mySeat + 4) % 4;
+            let visualPos = getVisualPosition(winnerIndex);
             let isTeam1Winner = (winnerIndex === 0 || winnerIndex === 2);
             let glowColor = isTeam1Winner ? 'rgba(56, 189, 248, 0.95)' : 'rgba(251, 113, 133, 0.95)';
 
@@ -8336,7 +8473,7 @@ class UIController {
             let winCardPlay = this.engine._getCurrentTrickWinner();
             let winningCardEl = null;
             if (winCardPlay) {
-                let winnerCardPos = (mySeat === 99) ? winCardPlay.player : (winCardPlay.player - mySeat + 4) % 4;
+                let winnerCardPos = getVisualPosition(winCardPlay.player);
                 winningCardEl = table.querySelector(`.trick-card.pos-${winnerCardPos}`);
             }
             if (!winningCardEl && winCardPlay && winCardPlay.card) {
@@ -8573,21 +8710,56 @@ class UIController {
         this.turnTimerSeat = turnPlayer;
         this.turnSecondsLeft = 20;
 
+        // If it's my turn, trigger crisp turn haptics
+        if (turnPlayer === mySeat && mySeat !== 99) {
+            triggerHaptic('turn');
+        }
+
+        // If seat has been taken over by AI Auto-Sub (due to 2 consecutive timeouts), play after short realistic delay
+        if (autoPlaySeats[turnPlayer]) {
+            if (isHost) {
+                setTimeout(() => {
+                    if (this.engine.currentTurn === turnPlayer && !this.animatingTrick) {
+                        this.executeAFKTimeoutMove(turnPlayer);
+                    }
+                }, 800);
+            }
+            return;
+        }
+
         const updateTimerBadge = () => {
-            let visualPos = (mySeat === 99) ? turnPlayer : (turnPlayer - mySeat + 4) % 4;
+            let visualPos = getVisualPosition(turnPlayer);
             const posNames = ['bottom', 'right', 'top', 'left'];
             const pBox = document.getElementById(`player-${posNames[visualPos]}`);
             if (pBox) {
-                let badge = pBox.querySelector('.turn-timer-badge');
-                if (!badge) {
-                    badge = document.createElement('div');
-                    badge.className = 'turn-timer-badge';
-                    pBox.appendChild(badge);
+                let ring = pBox.querySelector('.turn-ring-container');
+                if (!ring) {
+                    ring = document.createElement('div');
+                    ring.className = 'turn-ring-container';
+                    ring.innerHTML = `
+                        <svg class="turn-ring-svg" viewBox="0 0 36 36">
+                            <path class="turn-ring-circle-bg"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path class="turn-ring-circle-progress"
+                                stroke-dasharray="100, 100"
+                                stroke-dashoffset="0"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                        </svg>
+                        <div class="turn-ring-label">${this.turnSecondsLeft}</div>
+                    `;
+                    pBox.appendChild(ring);
                 }
-                badge.innerText = `⏱️ ${this.turnSecondsLeft}s`;
-                badge.style.display = 'block';
-                if (this.turnSecondsLeft <= 5) badge.classList.add('warning');
-                else badge.classList.remove('warning');
+                const progressPath = ring.querySelector('.turn-ring-circle-progress');
+                const label = ring.querySelector('.turn-ring-label');
+                let dashOffset = ((20 - this.turnSecondsLeft) / 20) * 100;
+                if (progressPath) progressPath.setAttribute('stroke-dashoffset', dashOffset);
+                if (label) label.innerText = this.turnSecondsLeft;
+
+                ring.style.display = 'flex';
+                if (this.turnSecondsLeft <= 5) ring.classList.add('warning');
+                else ring.classList.remove('warning');
             }
 
             if (turnPlayer === mySeat && mySeat !== 99) {
@@ -8624,28 +8796,38 @@ class UIController {
             this.turnCountdownTimer = null;
         }
         this.turnTimerSeat = -1;
+        document.querySelectorAll('.turn-ring-container').forEach(r => r.style.display = 'none');
         document.querySelectorAll('.turn-timer-badge').forEach(b => b.style.display = 'none');
     }
 
     executeAFKTimeoutMove(player) {
         if (!isHost) return;
-        autoPlaySeats[player] = true;
+        consecutiveTimeouts[player] = (consecutiveTimeouts[player] || 0) + 1;
         let pName = playerCustomNames[player] || COMPASS_FULL[player];
 
+        if (consecutiveTimeouts[player] >= 2) {
+            autoPlaySeats[player] = true;
+            this.renderLog(`🤖 ${pName} missed 2 consecutive turns. AI Auto-Sub taking over.`);
+            sendNetMessage({ type: 'SEAT_TAKEOVER', seat: player, autoPlay: true });
+        } else {
+            this.renderLog(`⏱️ Auto-played turn for ${pName} (Turn timed out: 1/2)`);
+        }
+
         if (this.engine.phase === 'BIDDING') {
-            this.renderLog(`⏱️ Auto-passed for ${pName} (Turn timeout)`);
             this.engine.submitBid(player, 'Pass');
             this.gameLoop();
         } else if (this.engine.phase === 'SET_TRUMP') {
             let suit = this.engine.getAITrump();
-            this.renderLog(`⏱️ Auto-set secret trump for ${pName} (Turn timeout)`);
             this.engine.setTrump(suit);
             this.gameLoop();
         } else if (this.engine.phase === 'PLAYING') {
-            let valids = this.engine.getValidPlayIndices(player);
-            let pickIdx = (valids && valids.length > 0) ? valids[0] : 0;
-            this.renderLog(`⏱️ AI auto-played for ${pName} (Turn timeout)`);
-            this.engine.playCard(player, pickIdx);
+            // Quietly take over using local AI bot (ISMCTS + DDS)
+            let moveIdx = this.engine.getBotPlay(player);
+            if (moveIdx === null || moveIdx === undefined || moveIdx < 0) {
+                let valids = this.engine.getValidPlayIndices(player);
+                moveIdx = (valids && valids.length > 0) ? valids[0] : 0;
+            }
+            this.engine.playCard(player, moveIdx);
             this.gameLoop();
         }
     }
@@ -8653,13 +8835,18 @@ class UIController {
     resumeManualControl() {
         if (mySeat !== 99 && mySeat >= 0 && mySeat < 4) {
             autoPlaySeats[mySeat] = false;
+            consecutiveTimeouts[mySeat] = 0;
             const banner = document.getElementById('afk-resume-banner');
             if (banner) banner.style.display = 'none';
             if (isHost) {
                 this.renderLog(`👋 You resumed manual control!`);
+                sendNetMessage({ type: 'SEAT_TAKEOVER', seat: mySeat, autoPlay: false });
             } else {
                 sendNetMessage({ type: 'CLAIM_SEAT', player: mySeat });
+                sendNetMessage({ type: 'SEAT_TAKEOVER', seat: mySeat, autoPlay: false });
             }
+            triggerHaptic('turn');
+            this.gameLoop();
         }
     }
 
@@ -9048,6 +9235,7 @@ class UIController {
     }
 
     showBidModal() {
+        triggerHaptic('turn');
         if (this.engine.hasPassed && this.engine.hasPassed[mySeat]) {
             document.getElementById('bid-modal').style.display = 'none';
             return;
@@ -9197,6 +9385,7 @@ class UIController {
     }
 
     showTrumpModal() {
+        triggerHaptic('turn');
         const container = document.getElementById('trump-suit-options'); container.innerHTML = '';
         let t = I18N[currentLang];
         if (document.getElementById('trump-modal-title')) document.getElementById('trump-modal-title').innerText = t.selectTrump;
@@ -9659,6 +9848,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('DOMContentLoaded', () => {
+    updateOrientationUI();
     initTableSpeed();
     applyLanguage();
     refreshLucideIcons();
