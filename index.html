@@ -4235,10 +4235,22 @@ function connectAsClient() {
         });
 
         hostConn.on('close', () => {
-            const startScreen = document.getElementById('start-screen');
-            if (startScreen) startScreen.style.display = 'flex';
-            lobbyStatus.style.display = 'block';
-            lobbyStatus.innerHTML = `⚠️ Connection to Host lost.<br><button class="menu-btn primary-gold" onclick="location.reload()" style="margin-top:8px; justify-content:center;">🔄 Reconnect</button>`;
+            console.warn("Connection to host closed, attempting auto-reconnect...");
+            if (game.phase && game.phase !== 'LOBBY') {
+                if (typeof showGameToast === 'function') {
+                    showGameToast("⚠️ Reconnecting to Host...", 3000);
+                }
+                setTimeout(() => {
+                    if (gameMode === 'multi' && !isHost) {
+                        connectAsClient();
+                    }
+                }, 1000);
+            } else {
+                const startScreen = document.getElementById('start-screen');
+                if (startScreen) startScreen.style.display = 'flex';
+                lobbyStatus.style.display = 'block';
+                lobbyStatus.innerHTML = `⚠️ Connection to Host lost.<br><button class="menu-btn primary-gold" onclick="location.reload()" style="margin-top:8px; justify-content:center;">🔄 Reconnect</button>`;
+            }
         });
     });
 
@@ -4307,11 +4319,30 @@ function setupHostRole() {
 
         conn.on('close', () => {
             if (conn.seat !== undefined && conn.seat !== 99) {
-                let idx = humanSeats.indexOf(conn.seat);
-                if (idx !== -1) humanSeats.splice(idx, 1);
-                playerCustomNames[conn.seat] = COMPASS_SHORT[conn.seat];
-                broadcastNetMessage({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames });
-                updateTopCompassBar();
+                if (!game.phase || game.phase === 'LOBBY') {
+                    // Pre-game lobby: remove seat assignment
+                    let idx = humanSeats.indexOf(conn.seat);
+                    if (idx !== -1) humanSeats.splice(idx, 1);
+                    playerCustomNames[conn.seat] = COMPASS_SHORT[conn.seat];
+                    broadcastNetMessage({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames, hostSeat: hostSeat });
+                    updateTopCompassBar();
+                    renderLobbyRoster();
+                } else {
+                    // In-game: player temporarily disconnected or locked screen!
+                    // Put them into AI Auto-Sub immediately so the match continues smoothly
+                    autoPlaySeats[conn.seat] = true;
+                    ui.renderLog(`⚠️ ${playerCustomNames[conn.seat]} disconnected. AI Auto-Sub active.`);
+                    broadcastNetMessage({ type: 'SEAT_TAKEOVER', seat: conn.seat, autoPlay: true });
+                    
+                    // If it is currently their turn, trigger an immediate auto-move with local bot
+                    if (game.currentTurn === conn.seat && !ui.animatingTrick) {
+                        setTimeout(() => {
+                            if (game.currentTurn === conn.seat && autoPlaySeats[conn.seat]) {
+                                ui.executeAFKTimeoutMove(conn.seat);
+                            }
+                        }, 800);
+                    }
+                }
             }
             delete clientConns[conn.peer];
         });
@@ -4351,14 +4382,37 @@ function handleHostProcessMessage(conn, data) {
             if (!humanSeats.includes(seat)) humanSeats.push(seat);
             playerCustomNames[seat] = data.name || ("P" + (seat+1));
 
-            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seat, playerNames: playerCustomNames, humanSeats: humanSeats, isReconnect: isReconnect }));
-            broadcastNetMessage({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames });
+            conn.send(JSON.stringify({ 
+                type: 'ASSIGN_SEAT', 
+                seat: seat, 
+                playerNames: playerCustomNames, 
+                humanSeats: humanSeats, 
+                isReconnect: isReconnect,
+                hostSeat: hostSeat,
+                autoPlaySeats: autoPlaySeats
+            }));
+            broadcastNetMessage({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames, hostSeat: hostSeat });
             updateTopCompassBar();
             renderLobbyRoster();
 
             if (game.phase && game.phase !== 'LOBBY') {
-                conn.send(JSON.stringify({ type: 'START_GAME', humanSeats: humanSeats, playerNames: playerCustomNames, speedMultiplier: window.GAME_SPEED_MULTIPLIER || 1.0 }));
-                conn.send(JSON.stringify({ type: 'STATE_UPDATE', target: seat, state: game.exportStateForClient(seat) }));
+                conn.send(JSON.stringify({ 
+                    type: 'START_GAME', 
+                    humanSeats: humanSeats, 
+                    playerNames: playerCustomNames, 
+                    speedMultiplier: window.GAME_SPEED_MULTIPLIER || 1.0,
+                    hostSeat: hostSeat
+                }));
+                conn.send(JSON.stringify({ 
+                    type: 'STATE_UPDATE', 
+                    target: seat, 
+                    state: game.exportStateForClient(seat) 
+                }));
+                conn.send(JSON.stringify({
+                    type: 'SEAT_TAKEOVER',
+                    seat: seat,
+                    autoPlay: !!autoPlaySeats[seat]
+                }));
                 ui.renderLog(`🔄 ${playerCustomNames[seat]} reconnected to seat ${COMPASS_FULL[seat]}!`);
             }
         } else {
@@ -4516,10 +4570,25 @@ function handleIncomingNetworkMessage(sourceConn, data) {
                         window.GAME_SPEED_MULTIPLIER = data.state.speedMultiplier;
                         updateTableSpeedUI();
                     }
+                    let isNewRound = (data.state.roundId !== undefined && data.state.roundId !== game.roundId);
+                    let masterTricks = data.state.roundTricksCount !== undefined ? data.state.roundTricksCount : 0;
+                    let localTricks = (game.roundTricks || []).length;
+                    let isSeverelyBehind = (masterTricks > localTricks + 1);
+
+                    // If a new round started or client is >1 trick behind, force clear any frozen animations immediately
+                    if (isNewRound || isSeverelyBehind) {
+                        ui.clearActiveTrickAnimation();
+                        ui.clearActiveDealAnimation();
+                        ui.animatingTrick = false;
+                        ui.animatingReveal = false;
+                        ui.dealingAnimationActive = false;
+                        ui.isDealingState = false;
+                        uiLocked = false;
+                        ui.pendingMasterState = null;
+                    }
+
                     if (ui.animatingTrick || ui.animatingReveal || ui.dealingAnimationActive) {
                         if (ui.animatingTrick && data.state.phase === 'TRICK_OVER') {
-                            let localTricks = (game.roundTricks || []).length;
-                            let masterTricks = data.state.roundTricksCount !== undefined ? data.state.roundTricksCount : localTricks;
                             if (masterTricks <= localTricks && (!data.state.trickCards || data.state.trickCards.length === 0)) {
                                 return; // Drop only stale TRICK_OVER for the trick already resolving
                             }
@@ -4576,11 +4645,90 @@ setInterval(() => {
         let hasNoCards = (game.players[mySeat] || []).length === 0;
         let lastAge = Date.now() - (ui.lastStateUpdateTime || 0);
         let isStalled = (lastAge > 2800);
+
+        // Stuck animation auto-recovery: if animation flags have been stuck for >3.5s, force clear them
+        if (ui.animatingTrick || ui.dealingAnimationActive || ui.animatingReveal) {
+            if (!ui._animStartTime) ui._animStartTime = Date.now();
+            else if (Date.now() - ui._animStartTime > 3500) {
+                console.warn("Watchdog: Animation stuck for >3.5s, force clearing!");
+                ui.clearActiveTrickAnimation();
+                ui.clearActiveDealAnimation();
+                ui.animatingTrick = false;
+                ui.animatingReveal = false;
+                ui.dealingAnimationActive = false;
+                ui.isDealingState = false;
+                uiLocked = false;
+                ui._animStartTime = null;
+                if (ui.pendingMasterState) {
+                    let pState = ui.pendingMasterState;
+                    ui.pendingMasterState = null;
+                    game.syncFromMasterState(pState);
+                    ui.renderStaticBoard();
+                    ui.syncTable();
+                    ui.gameLoop();
+                }
+            }
+        } else {
+            ui._animStartTime = null;
+        }
+
         if (hasNoCards || isStalled) {
             sendNetMessage({ type: 'REQUEST_STATE', seat: mySeat });
         }
     }
 }, 1500);
+
+// ==================== SCREEN WAKEUP & RE-SYNC HANDLER ====================
+function handleDeviceWakeup() {
+    if (document.visibilityState === 'hidden') return;
+
+    // 1. Force unfreeze any stuck animations from sleep
+    if (typeof ui !== 'undefined' && ui) {
+        ui.clearActiveTrickAnimation();
+        ui.clearActiveDealAnimation();
+        ui.animatingTrick = false;
+        ui.animatingReveal = false;
+        ui.dealingAnimationActive = false;
+        ui.isDealingState = false;
+        uiLocked = false;
+        const dealLayer = document.getElementById('deal-layer');
+        if (dealLayer) dealLayer.innerHTML = '';
+
+        if (ui.pendingMasterState && typeof game !== 'undefined' && game) {
+            let pState = ui.pendingMasterState;
+            ui.pendingMasterState = null;
+            game.syncFromMasterState(pState);
+            ui.renderStaticBoard();
+            ui.syncTable();
+            ui.gameLoop();
+        }
+    }
+
+    // 2. Client reconnection and sync
+    if (typeof gameMode !== 'undefined' && gameMode === 'multi' && !isHost) {
+        let isConnActive = hostConn && hostConn.open;
+        if (!isConnActive) {
+            console.log("Device woke up with dead connection, auto-reconnecting to host...");
+            connectAsClient();
+        } else {
+            console.log("Device woke up, requesting fresh state from host...");
+            sendNetMessage({ type: 'REQUEST_STATE', seat: mySeat });
+        }
+    } else if (typeof gameMode !== 'undefined' && gameMode === 'multi' && isHost) {
+        if (typeof ui !== 'undefined' && ui) {
+            ui.broadcastGameState();
+            ui.gameLoop();
+        }
+    }
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        handleDeviceWakeup();
+    }
+});
+window.addEventListener('pageshow', handleDeviceWakeup);
+window.addEventListener('focus', handleDeviceWakeup);
 
 function hostStartGame() {
     if (gameMode === 'ai') {
@@ -4828,7 +4976,10 @@ class PeerManager {
             gamePointsWon: masterEngine.gamePointsWon,
             pairDeclared: masterEngine.pairDeclared,
             pairDeclaringTeam: masterEngine.pairDeclaringTeam,
-            roundTricksCount: (masterEngine.roundTricks || []).length
+            roundTricksCount: (masterEngine.roundTricks || []).length,
+            autoPlaySeats: (typeof autoPlaySeats !== 'undefined') ? autoPlaySeats : [false, false, false, false],
+            humanSeats: (typeof humanSeats !== 'undefined') ? humanSeats : [0],
+            playerCustomNames: (typeof playerCustomNames !== 'undefined') ? playerCustomNames : ["SOUTH", "EAST", "NORTH", "WEST"]
         };
     }
 }
@@ -7000,6 +7151,20 @@ class TwentyEightEngine {
             }
         } else if (state.roundId !== undefined) {
             this.roundId = state.roundId;
+        }
+
+        if (state.autoPlaySeats) {
+            autoPlaySeats = state.autoPlaySeats;
+            if (typeof mySeat !== 'undefined' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) {
+                const banner = document.getElementById('afk-resume-banner');
+                if (banner) banner.style.display = autoPlaySeats[mySeat] ? 'flex' : 'none';
+            }
+        }
+        if (state.humanSeats) {
+            humanSeats = state.humanSeats;
+        }
+        if (state.playerCustomNames) {
+            playerCustomNames = state.playerCustomNames;
         }
 
         this.t1TrickPts = state.t1TrickPts || 0; this.t2TrickPts = state.t2TrickPts || 0;
