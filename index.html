@@ -44,6 +44,145 @@ body.theme-crimson {
     --felt-center: #5c1822; --felt-mid: #380d14; --felt-edge: #150407;
 }
 
+/* ==================== MULTIPLAYER LOBBY ROSTER & TURN TIMER STYLES ==================== */
+.lobby-roster-card {
+    background: rgba(8, 24, 15, 0.94);
+    border: 1.5px solid var(--gold-primary);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin: 8px 0 10px 0;
+    text-align: left;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+}
+.lobby-roster-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(229, 193, 88, 0.25);
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--gold-bright);
+}
+.lobby-teams-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.lobby-team-column {
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+.lobby-team-column.team1 { border-left: 3px solid var(--team1-blue); }
+.lobby-team-column.team2 { border-left: 3px solid var(--team2-coral); }
+.lobby-team-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    color: var(--gold-primary);
+}
+.lobby-player-slot {
+    font-size: 0.75rem;
+    color: #e2e8f0;
+    padding: 2px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.lobby-player-slot.me {
+    color: var(--gold-bright);
+    font-weight: 800;
+}
+.partner-selection-box {
+    background: rgba(229, 193, 88, 0.1);
+    border: 1px dashed rgba(229, 193, 88, 0.4);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 0.75rem;
+    line-height: 1.35;
+}
+.partner-chips-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+.partner-chip-btn {
+    background: rgba(0, 0, 0, 0.6);
+    border: 1.5px solid var(--gold-border);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.partner-chip-btn:hover {
+    border-color: var(--gold-bright);
+    background: rgba(229, 193, 88, 0.25);
+    transform: translateY(-1px);
+}
+.partner-chip-btn.current {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: var(--team1-blue);
+    color: #bae6fd;
+    cursor: default;
+}
+.turn-timer-badge {
+    position: absolute;
+    top: -12px;
+    right: -8px;
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    border: 1.5px solid #fff;
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 900;
+    padding: 1px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    display: none;
+    z-index: 50;
+    letter-spacing: 0.3px;
+}
+.turn-timer-badge.warning {
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    border-color: #fca5a5;
+    animation: pulseGlow 0.6s infinite alternate;
+}
+#afk-resume-banner {
+    position: fixed;
+    bottom: 74px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.94);
+    border: 1.5px solid var(--gold-bright);
+    color: #f8fafc;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+    display: none;
+    align-items: center;
+    gap: 8px;
+    z-index: 500;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+}
+#afk-resume-banner:hover {
+    background: rgba(30, 41, 59, 0.98);
+}
+
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
     width: 100vw; height: 100vh; height: 100dvh; margin: 0; padding: 0; position: fixed; inset: 0;
@@ -1983,11 +2122,206 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <button id="next-round-btn" class="menu-btn primary-gold" style="justify-content:center; margin:0 auto;" onclick="ui.startNewRound()">Deal Next Round</button>
 </div>
 
+<div id="afk-resume-banner" onclick="ui.resumeManualControl()">
+    <span>🤖 Auto-Play Active (Taking turns while away)</span>
+    <span style="color:var(--gold-bright); text-decoration:underline; font-weight:800; margin-left:4px;">👋 Click to Take Over</span>
+</div>
 <div id="dramatic-reveal"></div>
 <div id="royal-pair-splash"></div>
 
 <script>
+// ==================== MULTIPLAYER TEAM & SESSION HELPERS ====================
+let seatSessionTokens = [null, null, null, null];
+let autoPlaySeats = [false, false, false, false];
+
+function getOrCreateSessionToken(roomCode) {
+    try {
+        let key = 'twentyeight_session_' + (roomCode || 'default');
+        let stored = sessionStorage.getItem(key);
+        if (stored) {
+            let data = JSON.parse(stored);
+            if (data && data.token) return data;
+        }
+        let newToken = 'tok_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+        let data = { token: newToken, nickname: (typeof myNickname !== 'undefined' ? myNickname : '') };
+        sessionStorage.setItem(key, JSON.stringify(data));
+        return data;
+    } catch(e) {
+        return { token: 'tok_' + Math.random().toString(36).substring(2, 11), nickname: '' };
+    }
+}
+
+function getTeamDisplayName(teamNum) {
+    let s1 = (teamNum === 1) ? 0 : 1;
+    let s2 = (teamNum === 1) ? 2 : 3;
+    let isDef1 = !playerCustomNames[s1] || COMPASS_FULL.includes(playerCustomNames[s1]);
+    let isDef2 = !playerCustomNames[s2] || COMPASS_FULL.includes(playerCustomNames[s2]);
+    let isHuman1 = (typeof humanSeats !== 'undefined') && humanSeats.includes(s1);
+    let isHuman2 = (typeof humanSeats !== 'undefined') && humanSeats.includes(s2);
+    
+    let botLabel = (typeof currentLang !== 'undefined' && currentLang === 'hi') ? 'बॉट' : 'Bot';
+    let name1 = isHuman1 ? (isDef1 ? COMPASS_FULL[s1] : playerCustomNames[s1]) : `${COMPASS_SHORT[s1]} ${botLabel}`;
+    let name2 = isHuman2 ? (isDef2 ? COMPASS_FULL[s2] : playerCustomNames[s2]) : `${COMPASS_SHORT[s2]} ${botLabel}`;
+
+    let hasCustom = (!isDef1 && isHuman1) || (!isDef2 && isHuman2);
+    if (hasCustom) {
+        return (typeof currentLang !== 'undefined' && currentLang === 'hi') 
+            ? `टीम "${name1} व ${name2}"` 
+            : `Team "${name1} & ${name2}"`;
+    }
+    return (teamNum === 1) 
+        ? ((typeof currentLang !== 'undefined' && currentLang === 'hi') ? "टीम 1 (द व उ)" : "Team 1 (S & N)")
+        : ((typeof currentLang !== 'undefined' && currentLang === 'hi') ? "टीम 2 (पू व प)" : "Team 2 (E & W)");
+}
+
+function renderLobbyRoster() {
+    const lobbyStatus = document.getElementById('lobby-status');
+    if (!lobbyStatus) return;
+    if (typeof gameMode === 'undefined' || gameMode !== 'multi') return;
+
+    let t1Name = getTeamDisplayName(1);
+    let t2Name = getTeamDisplayName(2);
+
+    let myPartnerSeat = (mySeat === 0) ? 2 : (mySeat === 2 ? 0 : (mySeat === 1 ? 3 : 1));
+    let partnerName = playerCustomNames[myPartnerSeat] || COMPASS_FULL[myPartnerSeat];
+    let isPartnerHuman = humanSeats.includes(myPartnerSeat);
+
+    // Swap options: other humans in the room who are NOT currently my partner and NOT myself
+    let swapOptions = [];
+    if (mySeat !== 99) {
+        for (let s of [0, 1, 2, 3]) {
+            if (s !== mySeat && s !== myPartnerSeat && humanSeats.includes(s)) {
+                swapOptions.push({
+                    seat: s,
+                    name: playerCustomNames[s] || COMPASS_FULL[s],
+                    dir: COMPASS_FULL[s]
+                });
+            }
+        }
+    }
+
+    let partnerStatusHtml = '';
+    if (mySeat === 99) {
+        partnerStatusHtml = `<div class="partner-selection-box">📺 <b>Spectator Mode:</b> Watching as Center Table Display.</div>`;
+    } else if (swapOptions.length > 0) {
+        let chips = `<button class="partner-chip-btn current">🤝 ${partnerName} (${COMPASS_SHORT[myPartnerSeat]}) • Current</button>`;
+        for (let opt of swapOptions) {
+            chips += `<button class="partner-chip-btn" onclick="choosePartner(${opt.seat})">🔄 Pair with ${opt.name} (${COMPASS_SHORT[opt.seat]})</button>`;
+        }
+        partnerStatusHtml = `
+            <div class="partner-selection-box">
+                <div style="font-weight:800; color:var(--gold-bright); margin-bottom:2px;">🤝 Choose Your Partner:</div>
+                <div style="font-size:0.72rem; color:#cbd5e1; margin-bottom:4px;">You are currently paired with <b>${partnerName}</b>. Tap a player below to team up:</div>
+                <div class="partner-chips-row">${chips}</div>
+            </div>
+        `;
+    } else {
+        let partnerDesc = isPartnerHuman 
+            ? `<b>${partnerName} (${COMPASS_FULL[myPartnerSeat]})</b>`
+            : `<b>🤖 ${COMPASS_FULL[myPartnerSeat]} Bot</b>`;
+        let reasonNote = humanSeats.length <= 1 
+            ? `(Waiting for friends to join... Share your Room Code!)`
+            : `(You are already paired with the only other player in the room.)`;
+
+        partnerStatusHtml = `
+            <div class="partner-selection-box">
+                <div style="font-weight:800; color:var(--gold-bright);">🤝 Your Partner: ${partnerDesc}</div>
+                <div style="font-size:0.72rem; color:#94a3b8; margin-top:2px;">${reasonNote}</div>
+            </div>
+        `;
+    }
+
+    let roleBadge = isHost 
+        ? `👑 Room Host (<span style="color:var(--gold-bright); font-weight:800;">${currentRoom}</span>)`
+        : `Connected to Host (<span style="color:var(--gold-bright); font-weight:800;">${currentRoom}</span>)`;
+
+    lobbyStatus.innerHTML = `
+        <div class="lobby-roster-card">
+            <div class="lobby-roster-header">
+                <span>${roleBadge}</span>
+                <span style="font-size:0.72rem; color:#94a3b8;">${humanSeats.length} / 4 Humans</span>
+            </div>
+            <div class="lobby-teams-grid">
+                <div class="lobby-team-column team1">
+                    <div class="lobby-team-title">${t1Name}</div>
+                    <div class="lobby-player-slot ${mySeat === 0 ? 'me' : ''}">
+                        <span>${humanSeats.includes(0) ? '👤' : '🤖'}</span>
+                        <span>${playerCustomNames[0] || 'South'}${mySeat === 0 ? ' (You)' : ''}</span>
+                    </div>
+                    <div class="lobby-player-slot ${mySeat === 2 ? 'me' : ''}">
+                        <span>${humanSeats.includes(2) ? '👤' : '🤖'}</span>
+                        <span>${playerCustomNames[2] || 'North'}${mySeat === 2 ? ' (You)' : ''}</span>
+                    </div>
+                </div>
+                <div class="lobby-team-column team2">
+                    <div class="lobby-team-title">${t2Name}</div>
+                    <div class="lobby-player-slot ${mySeat === 1 ? 'me' : ''}">
+                        <span>${humanSeats.includes(1) ? '👤' : '🤖'}</span>
+                        <span>${playerCustomNames[1] || 'East'}${mySeat === 1 ? ' (You)' : ''}</span>
+                    </div>
+                    <div class="lobby-player-slot ${mySeat === 3 ? 'me' : ''}">
+                        <span>${humanSeats.includes(3) ? '👤' : '🤖'}</span>
+                        <span>${playerCustomNames[3] || 'West'}${mySeat === 3 ? ' (You)' : ''}</span>
+                    </div>
+                </div>
+            </div>
+            ${partnerStatusHtml}
+        </div>
+    `;
+}
+
+function choosePartner(targetSeat) {
+    let myPartnerSeat = (mySeat === 0) ? 2 : (mySeat === 2 ? 0 : (mySeat === 1 ? 3 : 1));
+    if (isHost) {
+        executeSeatSwap(myPartnerSeat, targetSeat);
+    } else {
+        sendNetMessage({ type: 'CHOOSE_PARTNER', fromSeat: mySeat, targetSeat: targetSeat });
+    }
+}
+
+function executeSeatSwap(seatA, seatB) {
+    if (seatA === seatB) return;
+    // 1. Swap in playerCustomNames
+    let tmpName = playerCustomNames[seatA];
+    playerCustomNames[seatA] = playerCustomNames[seatB];
+    playerCustomNames[seatB] = tmpName;
+
+    // 2. Swap in seatSessionTokens
+    let tmpTok = seatSessionTokens[seatA];
+    seatSessionTokens[seatA] = seatSessionTokens[seatB];
+    seatSessionTokens[seatB] = tmpTok;
+
+    // 3. Swap in humanSeats
+    let hasA = humanSeats.includes(seatA);
+    let hasB = humanSeats.includes(seatB);
+    humanSeats = humanSeats.filter(s => s !== seatA && s !== seatB);
+    if (hasA) humanSeats.push(seatB);
+    if (hasB) humanSeats.push(seatA);
+    humanSeats.sort();
+
+    // 4. Update client connections
+    for (let connId in clientConns) {
+        let conn = clientConns[connId];
+        if (!conn) continue;
+        if (conn.seat === seatA) {
+            conn.seat = seatB;
+            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seatB, playerNames: playerCustomNames, humanSeats: humanSeats }));
+        } else if (conn.seat === seatB) {
+            conn.seat = seatA;
+            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seatA, playerNames: playerCustomNames, humanSeats: humanSeats }));
+        }
+    }
+
+    if (mySeat === seatA) mySeat = seatB;
+    else if (mySeat === seatB) mySeat = seatA;
+
+    broadcastNetMessage({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames });
+    updateTopCompassBar();
+    renderLobbyRoster();
+}
+
 // ==================== RESPONSIVE SCREEN DETECTOR & ADAPTIVE LAYOUT ====================
+
 function updateScreenMetrics() {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -3302,7 +3636,8 @@ function connectAsClient() {
             if (viewMode === 'BOARD') {
                 hostConn.send(JSON.stringify({ type: 'JOIN_BOARD', name: myNickname, clientId: myClientId }));
             } else {
-                hostConn.send(JSON.stringify({ type: 'JOIN_PLAYER', name: myNickname, clientId: myClientId }));
+                let sess = getOrCreateSessionToken(currentRoom);
+                hostConn.send(JSON.stringify({ type: 'JOIN_PLAYER', name: myNickname, clientId: myClientId, token: sess.token }));
             }
         });
 
@@ -3360,10 +3695,11 @@ function setupHostRole() {
         playerCustomNames[0] = myNickname;
     }
 
+        let sess = getOrCreateSessionToken(currentRoom);
+    seatSessionTokens[0] = sess.token;
     updateTopCompassBar();
     document.getElementById('host-controls').style.display = 'flex';
-    const lobbyStatus = document.getElementById('lobby-status');
-    lobbyStatus.innerHTML = `👑 You are <b style="color:#fff">ROOM HOST (${COMPASS_FULL[0]})</b><br>Room Code: <b style="color:var(--gold-bright); font-size:1.1rem;">${currentRoom}</b><br>Share the code or tap "Invite" for QR code!`;
+    renderLobbyRoster();
 
     // Heartbeat: continuously synchronizes active match state to all connected peers (including ROUND_OVER)
     if (stateHeartbeatTimer) clearInterval(stateHeartbeatTimer);
@@ -3398,29 +3734,63 @@ function setupHostRole() {
 
 function handleHostProcessMessage(conn, data) {
     if (data.type === 'JOIN_PLAYER') {
-        const preferred = [0, 2, 1, 3];
         let seat = -1;
-        for (let s of preferred) {
-            if (!humanSeats.includes(s) && (s !== 0 || !isHost || mySeat === 99)) {
-                seat = s; break;
+        let isReconnect = false;
+
+        // 1. Check for reconnecting player with matching token
+        if (data.token) {
+            for (let s = 0; s < 4; s++) {
+                if (seatSessionTokens[s] === data.token) {
+                    seat = s;
+                    isReconnect = true;
+                    break;
+                }
             }
         }
+
+        // 2. Fresh joiner: find preferred seat
+        if (seat === -1) {
+            const preferred = [0, 2, 1, 3];
+            for (let s of preferred) {
+                if (!humanSeats.includes(s) && (s !== 0 || !isHost || mySeat === 99)) {
+                    seat = s; break;
+                }
+            }
+        }
+
         if (seat !== -1) {
             conn.seat = seat;
             conn.clientId = data.clientId;
+            if (data.token) seatSessionTokens[seat] = data.token;
             if (!humanSeats.includes(seat)) humanSeats.push(seat);
             playerCustomNames[seat] = data.name || ("P" + (seat+1));
 
-            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seat, playerNames: playerCustomNames, humanSeats: humanSeats }));
+            conn.send(JSON.stringify({ type: 'ASSIGN_SEAT', seat: seat, playerNames: playerCustomNames, humanSeats: humanSeats, isReconnect: isReconnect }));
             broadcastNetMessage({ type: 'SYNC_LOBBY', humanSeats: humanSeats, playerNames: playerCustomNames });
             updateTopCompassBar();
+            renderLobbyRoster();
 
             if (game.phase && game.phase !== 'LOBBY') {
-                conn.send(JSON.stringify({ type: 'START_GAME', humanSeats: humanSeats, playerNames: playerCustomNames }));
+                conn.send(JSON.stringify({ type: 'START_GAME', humanSeats: humanSeats, playerNames: playerCustomNames, speedMultiplier: window.GAME_SPEED_MULTIPLIER || 1.0 }));
                 conn.send(JSON.stringify({ type: 'STATE_UPDATE', target: seat, state: game.exportStateForClient(seat) }));
+                ui.renderLog(`🔄 ${playerCustomNames[seat]} reconnected to seat ${COMPASS_FULL[seat]}!`);
             }
         } else {
             conn.send(JSON.stringify({ type: 'FULL_LOBBY' }));
+        }
+    }
+    else if (data.type === 'CHOOSE_PARTNER') {
+        if (isHost && (!game.phase || game.phase === 'LOBBY')) {
+            let fromSeat = data.fromSeat;
+            let targetSeat = data.targetSeat;
+            let fromPartnerSeat = (fromSeat === 0) ? 2 : (fromSeat === 2 ? 0 : (fromSeat === 1 ? 3 : 1));
+            executeSeatSwap(fromPartnerSeat, targetSeat);
+        }
+    }
+    else if (data.type === 'CLAIM_SEAT') {
+        if (isHost && data.player !== undefined) {
+            autoPlaySeats[data.player] = false;
+            ui.renderLog(`👋 ${playerCustomNames[data.player]} resumed manual control!`);
         }
     }
     else if (data.type === 'JOIN_BOARD') {
@@ -3452,8 +3822,7 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         if (!humanSeats.includes(mySeat)) humanSeats.push(mySeat);
         if (data.playerNames) playerCustomNames = data.playerNames;
         updateTopCompassBar();
-        let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
-        document.getElementById('lobby-status').innerHTML = `🧭 You are: <b style="color:#fff">${COMPASS_FULL[mySeat]}</b> (${myNickname} • Team ${teamNum})<br>Waiting for Host to start match...`;
+        renderLobbyRoster();
         if (isHost) {
             document.getElementById('host-controls').style.display = 'flex';
         }
@@ -3471,6 +3840,7 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         humanSeats = data.humanSeats;
         if (data.playerNames) playerCustomNames = data.playerNames;
         updateTopCompassBar();
+        renderLobbyRoster();
     }
     else if (data.type === 'SPEED_SYNC') {
         if (data.speedMultiplier) {
@@ -6111,6 +6481,9 @@ class UIController {
         this._dealAnimSeq = 0;
         this.dealFlyerTimers = [];
         this.lastStateUpdateTime = Date.now();
+        this.turnSecondsLeft = 20;
+        this.turnCountdownTimer = null;
+        this.turnTimerSeat = -1;
         this.animQueue = new AnimationQueue();
         this.activeTrickTimeline = null;
         this.trickBeat2Timer = null;
@@ -6229,10 +6602,17 @@ class UIController {
                 }
             }
         }
-        let myDir = COMPASS_SHORT[mySeat];
-        let partDir = COMPASS_SHORT[(mySeat + 2) % 4];
-        document.getElementById('t1-header').innerText = `${t.yourTeam} (${myDir} & ${partDir})`;
-        document.getElementById('t2-header').innerText = t.opponents;
+        let t1Name = getTeamDisplayName(1);
+        let t2Name = getTeamDisplayName(2);
+        let myTeamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
+        if (mySeat === 99) {
+            document.getElementById('t1-header').innerText = t1Name;
+            document.getElementById('t2-header').innerText = t2Name;
+        } else {
+            let isTeam1Mine = (myTeamNum === 1);
+            document.getElementById('t1-header').innerText = isTeam1Mine ? `${t1Name} (YOU)` : t1Name;
+            document.getElementById('t2-header').innerText = !isTeam1Mine ? `${t2Name} (YOU)` : t2Name;
+        }
     }
 
     triggerBidSplash(pIndex, title, value, type = 'partner') {
@@ -8179,8 +8559,121 @@ class UIController {
         }
     }
 
+    manageTurnCountdown(turnPlayer, isHumanTurn) {
+        if (!isHumanTurn || this.engine.phase === 'ROUND_OVER' || this.engine.phase === 'TRICK_OVER' || this.engine.phase === 'LOBBY' || this.animatingTrick) {
+            this.stopTurnCountdown();
+            return;
+        }
+
+        if (this.turnTimerSeat === turnPlayer && this.turnCountdownTimer) {
+            return; // Timer already active for this turn
+        }
+
+        this.stopTurnCountdown();
+        this.turnTimerSeat = turnPlayer;
+        this.turnSecondsLeft = 20;
+
+        const updateTimerBadge = () => {
+            let visualPos = (mySeat === 99) ? turnPlayer : (turnPlayer - mySeat + 4) % 4;
+            const posNames = ['bottom', 'right', 'top', 'left'];
+            const pBox = document.getElementById(`player-${posNames[visualPos]}`);
+            if (pBox) {
+                let badge = pBox.querySelector('.turn-timer-badge');
+                if (!badge) {
+                    badge = document.createElement('div');
+                    badge.className = 'turn-timer-badge';
+                    pBox.appendChild(badge);
+                }
+                badge.innerText = `⏱️ ${this.turnSecondsLeft}s`;
+                badge.style.display = 'block';
+                if (this.turnSecondsLeft <= 5) badge.classList.add('warning');
+                else badge.classList.remove('warning');
+            }
+
+            if (turnPlayer === mySeat && mySeat !== 99) {
+                let banner = document.getElementById('your-turn-banner');
+                if (banner && banner.style.display === 'block') {
+                    let sub = banner.querySelector('.turn-sub');
+                    if (sub) sub.innerText = `⏱️ ${this.turnSecondsLeft}s remaining`;
+                }
+            }
+        };
+
+        updateTimerBadge();
+
+        this.turnCountdownTimer = setInterval(() => {
+            this.turnSecondsLeft--;
+            updateTimerBadge();
+
+            if (this.turnSecondsLeft <= 5 && this.turnSecondsLeft > 0) {
+                playSound('tick');
+            }
+
+            if (this.turnSecondsLeft <= 0) {
+                this.stopTurnCountdown();
+                if (isHost) {
+                    this.executeAFKTimeoutMove(turnPlayer);
+                }
+            }
+        }, 1000);
+    }
+
+    stopTurnCountdown() {
+        if (this.turnCountdownTimer) {
+            clearInterval(this.turnCountdownTimer);
+            this.turnCountdownTimer = null;
+        }
+        this.turnTimerSeat = -1;
+        document.querySelectorAll('.turn-timer-badge').forEach(b => b.style.display = 'none');
+    }
+
+    executeAFKTimeoutMove(player) {
+        if (!isHost) return;
+        autoPlaySeats[player] = true;
+        let pName = playerCustomNames[player] || COMPASS_FULL[player];
+
+        if (this.engine.phase === 'BIDDING') {
+            this.renderLog(`⏱️ Auto-passed for ${pName} (Turn timeout)`);
+            this.engine.submitBid(player, 'Pass');
+            this.gameLoop();
+        } else if (this.engine.phase === 'SET_TRUMP') {
+            let suit = this.engine.getAITrump();
+            this.renderLog(`⏱️ Auto-set secret trump for ${pName} (Turn timeout)`);
+            this.engine.setTrump(suit);
+            this.gameLoop();
+        } else if (this.engine.phase === 'PLAYING') {
+            let valids = this.engine.getValidPlayIndices(player);
+            let pickIdx = (valids && valids.length > 0) ? valids[0] : 0;
+            this.renderLog(`⏱️ AI auto-played for ${pName} (Turn timeout)`);
+            this.engine.playCard(player, pickIdx);
+            this.gameLoop();
+        }
+    }
+
+    resumeManualControl() {
+        if (mySeat !== 99 && mySeat >= 0 && mySeat < 4) {
+            autoPlaySeats[mySeat] = false;
+            const banner = document.getElementById('afk-resume-banner');
+            if (banner) banner.style.display = 'none';
+            if (isHost) {
+                this.renderLog(`👋 You resumed manual control!`);
+            } else {
+                sendNetMessage({ type: 'CLAIM_SEAT', player: mySeat });
+            }
+        }
+    }
+
     gameLoop() {
         uiLocked = false;
+
+        // Check if current human user is in auto-play
+        if (mySeat !== 99 && autoPlaySeats[mySeat]) {
+            const banner = document.getElementById('afk-resume-banner');
+            if (banner) banner.style.display = 'flex';
+        } else {
+            const banner = document.getElementById('afk-resume-banner');
+            if (banner) banner.style.display = 'none';
+        }
         
         // Animations in progress: lock gameLoop completely
         if (this.animatingTrick || this.animatingReveal) return;
@@ -8290,6 +8783,7 @@ class UIController {
         }
 
         let isAITurn = !humanSeats.includes(this.engine.currentTurn);
+        this.manageTurnCountdown(this.engine.currentTurn, !isAITurn);
         
         // Safety timeout for remote human players during bidding: auto-pass after 32s to prevent match freezes
         if (isHost && gameMode === 'multi' && !isAITurn && this.engine.phase === 'BIDDING') {
@@ -8784,14 +9278,18 @@ class UIController {
         let pts = bidTeam === 1 ? this.engine.t1TrickPts : this.engine.t2TrickPts;
         let t = I18N[currentLang];
         
-        let titleEl = document.getElementById('end-title');
-        if (bidTeam === 1) {
-            titleEl.innerText = this.engine.roundSuccess ? t.team1Won : t.team1Defeated;
-        } else {
-            titleEl.innerText = this.engine.roundSuccess ? t.team2Won : t.team2Defeated;
-        }
+        let winningTeamNum = this.engine.roundSuccess ? bidTeam : (bidTeam === 1 ? 2 : 1);
+        let losingTeamNum = (winningTeamNum === 1) ? 2 : 1;
+        let winningTeamName = getTeamDisplayName(winningTeamNum);
+        let losingTeamName = getTeamDisplayName(losingTeamNum);
+        let biddingTeamName = getTeamDisplayName(bidTeam);
 
-        let msg = `${currentLang === 'hi' ? 'टीम' : 'Team'} ${bidTeam} ${currentLang === 'hi' ? 'का लक्ष्य' : 'target'}: <b style="color:var(--gold-bright)">${this.engine.currentBid}</b> | ${currentLang === 'hi' ? 'स्कोर' : 'Scored'}: <b>${pts}</b> ${t.pts}.<br><br>`;
+        let titleEl = document.getElementById('end-title');
+        titleEl.innerText = this.engine.roundSuccess 
+            ? `🎉 ${winningTeamName.toUpperCase()} WON!` 
+            : `💀 ${losingTeamName.toUpperCase()} DEFEATED!`;
+
+        let msg = `<b>${biddingTeamName}</b> ${currentLang === 'hi' ? 'का लक्ष्य' : 'target'}: <b style="color:var(--gold-bright)">${this.engine.currentBid}</b> | ${currentLang === 'hi' ? 'स्कोर' : 'Scored'}: <b>${pts}</b> ${t.pts}.<br><br>`;
         let isHumanWinner = false;
         if (this.engine.roundSuccess) {
             msg += `<span style="color:var(--success); font-weight:700;">+${this.engine.gamePointsWon} ${t.gamePtsWon}</span>`;
