@@ -2359,12 +2359,16 @@ function getBotThinkTimeMs(engine, botSeat, legalCards) {
     const jitter = () => Math.floor(Math.random() * 220) - 110; // ±110ms organic variance
     const mult = window.GAME_SPEED_MULTIPLIER || 1.0;
 
-    // 1. Forced card (single legal option or last trick) -> Fast snap play (350ms - 500ms)
+    const isMulti = (typeof gameMode !== 'undefined' && gameMode === 'multi');
+
+    // 1. Forced card (single legal option or last trick) -> Fast snap play in single-player, but buffered in multi for network animation sync
     if (legalCards && legalCards.length === 1) {
-        return Math.round(Math.max(300, (420 + jitter())) * mult);
+        let baseMin = isMulti ? 750 : 300;
+        let baseTarget = isMulti ? 850 : 420;
+        return Math.round(Math.max(baseMin, (baseTarget + jitter())) * mult);
     }
 
-    let delay = 650; // Base human reaction time after previous card lands
+    let delay = isMulti ? 850 : 650; // Base human reaction time after previous card lands
 
     // 2. Leading the trick (Seat 1) requires picking a strategy (900ms - 1350ms)
     if (!engine.trickCards || engine.trickCards.length === 0) {
@@ -2392,7 +2396,7 @@ function getBotThinkTimeMs(engine, botSeat, legalCards) {
         }
     }
 
-    let finalDelay = Math.max(350, delay + jitter());
+    let finalDelay = Math.max(isMulti ? 800 : 350, delay + jitter());
     return Math.round(finalDelay * mult);
 }
 
@@ -3511,7 +3515,11 @@ function handleIncomingNetworkMessage(sourceConn, data) {
                     }
                     if (ui.animatingTrick || ui.animatingReveal || ui.dealingAnimationActive) {
                         if (ui.animatingTrick && data.state.phase === 'TRICK_OVER') {
-                            return; // Drop duplicate/stale TRICK_OVER updates while local trick animation is active
+                            let localTricks = (game.roundTricks || []).length;
+                            let masterTricks = data.state.roundTricksCount !== undefined ? data.state.roundTricksCount : localTricks;
+                            if (masterTricks <= localTricks && (!data.state.trickCards || data.state.trickCards.length === 0)) {
+                                return; // Drop only stale TRICK_OVER for the trick already resolving
+                            }
                         }
                         ui.pendingMasterState = data.state;
                         return;
@@ -3800,7 +3808,9 @@ class PeerManager {
             trumpRevealed: masterEngine.trumpRevealed,
             trumpSuit: projectedTrumpSuit,
             highestBidder: masterEngine.highestBidder,
-            hasHiddenTrump: false,
+            hasHiddenTrump: (!masterEngine.trumpRevealed && !!masterEngine.trumpSuit),
+            trumpSet: !!masterEngine.trumpSuit,
+            justRevealedBy: masterEngine.justRevealedBy,
             hasPassed: masterEngine.hasPassed || [false, false, false, false],
             playerBids: masterEngine.playerBids || [null, null, null, null],
             tricksWonByTeam: masterEngine.tricksWonByTeam,
@@ -5122,7 +5132,9 @@ class TwentyEightEngine {
     }
 
     canRevealTrump(pIndex) {
-        if (this.trumpRevealed || !this.trumpSuit) return false;
+        if (this.trumpRevealed) return false;
+        // Secret trump must have been chosen by bidder (direct suit or hidden trump in multiplayer)
+        if (!this.trumpSuit && !this.hasHiddenTrump && !this.trumpSet) return false;
         if (this.phase !== 'PLAYING') return false;
         if (this.currentTurn !== pIndex) return false;
         // The player starting the hand can NEVER open the trump:
@@ -5972,7 +5984,9 @@ class TwentyEightEngine {
         this.leadSuit = state.leadSuit;
         this.trumpRevealed = !!state.trumpRevealed; this.trumpSuit = state.trumpSuit;
         this.highestBidder = state.highestBidder !== undefined ? state.highestBidder : -1;
-        this.hasHiddenTrump = false;
+        this.hasHiddenTrump = !!state.hasHiddenTrump;
+        this.trumpSet = !!state.trumpSet;
+        this.justRevealedBy = state.justRevealedBy !== undefined ? state.justRevealedBy : -1;
         this.hasPassed = state.hasPassed || [false, false, false, false]; this.playerBids = state.playerBids || [null, null, null, null];
         this.tricksWonByTeam = state.tricksWonByTeam || [0, 0];
         this.roundSuccess = state.roundSuccess; this.gamePointsWon = state.gamePointsWon;
@@ -5999,6 +6013,21 @@ class TwentyEightEngine {
 
 // ==================== UI CONTROLLER ====================
 class UIController {
+    applyPendingMasterState() {
+        if (!isHost && this.pendingMasterState) {
+            let pState = this.pendingMasterState;
+            this.pendingMasterState = null;
+            let localTricks = (this.engine.roundTricks || []).length;
+            let masterTricks = pState.roundTricksCount !== undefined ? pState.roundTricksCount : localTricks;
+            let isStaleTrickOver = (pState.phase === 'TRICK_OVER' && masterTricks <= localTricks && (!pState.trickCards || pState.trickCards.length === 0));
+            if (!isStaleTrickOver) {
+                this.engine.syncFromMasterState(pState);
+                this.renderStaticBoard();
+                this.syncTable();
+            }
+        }
+    }
+
     constructor(engine) {
         this.engine = engine;
         this.engine.callbacks.onLog = (msg) => this.renderLog(msg);
@@ -6469,8 +6498,22 @@ class UIController {
             } else if (!hasMoved) {
                 // Click/tap to play
                 uiLocked = true;
-                if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
-                else { this.engine.playCard(mySeat, cardIndex); this.gameLoop(); }
+                if (window.gsap) {
+                    gsap.to(cardEl, {
+                        y: -70,
+                        opacity: 0.5,
+                        scale: 0.95,
+                        duration: 0.18,
+                        ease: "power2.in",
+                        onComplete: () => {
+                            if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
+                            else { this.engine.playCard(mySeat, cardIndex); this.gameLoop(); }
+                        }
+                    });
+                } else {
+                    if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
+                    else { this.engine.playCard(mySeat, cardIndex); this.gameLoop(); }
+                }
             } else {
                 // Snap back into hand
                 if (window.gsap) {
@@ -6655,7 +6698,11 @@ class UIController {
     onVaultTokenClick() {
         if (this.engine.trumpRevealed) return;
         if (this.engine.highestBidder !== mySeat) {
-            this.renderLog("🔒 Secret Trump is locked by the contract bidder!");
+            if (this.engine.canRevealTrump(mySeat)) {
+                this.onAskRevealClick();
+                return;
+            }
+            this.renderLog(currentLang === 'hi' ? "🔒 हुकुम गुप्त है! जब आपके पास चाल का रंग न हो, तब 'हुकुम खोलें' बटन दबाएं।" : "🔒 Secret Trump is locked! Click 'Reveal Trump' when you have no cards of the led suit.");
             return;
         }
         const vault = document.getElementById('secret-trump-vault');
@@ -7329,7 +7376,7 @@ class UIController {
         }
     }
 
-    renderPlayedCard(card, pIndex) {
+    renderPlayedCard(card, pIndex, delaySec = 0) {
         const table = document.getElementById('center-table');
         if (!table) return;
         const div = document.createElement('div');
@@ -7401,6 +7448,7 @@ class UIController {
                     rotation: endRot, 
                     opacity: 1, 
                     duration: 0.5, 
+                    delay: delaySec,
                     ease: "power2.out",
                     boxShadow: "0 3px 8px rgba(0,0,0,0.55)",
                     onComplete: () => {
@@ -7458,7 +7506,7 @@ class UIController {
                         opacity: 0,
                         duration: 0.52,
                         ease: "power2.in",
-                        delay: 0.22,
+                        delay: 0.22 + delaySec,
                         onComplete: () => {
                             floatCoin.remove();
                             potPill.classList.add('pot-punch');
@@ -7487,10 +7535,14 @@ class UIController {
         while (table.children.length > this.engine.trickCards.length) {
             table.removeChild(table.lastChild);
         }
+        let staggerCount = 0;
         while (table.children.length < this.engine.trickCards.length) {
             let indexToRender = table.children.length;
             let play = this.engine.trickCards[indexToRender];
-            if (play) this.renderPlayedCard(play.card, play.player);
+            if (play) {
+                this.renderPlayedCard(play.card, play.player, staggerCount * 0.28);
+                staggerCount++;
+            }
         }
     }
 
@@ -7800,15 +7852,7 @@ class UIController {
                 }
                 if (isHost) this.broadcastGameState();
                 this.animatingTrick = false;
-                if (!isHost && this.pendingMasterState) {
-                    let pState = this.pendingMasterState;
-                    this.pendingMasterState = null;
-                    if (pState.phase !== 'TRICK_OVER') {
-                        this.engine.syncFromMasterState(pState);
-                        this.renderStaticBoard();
-                        this.syncTable();
-                    }
-                }
+                this.applyPendingMasterState();
                 this.gameLoop();
             }
         }, Math.round(5000 * speedMult));
@@ -7920,15 +7964,7 @@ class UIController {
                                     this.trickBreathingTimer = null;
                                     if (animToken !== this._trickAnimSeq) return;
                                     this.animatingTrick = false;
-                                    if (!isHost && this.pendingMasterState) {
-                                        let pState = this.pendingMasterState;
-                                        this.pendingMasterState = null;
-                                        if (pState.phase !== 'TRICK_OVER') {
-                                            this.engine.syncFromMasterState(pState);
-                                            this.renderStaticBoard();
-                                            this.syncTable();
-                                        }
-                                    }
+                                    this.applyPendingMasterState();
                                     this.gameLoop();
                                 }, breathingGap);
                             }
@@ -8004,15 +8040,7 @@ class UIController {
                             this.trickBreathingTimer = null;
                             if (animToken !== this._trickAnimSeq) return;
                             this.animatingTrick = false;
-                            if (!isHost && this.pendingMasterState) {
-                                let pState = this.pendingMasterState;
-                                this.pendingMasterState = null;
-                                if (pState.phase !== 'TRICK_OVER') {
-                                    this.engine.syncFromMasterState(pState);
-                                    this.renderStaticBoard();
-                                    this.syncTable();
-                                }
-                            }
+                            this.applyPendingMasterState();
                             this.gameLoop();
                         }, Math.round((400 + extraNetBuffer) * speedMult));
                     }
@@ -8028,15 +8056,7 @@ class UIController {
                     if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
                     if (isHost) this.broadcastGameState();
                     this.animatingTrick = false;
-                    if (!isHost && this.pendingMasterState) {
-                        let pState = this.pendingMasterState;
-                        this.pendingMasterState = null;
-                        if (pState.phase !== 'TRICK_OVER') {
-                            this.engine.syncFromMasterState(pState);
-                            this.renderStaticBoard();
-                            this.syncTable();
-                        }
-                    }
+                    this.applyPendingMasterState();
                     this.gameLoop();
                 }
             }, beat2Duration);
@@ -8051,15 +8071,7 @@ class UIController {
             }
             if (isHost) this.broadcastGameState();
             this.animatingTrick = false;
-            if (!isHost && this.pendingMasterState) {
-                let pState = this.pendingMasterState;
-                this.pendingMasterState = null;
-                if (pState.phase !== 'TRICK_OVER') {
-                    this.engine.syncFromMasterState(pState);
-                    this.renderStaticBoard();
-                    this.syncTable();
-                }
-            }
+            this.applyPendingMasterState();
             this.gameLoop();
         }
     }
@@ -8117,7 +8129,8 @@ class UIController {
             if (winningPlay && this.engine.trickCards && this.engine.trickCards.length === 4) {
                 this.animatingTrick = true;
                 let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
-                let freezeDuration = Math.round(850 * speedMult);
+                let extraNetBuffer = (gameMode === 'multi' && isHost) ? 350 : 0;
+                let freezeDuration = Math.round((850 + extraNetBuffer) * speedMult);
                 if (this.trickTimer) clearTimeout(this.trickTimer);
                 this.trickTimer = setTimeout(() => {
                     this.trickTimer = null;
