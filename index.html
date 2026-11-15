@@ -3365,13 +3365,13 @@ function setupHostRole() {
     const lobbyStatus = document.getElementById('lobby-status');
     lobbyStatus.innerHTML = `👑 You are <b style="color:#fff">ROOM HOST (${COMPASS_FULL[0]})</b><br>Room Code: <b style="color:var(--gold-bright); font-size:1.1rem;">${currentRoom}</b><br>Share the code or tap "Invite" for QR code!`;
 
-    // Heartbeat: continuously synchronizes active match state to all connected peers
+    // Heartbeat: continuously synchronizes active match state to all connected peers (including ROUND_OVER)
     if (stateHeartbeatTimer) clearInterval(stateHeartbeatTimer);
     stateHeartbeatTimer = setInterval(() => {
-        if (isHost && game && game.phase && game.phase !== 'LOBBY' && game.phase !== 'ROUND_OVER') {
+        if (isHost && game && game.phase && game.phase !== 'LOBBY') {
             ui.broadcastGameState();
         }
-    }, 1200);
+    }, 1000);
 
     peer.on('connection', (conn) => {
         clientConns[conn.peer] = conn;
@@ -3509,6 +3509,16 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         if (!isHost && (data.target === mySeat || data.target === 'ALL' || mySeat === 99)) {
             if (data.state && typeof data.state === 'object' && data.state.phase) {
                 try {
+                    ui.lastStateUpdateTime = Date.now();
+                    // Sequence Guard: Discard stale out-of-order packets for the same round
+                    if (data.state.roundId !== undefined && data.state.roundId === game.roundId) {
+                        if (data.state.stateSeq !== undefined && game.lastReceivedStateSeq !== undefined && data.state.stateSeq < game.lastReceivedStateSeq) {
+                            return; // Stale update arrived out of order
+                        }
+                    }
+                    if (data.state.stateSeq !== undefined) {
+                        game.lastReceivedStateSeq = data.state.stateSeq;
+                    }
                     if (data.state.speedMultiplier) {
                         window.GAME_SPEED_MULTIPLIER = data.state.speedMultiplier;
                         updateTableSpeedUI();
@@ -3567,12 +3577,17 @@ function handleIncomingNetworkMessage(sourceConn, data) {
     }
 }
 
-// Client fallback: If waiting in active match with no cards, periodically request state
+// Client active sync watchdog: Checks if client is out of sync or hasn't received state
 setInterval(() => {
-    if (gameMode === 'multi' && !isHost && (game.players[mySeat] || []).length === 0 && document.getElementById('start-screen').style.display === 'none') {
-        sendNetMessage({ type: 'REQUEST_STATE', seat: mySeat });
+    if (gameMode === 'multi' && !isHost && document.getElementById('start-screen').style.display === 'none') {
+        let hasNoCards = (game.players[mySeat] || []).length === 0;
+        let lastAge = Date.now() - (ui.lastStateUpdateTime || 0);
+        let isStalled = (lastAge > 2800);
+        if (hasNoCards || isStalled) {
+            sendNetMessage({ type: 'REQUEST_STATE', seat: mySeat });
+        }
     }
-}, 2000);
+}, 1500);
 
 function hostStartGame() {
     if (gameMode === 'ai') {
@@ -3791,6 +3806,8 @@ class PeerManager {
 
         return {
             speedMultiplier: window.GAME_SPEED_MULTIPLIER || 1.0,
+            roundId: masterEngine.roundId || 1,
+            stateSeq: masterEngine.stateSeq || 1,
             t1TrickPts: masterEngine.t1TrickPts,
             t2TrickPts: masterEngine.t2TrickPts,
             t1GamePts: masterEngine.t1GamePts,
@@ -4646,6 +4663,8 @@ class TwentyEightEngine {
         this.power = { 'J': 8, '9': 7, 'A': 6, '10': 5, 'K': 4, 'Q': 3, '8': 2, '7': 1 };
         this.t1GamePts = 0; this.t2GamePts = 0;
         this.roundStarter = 0;
+        this.roundId = 0;
+        this.stateSeq = 0;
         this.callbacks = { onLog: (msg) => {}, onBid: (pIndex, val) => {}, onBidWon: (pIndex, val) => {} };
         this.playedCardsHistory = []; 
         this.players = [[], [], [], []];
@@ -4666,6 +4685,8 @@ class TwentyEightEngine {
     }
 
     resetRound() {
+        this.roundId = (this.roundId || 0) + 1;
+        this.stateSeq = (this.stateSeq || 0) + 1;
         this.deck = []; this.players = [[], [], [], []]; 
         this.currentBid = 15; this.highestBidder = -1;
         this.trumpSuit = null; this.trumpRevealed = false; this.phase2Hands = null;
@@ -5970,15 +5991,46 @@ class TwentyEightEngine {
 
     syncFromMasterState(state) {
         if (!state) return;
+
+        // 1. Detect Round Transition: Wipe stale round tricks, anim flags, and deal locks
+        let isNewRound = (state.roundId !== undefined && state.roundId !== this.roundId);
+        if (isNewRound) {
+            this.roundId = state.roundId;
+            this.roundTricks = [];
+            this.trickCards = [];
+            if (typeof ui !== 'undefined' && ui) {
+                ui.lastAnimatedDealKey = null;
+                ui.clearActiveDealAnimation();
+                ui.animatingTrick = false;
+                ui.animatingReveal = false;
+                ui.pendingMasterState = null;
+            }
+        } else if (state.roundId !== undefined) {
+            this.roundId = state.roundId;
+        }
+
         this.t1TrickPts = state.t1TrickPts || 0; this.t2TrickPts = state.t2TrickPts || 0;
         this.t1GamePts = state.t1GamePts || 0; this.t2GamePts = state.t2GamePts || 0;
         this.currentBid = state.currentBid || 15; this.currentTurn = state.currentTurn !== undefined ? state.currentTurn : 0;
+
+        // Align localTricksCount with master to prevent ghost tricks across rounds
         let localTricksCount = (this.roundTricks || []).length;
         let masterTricksCount = state.roundTricksCount !== undefined ? state.roundTricksCount : localTricksCount;
+        if (state.roundTricksCount !== undefined && localTricksCount > masterTricksCount) {
+            this.roundTricks.length = masterTricksCount;
+            localTricksCount = masterTricksCount;
+        }
+
+        // Deal Phase Regression Guard: Never regress client back to DEALING if client already finished this deal
+        let isDealRegress = (!isNewRound && (state.phase === 'DEALING_1' || state.phase === 'DEALING_2') && 
+                            (this.phase !== 'DEALING_1' && this.phase !== 'DEALING_2' && this.phase !== 'LOBBY'));
+
         if (state.phase === 'TRICK_OVER' && localTricksCount > masterTricksCount) {
             // Already resolved this trick locally - keep current playing state
-        } else {
+        } else if (!isDealRegress) {
             this.phase = state.phase;
+            this.trickCards = state.trickCards || [];
+        } else {
             this.trickCards = state.trickCards || [];
         }
         this.leadSuit = state.leadSuit;
@@ -6013,6 +6065,18 @@ class TwentyEightEngine {
 
 // ==================== UI CONTROLLER ====================
 class UIController {
+    clearActiveDealAnimation() {
+        this._dealAnimSeq = (this._dealAnimSeq || 0) + 1;
+        if (this.dealFlyerTimers && this.dealFlyerTimers.length > 0) {
+            for (let t of this.dealFlyerTimers) clearTimeout(t);
+            this.dealFlyerTimers = [];
+        }
+        const dealLayer = document.getElementById('deal-layer');
+        if (dealLayer) dealLayer.innerHTML = '';
+        this.dealingAnimationActive = false;
+        this.isDealingState = false;
+    }
+
     applyPendingMasterState() {
         if (!isHost && this.pendingMasterState) {
             let pState = this.pendingMasterState;
@@ -6043,6 +6107,10 @@ class UIController {
         this.animatingTrick = false; this.isAIThinking = false;
         this.isCardDragging = false;
         this.pendingMasterState = null;
+        this.lastAnimatedDealKey = null;
+        this._dealAnimSeq = 0;
+        this.dealFlyerTimers = [];
+        this.lastStateUpdateTime = Date.now();
         this.animQueue = new AnimationQueue();
         this.activeTrickTimeline = null;
         this.trickBeat2Timer = null;
@@ -7170,6 +7238,10 @@ class UIController {
         const board = document.getElementById('board');
         if (!board) { if (onComplete) onComplete(); return; }
 
+        this.clearActiveDealAnimation();
+        const dealToken = this._dealAnimSeq;
+        this.dealFlyerTimers = [];
+
         let dealLayer = document.getElementById('deal-layer');
         if (!dealLayer) {
             dealLayer = document.createElement('div');
@@ -7180,6 +7252,7 @@ class UIController {
         dealLayer.innerHTML = '';
 
         const startDealingFlyers = () => {
+            if (dealToken !== this._dealAnimSeq) return;
         // 1. Spawn 3D Center Dealer Deck (anchored with xPercent/yPercent)
         const deckEl = document.createElement('div');
         deckEl.className = 'dealer-deck';
@@ -7233,7 +7306,8 @@ class UIController {
                 let cardIndex = cardStartIndex + round;
                 let dealDelay = (round * 4 + s) * cardInterval + 0.15;
 
-                setTimeout(() => {
+                let fTimer = setTimeout(() => {
+                    if (dealToken !== this._dealAnimSeq) return;
                     const flyer = document.createElement('div');
                     let isMe = (seatInfo.actualPlayerIndex === mySeat && mySeat !== 99);
 
@@ -7325,12 +7399,14 @@ class UIController {
                         setTimeout(onCardLanded, 350);
                     }
                 }, dealDelay * 1000);
+                this.dealFlyerTimers.push(fTimer);
             }
         }
 
         // 4. Wrap up: Fade out dealer deck and settle cards in hand
         let totalDuration = (16 * cardInterval + cardFlightDuration + 0.25) * 1000;
-        setTimeout(() => {
+        let wrapTimer = setTimeout(() => {
+            if (dealToken !== this._dealAnimSeq) return;
             if (window.gsap) {
                 gsap.to(deckEl, {
                     xPercent: -50,
@@ -7340,6 +7416,7 @@ class UIController {
                     duration: 0.22,
                     ease: "power2.in",
                     onComplete: () => {
+                        if (dealToken !== this._dealAnimSeq) return;
                         dealLayer.innerHTML = '';
                         document.querySelectorAll('[data-seat]').forEach(c => {
                             c.style.visibility = 'visible';
@@ -7353,6 +7430,7 @@ class UIController {
                     }
                 });
             } else {
+                if (dealToken !== this._dealAnimSeq) return;
                 dealLayer.innerHTML = '';
                 document.querySelectorAll('[data-seat]').forEach(c => {
                     c.style.visibility = 'visible';
@@ -7365,10 +7443,12 @@ class UIController {
                 if (onComplete) onComplete();
             }
         }, totalDuration);
+        this.dealFlyerTimers.push(wrapTimer);
         };
 
         if (this.engine.phase === 'DEALING_1') {
             this.playRiffleShuffleAnimation(dealLayer, () => {
+                if (dealToken !== this._dealAnimSeq) return;
                 startDealingFlyers();
             });
         } else {
@@ -8160,9 +8240,26 @@ class UIController {
 
         // 3. DEALING PHASES
         if (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
+            let dealKey = `${this.engine.roundId || 1}_${this.engine.phase}`;
+            if (this.lastAnimatedDealKey === dealKey) {
+                // Already animated this deal phase for this round: skip animation and transition immediately
+                if (isHost) {
+                    this.engine.finishDealAnimation();
+                    if (gameMode === 'multi') this.broadcastGameState();
+                } else {
+                    if (this.engine.phase === 'DEALING_1') this.engine.phase = 'BIDDING';
+                    if (this.engine.phase === 'DEALING_2') this.engine.phase = 'PLAYING';
+                    this.applyPendingMasterState();
+                }
+                this.renderStaticBoard();
+                this.gameLoop();
+                return;
+            }
+
             if (this.dealingAnimationActive) return;
             this.dealingAnimationActive = true;
             this.isDealingState = true;
+            this.lastAnimatedDealKey = dealKey;
             this.renderStaticBoard();
 
             this.playHumanDealAnimation(() => {
@@ -8171,14 +8268,11 @@ class UIController {
                 for (let i = 0; i < 4; i++) this.engine.sortHand(i);
                 if (isHost) {
                     this.engine.finishDealAnimation();
+                    if (gameMode === 'multi') this.broadcastGameState();
                 } else {
                     if (this.engine.phase === 'DEALING_1') this.engine.phase = 'BIDDING';
                     if (this.engine.phase === 'DEALING_2') this.engine.phase = 'PLAYING';
-                    if (this.pendingMasterState) {
-                        let pState = this.pendingMasterState;
-                        this.pendingMasterState = null;
-                        this.engine.syncFromMasterState(pState);
-                    }
+                    this.applyPendingMasterState();
                 }
                 this.renderStaticBoard();
                 if (window.gsap) {
@@ -8452,6 +8546,8 @@ class UIController {
 
     onBidSubmit(val) {
         uiLocked = true;
+        clearTimeout(window._uiLockSafetyTimer);
+        window._uiLockSafetyTimer = setTimeout(() => { uiLocked = false; }, 2000);
         document.getElementById('bid-modal').style.display = 'none';
         if(gameMode === 'multi') sendNetMessage({type:'SUBMIT_BID', player: mySeat, val: val});
         else { this.engine.submitBid(mySeat, val); this.gameLoop(); }
@@ -8629,6 +8725,8 @@ class UIController {
     }
 
     onAskRevealClick() {
+        clearTimeout(window._uiLockSafetyTimer);
+        window._uiLockSafetyTimer = setTimeout(() => { uiLocked = false; }, 2000);
         document.getElementById('reveal-btn').style.display = 'none';
         if(gameMode === 'multi') sendNetMessage({type:'REVEAL_TRUMP', player: mySeat});
         else { this.engine.revealTrump(mySeat); this.gameLoop(); }
@@ -9005,6 +9103,28 @@ const ui = new UIController(game);
 // Document Visibility Listener: Prevents desync when tab is minimized or switched
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
+        if (typeof ui !== 'undefined' && ui && ui.dealingAnimationActive) {
+            console.log("[visibilitychange] Tab hidden during deal animation: fast-forwarding dealing");
+            ui.clearActiveDealAnimation();
+            document.querySelectorAll('[data-seat]').forEach(c => {
+                c.style.visibility = 'visible';
+                c.style.opacity = '1';
+            });
+            for (let i = 0; i < 4; i++) {
+                const b = document.getElementById(`badge-cnt-${i}`);
+                if (b && ui.engine && ui.engine.players[i]) b.textContent = ui.engine.players[i].length;
+                if (ui.engine) ui.engine.sortHand(i);
+            }
+            if (typeof isHost !== 'undefined' && isHost) {
+                ui.engine.finishDealAnimation();
+                if (typeof gameMode !== 'undefined' && gameMode === 'multi') ui.broadcastGameState();
+            } else if (ui.engine) {
+                if (ui.engine.phase === 'DEALING_1') ui.engine.phase = 'BIDDING';
+                if (ui.engine.phase === 'DEALING_2') ui.engine.phase = 'PLAYING';
+                ui.applyPendingMasterState();
+            }
+            ui.renderStaticBoard();
+        }
         // Tab hidden / window minimized: cleanly finish running trick animations so GSAP ticker pause does not desync timers
         if (typeof ui !== 'undefined' && ui && ui.animatingTrick) {
             console.log("[visibilitychange] Tab hidden during trick animation: fast-resolving active trick");
