@@ -2023,6 +2023,7 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
         <button class="bar-icon-btn" onclick="toggleLogModal()" id="log-icon-btn" title="Game History / Log">📜 <span id="log-btn-text">Log</span></button>
         <button class="bar-icon-btn" onclick="ui.toggleTrackerDrawer()" id="tracker-icon-btn" title="Cards Played & Honor Tracker">🃏 <span id="tracker-btn-text">Tracker</span></button>
         <button class="bar-icon-btn" onclick="openShareModal()" id="share-icon-btn" title="Share Room Invite">🔗 Invite</button>
+        <button class="bar-icon-btn" onclick="openHandoverModal()" id="handover-icon-btn" title="Hand Over Seat via QR Code" style="display:none; color:var(--gold-bright); font-weight:800; border-color:rgba(229,193,88,0.5);">📲 Handover</button>
         <button class="bar-icon-btn" id="sound-btn" onclick="toggleAudio()" title="Sound On/Off">🔊</button>
         <button class="bar-icon-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶</button>
     </div>
@@ -2045,6 +2046,42 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     </div>
 </div>
 
+<!-- ==================== HANDOVER / TRANSFER SEAT MODAL ==================== -->
+<div id="handover-modal" class="modal" style="display:none; max-width:380px;">
+    <div class="share-box">
+        <h2>📲 Hand Over Seat</h2>
+        <div class="modal-sub">Pass your cards and seat to a friend next to you:</div>
+        <div class="room-badge-large" id="handover-seat-badge">SEAT</div>
+        <div id="handover-qrcode-container" style="background:#fff; padding:10px; border-radius:12px; display:inline-block; margin:8px auto; box-shadow:0 6px 20px rgba(0,0,0,0.6);"></div>
+        <input type="text" id="handover-link-input" class="share-link-input" readonly>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="menu-btn primary-gold" style="flex:1; justify-content:center; font-size:0.75rem;" onclick="copyHandoverLink()">
+                📋 Copy Link
+            </button>
+            <button class="menu-btn" style="flex:1; justify-content:center; font-size:0.75rem; background:#334155; color:#fff;" onclick="leaveSeatToAI()">
+                🤖 Leave & Auto-Sub
+            </button>
+        </div>
+        <div id="handover-status-msg" style="font-size:0.75rem; color:#bae6fd; margin-top:8px; display:none; background:rgba(30,41,59,0.8); padding:6px 10px; border-radius:8px; border:1px solid #38bdf8;"></div>
+        <button class="modal-pass-btn" style="margin-top:10px; width:100%;" onclick="closeHandoverModal()">
+            Keep Playing (Cancel)
+        </button>
+    </div>
+</div>
+
+<!-- ==================== TAKEOVER CONFIRMATION MODAL ==================== -->
+<div id="takeover-confirm-modal" class="custom-partner-modal" style="display:none;">
+    <div class="custom-partner-modal-box">
+        <div style="font-size:2.2rem; margin-bottom:4px;">📲</div>
+        <h3>Seat Takeover</h3>
+        <p id="takeover-confirm-text" class="custom-partner-sub"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+            <button class="menu-btn primary-gold" id="takeover-confirm-btn" style="flex:1; justify-content:center;">🎮 Take Over Seat</button>
+            <button class="modal-pass-btn" onclick="cancelTakeoverPrompt()" style="flex:1; justify-content:center;">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <!-- ==================== START & LOBBY SCREEN ==================== -->
 <div id="start-screen">
     <div class="lang-selector-bar">
@@ -2054,6 +2091,21 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <div class="brand-logo">28</div>
     <h1 id="start-logo-title">TWENTY-EIGHT</h1>
     <div class="subtitle" id="net-ip-subtitle">Royal Casino Multiplayer Edition</div>
+
+    <!-- Active Session Reconnect Banner -->
+    <div id="reconnect-banner" class="reconnect-prompt-box" style="display:none; max-width:420px; width:92%; margin:0 auto 12px auto; background:radial-gradient(circle at 50% 0%, #1e3a8a 0%, #0f172a 100%); border:1.5px solid #38bdf8; border-radius:12px; padding:10px 14px; box-shadow:0 4px 16px rgba(56, 189, 248, 0.3); text-align:left;">
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.4rem;">🔄</span>
+            <div>
+                <div style="font-weight:800; color:var(--gold-bright); font-size:0.85rem;" id="reconnect-prompt-title">Active Match in Progress!</div>
+                <div style="font-size:0.72rem; color:#cbd5e1;" id="reconnect-prompt-sub">You were playing at Room <b id="reconnect-room-code"></b>. The AI is auto-subbing for you.</div>
+            </div>
+        </div>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+            <button class="menu-btn primary-gold" style="flex:1; justify-content:center; padding:6px 12px; font-size:0.75rem;" onclick="reconnectSavedSession()">⚡ Reconnect & Reclaim Seat</button>
+            <button class="modal-pass-btn" style="padding:6px 10px; font-size:0.72rem;" onclick="dismissSavedSession()">✕ Dismiss</button>
+        </div>
+    </div>
 
     <div class="player-config-box">
         <div>
@@ -2383,8 +2435,121 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 <div id="royal-pair-splash"></div>
 
 <script>
+// ==================== SEAT HANDOVER & QR CODE TAKEOVER ====================
+function openHandoverModal() {
+    if (mySeat === 99 || gameMode !== 'multi') {
+        if (typeof showGameToast === 'function') showGameToast("Handover is only available while seated in a multiplayer match.", 2500);
+        return;
+    }
+
+    const modal = document.getElementById('handover-modal');
+    const badge = document.getElementById('handover-seat-badge');
+    const qrDiv = document.getElementById('handover-qrcode-container');
+    const input = document.getElementById('handover-link-input');
+    const statusMsg = document.getElementById('handover-status-msg');
+    if (!modal || !badge || !qrDiv || !input) return;
+
+    let dir = COMPASS_FULL[mySeat] || ('Seat ' + mySeat);
+    badge.innerText = `${dir} (${currentRoom})`;
+
+    let sess = getOrCreateSessionToken(currentRoom);
+    let myToken = sess.token;
+    const handoverUrl = `${window.location.origin}${window.location.pathname}?room=${currentRoom}&takeoverSeat=${mySeat}&takeoverToken=${encodeURIComponent(myToken)}`;
+    input.value = handoverUrl;
+
+    if (statusMsg) {
+        statusMsg.style.display = 'none';
+        statusMsg.innerText = '';
+    }
+
+    qrDiv.innerHTML = "";
+    if (window.QRCode) {
+        new QRCode(qrDiv, {
+            text: handoverUrl,
+            width: 150,
+            height: 150,
+            colorDark: "#09150d",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeHandoverModal() {
+    const modal = document.getElementById('handover-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function copyHandoverLink() {
+    const input = document.getElementById('handover-link-input');
+    if (!input) return;
+    input.select();
+    input.setSelectionRange(0, 99999);
+    try {
+        navigator.clipboard.writeText(input.value);
+        if (typeof showGameToast === 'function') showGameToast("📋 Handover link copied!", 2500);
+    } catch(e) {
+        document.execCommand('copy');
+        if (typeof showGameToast === 'function') showGameToast("📋 Handover link copied!", 2500);
+    }
+}
+
+function leaveSeatToAI() {
+    if (confirm("Are you sure you want to leave? The AI Bot will play in your place, and you (or a friend via QR code) can take over anytime.")) {
+        if (gameMode === 'multi') {
+            if (!isHost) {
+                sendNetMessage({ type: 'LEAVE_TO_AI', seat: mySeat });
+            } else {
+                autoPlaySeats[mySeat] = true;
+                broadcastNetMessage({ type: 'SEAT_TAKEOVER', seat: mySeat, autoPlay: true });
+                ui.renderLog(`🤖 Host left seat. AI Auto-Sub active.`);
+            }
+        }
+        closeHandoverModal();
+        const startScreen = document.getElementById('start-screen');
+        if (startScreen) startScreen.style.display = 'flex';
+        checkSavedSessionOnLoad();
+    }
+}
+
+function checkUrlTakeover() {
+    const params = new URLSearchParams(window.location.search);
+    let room = params.get('room');
+    let takeoverSeat = params.get('takeoverSeat');
+    let takeoverToken = params.get('takeoverToken');
+
+    if (room && takeoverSeat !== null && takeoverToken) {
+        const modal = document.getElementById('takeover-confirm-modal');
+        const textEl = document.getElementById('takeover-confirm-text');
+        const confirmBtn = document.getElementById('takeover-confirm-btn');
+        if (!modal || !textEl || !confirmBtn) return;
+
+        let seatIdx = parseInt(takeoverSeat);
+        let dir = COMPASS_FULL[seatIdx] || ('Seat ' + seatIdx);
+        textEl.innerHTML = `You scanned a Handover invite for <b>${dir}</b> in Room <b>${room.toUpperCase()}</b>.<br>Would you like to step into this seat and take over their cards?`;
+
+        confirmBtn.onclick = () => {
+            modal.style.display = 'none';
+            document.getElementById('room-code-input').value = room.toUpperCase();
+            window._pendingTakeover = { room: room.toUpperCase(), seat: seatIdx, token: takeoverToken };
+            joinNetworkGame('FULL', 'CLIENT');
+        };
+
+        modal.style.display = 'flex';
+    }
+}
+
+function cancelTakeoverPrompt() {
+    const modal = document.getElementById('takeover-confirm-modal');
+    if (modal) modal.style.display = 'none';
+    window._pendingTakeover = null;
+}
+
 // ==================== MULTIPLAYER TEAM & SESSION HELPERS ====================
 let seatSessionTokens = [null, null, null, null];
+let seatPlayerIds = [null, null, null, null];
 let autoPlaySeats = [false, false, false, false];
 let consecutiveTimeouts = [0, 0, 0, 0];
 let hostSeat = 0;
@@ -2445,21 +2610,115 @@ function updateOrientationUI() {
     }
 }
 
+function getOrCreatePlayerId() {
+    try {
+        let pid = localStorage.getItem('twentyeight_player_id');
+        if (!pid) {
+            pid = 'pid_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+            localStorage.setItem('twentyeight_player_id', pid);
+        }
+        return pid;
+    } catch(e) {
+        return 'pid_' + Math.random().toString(36).substring(2, 11);
+    }
+}
+
 function getOrCreateSessionToken(roomCode) {
     try {
-        let key = 'twentyeight_session_' + (roomCode || 'default');
-        let stored = sessionStorage.getItem(key);
+        let cleanRoom = (roomCode || 'default').toUpperCase();
+        let key = 'twentyeight_session_' + cleanRoom;
+        let stored = localStorage.getItem(key) || sessionStorage.getItem(key);
+        let pid = getOrCreatePlayerId();
         if (stored) {
             let data = JSON.parse(stored);
-            if (data && data.token) return data;
+            if (data && data.token) {
+                if (!data.playerId) data.playerId = pid;
+                data.lastActive = Date.now();
+                localStorage.setItem(key, JSON.stringify(data));
+                localStorage.setItem('twentyeight_last_room', cleanRoom);
+                return data;
+            }
         }
         let newToken = 'tok_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
-        let data = { token: newToken, nickname: (typeof myNickname !== 'undefined' ? myNickname : '') };
-        sessionStorage.setItem(key, JSON.stringify(data));
+        let data = {
+            token: newToken,
+            playerId: pid,
+            nickname: (typeof myNickname !== 'undefined' ? myNickname : ''),
+            room: cleanRoom,
+            lastActive: Date.now()
+        };
+        localStorage.setItem(key, JSON.stringify(data));
+        localStorage.setItem('twentyeight_last_room', cleanRoom);
+        try { sessionStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
         return data;
     } catch(e) {
-        return { token: 'tok_' + Math.random().toString(36).substring(2, 11), nickname: '' };
+        return { token: 'tok_' + Math.random().toString(36).substring(2, 11), playerId: 'pid_fb', nickname: '' };
     }
+}
+
+function saveActiveSeatSession(roomCode, seat) {
+    try {
+        let cleanRoom = (roomCode || 'default').toUpperCase();
+        let key = 'twentyeight_session_' + cleanRoom;
+        let sess = getOrCreateSessionToken(cleanRoom);
+        sess.seat = seat;
+        sess.lastActive = Date.now();
+        localStorage.setItem(key, JSON.stringify(sess));
+        localStorage.setItem('twentyeight_last_room', cleanRoom);
+    } catch(e) {}
+}
+
+function clearActiveSeatSession(roomCode) {
+    try {
+        let cleanRoom = (roomCode || 'default').toUpperCase();
+        localStorage.removeItem('twentyeight_session_' + cleanRoom);
+        if (localStorage.getItem('twentyeight_last_room') === cleanRoom) {
+            localStorage.removeItem('twentyeight_last_room');
+        }
+    } catch(e) {}
+}
+
+function checkSavedSessionOnLoad() {
+    try {
+        let lastRoom = localStorage.getItem('twentyeight_last_room');
+        if (!lastRoom) return;
+        let key = 'twentyeight_session_' + lastRoom;
+        let stored = localStorage.getItem(key);
+        if (!stored) return;
+        let data = JSON.parse(stored);
+        if (!data || !data.token) return;
+
+        // Check if session is recent (< 4 hours)
+        let age = Date.now() - (data.lastActive || 0);
+        if (age > 4 * 60 * 60 * 1000) return;
+
+        const banner = document.getElementById('reconnect-banner');
+        const roomCodeEl = document.getElementById('reconnect-room-code');
+        const nickInput = document.getElementById('player-name-input');
+        const roomInput = document.getElementById('room-code-input');
+
+        if (banner && roomCodeEl) {
+            roomCodeEl.innerText = lastRoom;
+            if (data.nickname && nickInput) nickInput.value = data.nickname;
+            if (roomInput) roomInput.value = lastRoom;
+            banner.style.display = 'block';
+        }
+    } catch(e) {}
+}
+
+function reconnectSavedSession() {
+    let lastRoom = localStorage.getItem('twentyeight_last_room');
+    if (!lastRoom) return;
+    const roomInput = document.getElementById('room-code-input');
+    if (roomInput) roomInput.value = lastRoom;
+    joinNetworkGame('FULL', 'CLIENT');
+}
+
+function dismissSavedSession() {
+    const banner = document.getElementById('reconnect-banner');
+    if (banner) banner.style.display = 'none';
+    let lastRoom = localStorage.getItem('twentyeight_last_room');
+    if (lastRoom) clearActiveSeatSession(lastRoom);
 }
 
 function getTeamDisplayName(teamNum) {
@@ -2867,10 +3126,14 @@ function executeSeatSwap(seatA, seatB) {
     playerCustomNames[seatA] = playerCustomNames[seatB];
     playerCustomNames[seatB] = tmpName;
 
-    // 2. Swap in seatSessionTokens
+    // 2. Swap in seatSessionTokens & seatPlayerIds
     let tmpTok = seatSessionTokens[seatA];
     seatSessionTokens[seatA] = seatSessionTokens[seatB];
     seatSessionTokens[seatB] = tmpTok;
+
+    let tmpPid = seatPlayerIds[seatA];
+    seatPlayerIds[seatA] = seatPlayerIds[seatB];
+    seatPlayerIds[seatB] = tmpPid;
 
     // 3. Swap in humanSeats
     let hasA = humanSeats.includes(seatA);
@@ -4057,6 +4320,18 @@ function updateTopCompassBar() {
     let dir = COMPASS_FULL[mySeat] || 'SOUTH';
     let dirName = currentLang === 'hi' ? (t.dirs && t.dirs[dir] ? t.dirs[dir] : dir) : dir;
 
+    const handoverBtn = document.getElementById('handover-icon-btn');
+    if (handoverBtn) {
+        if (gameMode === 'multi' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) {
+            handoverBtn.style.display = 'inline-flex';
+        } else {
+            handoverBtn.style.display = 'none';
+        }
+    }
+    if (gameMode === 'multi' && mySeat !== 99 && currentRoom) {
+        saveActiveSeatSession(currentRoom, mySeat);
+    }
+
     if (gameMode !== 'multi') {
         if (shareBtn) shareBtn.style.display = 'none';
         let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
@@ -4222,8 +4497,27 @@ function connectAsClient() {
             if (viewMode === 'BOARD') {
                 hostConn.send(JSON.stringify({ type: 'JOIN_BOARD', name: myNickname, clientId: myClientId }));
             } else {
-                let sess = getOrCreateSessionToken(currentRoom);
-                hostConn.send(JSON.stringify({ type: 'JOIN_PLAYER', name: myNickname, clientId: myClientId, token: sess.token }));
+                let takeover = window._pendingTakeover;
+                if (takeover && takeover.token) {
+                    hostConn.send(JSON.stringify({
+                        type: 'JOIN_PLAYER',
+                        name: myNickname,
+                        clientId: myClientId,
+                        token: takeover.token,
+                        takeoverSeat: takeover.seat,
+                        isHandover: true
+                    }));
+                    window._pendingTakeover = null;
+                } else {
+                    let sess = getOrCreateSessionToken(currentRoom);
+                    hostConn.send(JSON.stringify({ 
+                        type: 'JOIN_PLAYER', 
+                        name: myNickname, 
+                        clientId: myClientId, 
+                        token: sess.token,
+                        playerId: sess.playerId
+                    }));
+                }
             }
         });
 
@@ -4353,19 +4647,49 @@ function handleHostProcessMessage(conn, data) {
     if (data.type === 'JOIN_PLAYER') {
         let seat = -1;
         let isReconnect = false;
+        let isTakeover = !!data.isHandover;
 
-        // 1. Check for reconnecting player with matching token
-        if (data.token) {
+        // 1. Handover Takeover via QR code
+        if (isTakeover && data.takeoverSeat !== undefined && data.token) {
+            let tSeat = parseInt(data.takeoverSeat);
+            if (seatSessionTokens[tSeat] === data.token) {
+                seat = tSeat;
+                isReconnect = true;
+                let oldName = playerCustomNames[seat];
+                playerCustomNames[seat] = data.name || ("P" + (seat + 1));
+                autoPlaySeats[seat] = false;
+
+                // Notify previous connection if still open
+                for (let cId in clientConns) {
+                    let c = clientConns[cId];
+                    if (c && c.seat === seat && c !== conn) {
+                        try {
+                            c.send(JSON.stringify({ type: 'HANDOVER_COMPLETE', newPlayerName: playerCustomNames[seat] }));
+                            c.seat = 99; // Demote old connection to spectator
+                        } catch(e) {}
+                    }
+                }
+                ui.renderLog(`📲 ${playerCustomNames[seat]} took over seat ${COMPASS_FULL[seat]} from ${oldName}!`);
+                if (typeof showGameToast === 'function') {
+                    showGameToast(`📲 ${playerCustomNames[seat]} took over seat ${COMPASS_FULL[seat]}!`, 4000);
+                }
+            }
+        }
+
+        // 2. Check for reconnecting player with matching token or playerId
+        if (seat === -1 && (data.token || data.playerId)) {
             for (let s = 0; s < 4; s++) {
-                if (seatSessionTokens[s] === data.token) {
+                if ((data.token && seatSessionTokens[s] === data.token) || (data.playerId && seatPlayerIds[s] === data.playerId)) {
                     seat = s;
                     isReconnect = true;
+                    autoPlaySeats[seat] = false;
+                    if (data.name) playerCustomNames[seat] = data.name;
                     break;
                 }
             }
         }
 
-        // 2. Fresh joiner: find preferred seat
+        // 3. Fresh joiner: find preferred seat
         if (seat === -1) {
             const preferred = [0, 2, 1, 3];
             for (let s of preferred) {
@@ -4379,8 +4703,9 @@ function handleHostProcessMessage(conn, data) {
             conn.seat = seat;
             conn.clientId = data.clientId;
             if (data.token) seatSessionTokens[seat] = data.token;
+            if (data.playerId) seatPlayerIds[seat] = data.playerId;
             if (!humanSeats.includes(seat)) humanSeats.push(seat);
-            playerCustomNames[seat] = data.name || ("P" + (seat+1));
+            if (!isTakeover) playerCustomNames[seat] = data.name || ("P" + (seat+1));
 
             conn.send(JSON.stringify({ 
                 type: 'ASSIGN_SEAT', 
@@ -4417,6 +4742,20 @@ function handleHostProcessMessage(conn, data) {
             }
         } else {
             conn.send(JSON.stringify({ type: 'FULL_LOBBY' }));
+        }
+    }
+    else if (data.type === 'LEAVE_TO_AI') {
+        if (data.seat !== undefined && data.seat >= 0 && data.seat < 4) {
+            autoPlaySeats[data.seat] = true;
+            ui.renderLog(`🤖 ${playerCustomNames[data.seat]} left. AI Auto-Sub active.`);
+            broadcastNetMessage({ type: 'SEAT_TAKEOVER', seat: data.seat, autoPlay: true });
+            if (game.currentTurn === data.seat && !ui.animatingTrick) {
+                setTimeout(() => {
+                    if (game.currentTurn === data.seat && autoPlaySeats[data.seat]) {
+                        ui.executeAFKTimeoutMove(data.seat);
+                    }
+                }, 800);
+            }
         }
     }
     else if (data.type === 'PARTNER_REQUEST') {
@@ -4516,6 +4855,18 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         if (data.fromSeat === mySeat) {
             showPartnerRejectedModal(data.responderName, data.responderSeat);
         }
+    }
+    else if (data.type === 'HANDOVER_COMPLETE') {
+        const statusMsg = document.getElementById('handover-status-msg');
+        if (statusMsg) {
+            statusMsg.style.display = 'block';
+            statusMsg.innerHTML = `✅ <b>${data.newPlayerName}</b> has taken over your seat! You can now safely close this window.`;
+        }
+        if (typeof showGameToast === 'function') {
+            showGameToast(`✅ Handed over seat to ${data.newPlayerName}!`, 5000);
+        }
+        mySeat = 99; // Transition to spectator
+        updateTopCompassBar();
     }
     else if (data.type === 'SEAT_TAKEOVER') {
         autoPlaySeats[data.seat] = !!data.autoPlay;
@@ -10536,6 +10887,8 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('DOMContentLoaded', () => {
     updateOrientationUI();
     initTableSpeed();
+    checkSavedSessionOnLoad();
+    checkUrlTakeover();
     applyLanguage();
     refreshLucideIcons();
 });
