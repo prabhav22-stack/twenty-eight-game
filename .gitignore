@@ -10,3 +10,8 @@ __pycache__/
 env/
 venv/
 .DS_Store
+
+# Gemini Hydrogen delegation temporary files
+.antigravity/tmp/
+*.delegate_tmp*
+*.delegate_out*
