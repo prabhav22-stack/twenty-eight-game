@@ -440,7 +440,12 @@ body::before {
 .c-seat.turn { box-shadow: 0 0 10px var(--gold-primary); border-color: #fff; background: rgba(229, 193, 88, 0.4); }
 
 .bar-quick-actions {
-    display: flex; align-items: center; gap: 5px;
+    display: flex; align-items: center; gap: 3px; flex-shrink: 0; padding-right: 4px; box-sizing: border-box;
+}
+@media (max-width: 600px) {
+    #stats-btn-text, #log-btn-text, #settings-btn-text { display: none !important; }
+    .bar-icon-btn { padding: 3px 6px !important; font-size: 0.72rem !important; }
+    .my-compass-tag { font-size: 0.65rem !important; padding: 2px 6px !important; max-width: 130px; }
 }
 .bar-icon-btn {
     background: rgba(0,0,0,0.45); border: 1px solid rgba(229, 193, 88, 0.4);
@@ -664,7 +669,7 @@ body::before {
 #player-top .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-left: calc(var(--opp-card-w) * -0.55); }
 #player-top .opp-cards-row .card-back:first-child { margin-left: 0; }
 #player-left .opp-cards-row, #player-right .opp-cards-row { flex-direction: column; }
-#player-left .opp-cards-row .card-back, #player-right .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-top: calc(var(--opp-card-h) * -0.68); }
+#player-left .opp-cards-row .card-back, #player-right .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-top: calc(var(--opp-card-h) * -0.82); }
 #player-left .opp-cards-row .card-back:first-child, #player-right .opp-cards-row .card-back:first-child { margin-top: 0; }
 
 .my-cards-row {
@@ -1245,7 +1250,7 @@ body::before {
     display: flex; align-items: center; justify-content: center;
 }
 .dealer-deck-badge {
-    position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%);
+    position: absolute; top: -24px; bottom: auto; left: 50%; transform: translateX(-50%);
     font-size: 0.58rem; font-weight: 800; letter-spacing: 1.2px; color: var(--gold-bright);
     background: rgba(4, 20, 11, 0.92); border: 1px solid var(--gold-primary);
     padding: 2px 8px; border-radius: 10px; white-space: nowrap; text-transform: uppercase;
@@ -2011,7 +2016,10 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 .game-toast.show { opacity: 1; transform: translateY(0) scale(1); }
 .game-toast.hiding { opacity: 0; transform: translateY(-6px) scale(0.96); }
 
-/* Keyboard shortcut hint bar */
+/* Keyboard shortcut hint bar - Hidden on mobile/touch viewports */
+@media (hover: none) and (pointer: coarse), (max-width: 768px) {
+    #kbd-hint-bar { display: none !important; }
+}
 #kbd-hint-bar {
     position: fixed; bottom: 68px; left: 50%; transform: translateX(-50%) scale(0.9);
     background: rgba(0,0,0,0.82); border: 1px solid rgba(255,255,255,0.1);
@@ -7908,8 +7916,14 @@ class UIController {
         this.engine.callbacks.onLog = (msg) => this.renderLog(msg);
         this.engine.callbacks.onBid = (pIndex, val) => this.handleRemoteBidUI(pIndex, val, false);
         this.engine.callbacks.onBidWon = (pIndex, val) => {
-            this.handleRemoteBidUI(pIndex, val, true);
-            this.showBidWonModal(pIndex, val);
+            if (pIndex === mySeat && mySeat !== 99) {
+                // Human winner: Show sole dedicated Bid Won modal, suppress redundant background splash
+                this.showBidWonModal(pIndex, val);
+                this.showSeatFloatingBid(pIndex, val, true);
+            } else {
+                // Remote/Bot winner: Show bid splash banner
+                this.handleRemoteBidUI(pIndex, val, true);
+            }
         };
         this.playerNames = ["SOUTH", "EAST", "NORTH", "WEST"];
         this.isDealingState = false; this.uiTrumpRevealed = false; this.animatingReveal = false; 
@@ -7976,7 +7990,9 @@ class UIController {
             let winPrefix = isPartner ? `🤝 ${t.partnerLabel.replace('{dir}', pDirName)}` : (isSelf ? `👑 ${myNickname || 'YOU'}` : `⚔️ ${name}`);
             let displayVal = `🎯 ${t.partnerWonBid} (${val})`;
             playSound('trump_select');
-            this.triggerBidSplash(pIndex, winPrefix, displayVal, 'won');
+            if (!isSelf) {
+                this.triggerBidSplash(pIndex, winPrefix, displayVal, 'won');
+            }
             this.showSeatFloatingBid(pIndex, val, true);
         } else if (isPass) {
             playSound('pass');
@@ -8551,9 +8567,9 @@ class UIController {
         let top, left;
 
         if (visualPos === 0) {
-            // South / Human player: place in bottom-right corner of felt, safe from hand cards
-            top = boardRect.height - 110;
-            left = boardRect.width - 65;
+            // South / Human player: dock inline above hand, safely clear of bottom-right hand cards
+            top = Math.max(10, (seatRect.top - boardRect.top) - 58);
+            left = Math.min(boardRect.width - 65, (boardRect.width / 2) + 95);
         } else if (visualPos === 1) {
             // East (right seat): place near East's badge
             top = (seatRect.top - boardRect.top) + seatRect.height + 6;
@@ -8576,7 +8592,7 @@ class UIController {
             <div class="vault-card-inner ${isRevealed ? 'flipped' : ''}">
                 <div class="vault-face vault-front">
                     <span class="lock-icon">🔒</span>
-                    <span class="vault-label">TURUP</span>
+                    <span class="vault-label">TRUMP</span>
                     ${peekHint}
                 </div>
                 <div class="vault-face vault-back ${isRed ? 'red' : 'black'}">
@@ -8881,6 +8897,20 @@ class UIController {
         if(this.animatingTrick) return; 
         if (typeof updateScreenMetrics === 'function') updateScreenMetrics();
         updateTopCompassBar();
+
+        // Dismiss lingering bid popups and splashes on turn change
+        if (this.engine.phase === 'BIDDING') {
+            document.querySelectorAll('.floating-seat-bid').forEach(el => {
+                let badge = el.closest('.player-badge');
+                if (badge && badge.classList.contains('active-turn')) {
+                    el.remove();
+                }
+            });
+            const splash = document.getElementById('partner-bid-splash');
+            if (splash && this.engine.currentTurn !== 2) {
+                splash.classList.remove('show');
+            }
+        }
 
         let showT1First = (mySeat === 0 || mySeat === 2 || mySeat === 99);
         document.getElementById('t1-game-pts').innerHTML = this.generateGamePointsHTML(showT1First ? this.engine.t1GamePts : this.engine.t2GamePts);
@@ -9316,11 +9346,11 @@ class UIController {
             let endX = 0, endY = 0, endRot = 0;
 
             if (visualPos === 0) {
-                // South (Bottom / You): offsets downward toward South
+                // South (Bottom / You): offset downward by 34px (+16px) so all 4 card corner indices remain legible
                 startX = (Math.random() - 0.5) * 4;
-                startY = 40;
+                startY = 44;
                 endX = 0;
-                endY = 18;
+                endY = 34;
                 endRot = (Math.random() - 0.5) * 2;
             } else if (visualPos === 1) {
                 // East (Right): offsets rightward toward East
@@ -9620,7 +9650,7 @@ class UIController {
                 <div class="trump-3d-card" id="trump-reveal-3d-card">
                     <div class="trump-3d-front">
                         <div style="font-size:1.8rem; color:var(--gold-bright);">🔒</div>
-                        <div style="font-size:0.65rem; color:#94a3b8; font-weight:800; margin-top:4px; text-transform:uppercase;">TURUP</div>
+                        <div style="font-size:0.65rem; color:#94a3b8; font-weight:800; margin-top:4px; text-transform:uppercase;">TRUMP</div>
                     </div>
                     <div class="trump-3d-back">
                         <div style="font-size:0.75rem; font-weight:900; color:${suitColor}; position:absolute; top:6px; left:8px;">${suit}</div>
@@ -11118,6 +11148,24 @@ function showGameToast(msg, durationMs) {
 var _yourTurnBannerVisible = false;
 var _yourTurnTimeout = null;
 function showYourTurnBanner(msg, autoHideMs) {
+    // Gate turn prompts behind modals and deal animations
+    if (typeof ui !== 'undefined' && ui && ui.engine) {
+        if (ui.engine.phase === 'DEALING_1' || ui.engine.phase === 'DEALING_2' || ui.dealingAnimationActive || ui.animatingTrick) {
+            hideYourTurnBanner();
+            return;
+        }
+    }
+    const isModalOpen = (
+        (document.getElementById('bid-won-modal')?.style.display === 'block') ||
+        (document.getElementById('trump-modal')?.style.display === 'block') ||
+        (document.getElementById('bid-modal')?.style.display === 'block') ||
+        (document.getElementById('end-modal')?.style.display === 'block')
+    );
+    if (isModalOpen) {
+        hideYourTurnBanner();
+        return;
+    }
+
     var banner = document.getElementById('your-turn-banner');
     if (!banner) return;
     banner.querySelector('span').textContent = msg || '✨ YOUR TURN — Play a Card';
