@@ -10140,14 +10140,19 @@ class UIController {
 
             const positions = ['bottom', 'right', 'top', 'left'];
             const winnerSeatEl = document.getElementById(`player-${positions[visualPos]}`);
-            const winnerBadge = winnerSeatEl ? (winnerSeatEl.querySelector('.player-badge') || winnerSeatEl) : null;
+            const badgeEl = winnerSeatEl ? winnerSeatEl.querySelector('.player-badge') : null;
+            const isBadgeVisible = badgeEl && badgeEl.offsetWidth > 0 && badgeEl.offsetHeight > 0;
+            const winnerBadge = (visualPos === 0)
+                ? (document.querySelector('.my-cards-row') || winnerSeatEl)
+                : (isBadgeVisible ? badgeEl : winnerSeatEl);
 
             let trickPts = Number(this.engine._countPointsInTrick()) || 0;
             if (trickPts > 0 && winnerBadge) {
                 const floatBadge = document.createElement('div');
                 floatBadge.innerText = `+${trickPts} pts`;
+                let topOffset = (visualPos === 0) ? '-24px' : '-16px';
                 floatBadge.style.cssText = `
-                    position: absolute; top: -16px; left: 50%;
+                    position: absolute; top: ${topOffset}; left: 50%;
                     transform: translateX(-50%);
                     font-size: 0.76rem; font-weight: 800; font-family: 'Cinzel', serif;
                     color: ${isTeam1Winner ? '#38bdf8' : '#fb7185'};
@@ -10222,17 +10227,24 @@ class UIController {
                         });
 
                         let destX = 0, destY = 0;
-                        let targetEl = winnerBadge || winnerSeatEl;
+                        let targetEl = (visualPos === 0)
+                            ? (document.querySelector('.my-cards-row') || winnerSeatEl)
+                            : (winnerBadge || winnerSeatEl);
+                        let hasValidRect = false;
                         if (targetEl && table) {
                             const tableRect = table.getBoundingClientRect();
                             const bRect = targetEl.getBoundingClientRect();
-                            destX = (bRect.left + bRect.width / 2) - (tableRect.left + tableRect.width / 2);
-                            destY = (bRect.top + bRect.height / 2) - (tableRect.top + tableRect.height / 2);
-                        } else {
-                            if (visualPos === 0) destY = 240;
-                            else if (visualPos === 1) destX = 240;
-                            else if (visualPos === 2) destY = -240;
-                            else if (visualPos === 3) destX = -240;
+                            if (bRect.width > 0 || bRect.height > 0) {
+                                destX = (bRect.left + bRect.width / 2) - (tableRect.left + tableRect.width / 2);
+                                destY = (bRect.top + bRect.height / 2) - (tableRect.top + tableRect.height / 2);
+                                hasValidRect = true;
+                            }
+                        }
+                        if (!hasValidRect) {
+                            if (visualPos === 0) destY = Math.round(window.innerHeight * 0.38 || 260);
+                            else if (visualPos === 1) destX = 260;
+                            else if (visualPos === 2) destY = -260;
+                            else if (visualPos === 3) destX = -260;
                         }
 
                         // Sweep stack into winner's seat
