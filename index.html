@@ -604,7 +604,7 @@ body::before {
 /* ==================== BOARD & TABLE ==================== */
 #board { flex: 1 1 0; position: relative; width: 100%; min-height: 0; z-index: 10; overflow: hidden; }
 #casino-ring {
-    position: absolute; top: var(--table-center-y, 42%); left: 50%; transform: translate(-50%, -50%);
+    position: absolute; top: var(--table-center-y, 48%); left: 50%; transform: translate(-50%, -50%);
     width: var(--ring-size, clamp(160px, min(48vw, 36vh), 230px)); height: var(--ring-size, clamp(160px, min(48vw, 36vh), 230px));
     border-radius: 50%; border: 1.5px dashed rgba(229, 193, 88, 0.25);
     background: radial-gradient(circle, rgba(229, 193, 88, 0.07) 0%, transparent 72%);
@@ -612,23 +612,7 @@ body::before {
     align-items: center; justify-content: center; padding: 8px;
 }
 #trick-hud-pill {
-    position: absolute;
-    top: calc(var(--table-center-y, 42%) - var(--hud-pill-offset, clamp(85px, min(24vw, 18vh), 118px)));
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 95;
-    pointer-events: none;
-    background: rgba(5, 14, 9, 0.92);
-    border: 1.5px solid rgba(229, 193, 88, 0.4);
-    padding: 3px 12px;
-    border-radius: 18px;
-    font-size: clamp(0.66rem, 1.4vh, 0.76rem);
-    font-weight: 800;
-    color: #e2e8f0;
-    backdrop-filter: blur(8px);
-    white-space: nowrap;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-    transition: all 0.25s ease;
+    display: none !important; /* Removed to resolve overlapping North seat confusion */
 }
 #trick-hud-pill.hud-winning-friend {
     border: 1.5px solid #22c55e !important;
@@ -661,15 +645,15 @@ body::before {
     white-space: nowrap;
 }
 #center-table {
-    position: absolute; top: var(--table-center-y, 42%); left: 50%; transform: translate(-50%, -50%);
+    position: absolute; top: var(--table-center-y, 48%); left: 50%; transform: translate(-50%, -50%);
     width: calc(var(--card-w) * 2.2); height: calc(var(--card-h) * 1.5); z-index: 15; pointer-events: none;
 }
 
 /* PLAYER SEATS */
 .hand { position: absolute; display: flex; align-items: center; justify-content: center; z-index: 20; }
 #player-top { top: clamp(4px, 1.2vh, 8px); left: 50%; transform: translateX(-50%); flex-direction: column; }
-#player-left { left: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-left, 0px)); top: var(--table-center-y, 42%); transform: translateY(-50%); flex-direction: column; }
-#player-right { right: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-right, 0px)); top: var(--table-center-y, 42%); transform: translateY(-50%); flex-direction: column; }
+#player-left { left: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-left, 0px)); top: var(--table-center-y, 48%); transform: translateY(-50%); flex-direction: column; }
+#player-right { right: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-right, 0px)); top: var(--table-center-y, 48%); transform: translateY(-50%); flex-direction: column; }
 #player-bottom {
     bottom: calc(env(safe-area-inset-bottom, 0px) + var(--south-bottom, clamp(6px, 1.5vh, 14px)));
     left: 50%; transform: translateX(-50%);
@@ -699,15 +683,29 @@ body::before {
     color: #f8fafc; display: inline-flex; align-items: center; gap: 4px;
     box-shadow: 0 4px 14px rgba(0,0,0,0.65); white-space: nowrap; position: relative; z-index: 35; transition: all 0.25s ease;
 }
-.player-badge.partner { border-color: var(--team1-blue); color: #bae6fd; }
-.player-badge.enemy { border-color: rgba(251, 113, 133, 0.55); }
-.player-badge .card-cnt { background: rgba(255,255,255,0.12); padding: 1px 5px; border-radius: 8px; font-size: 0.58rem; color: var(--gold-bright); }
-
-@keyframes activeTurnPulse {
-    0% { box-shadow: 0 0 0 0 rgba(229, 193, 88, 0.7), 0 0 10px var(--gold-glow); border-color: #fff; }
-    100% { box-shadow: 0 0 0 5px rgba(229, 193, 88, 0), 0 0 18px var(--gold-primary); border-color: var(--gold-bright); }
+.player-badge {
+    background: rgba(8, 18, 12, 0.88); border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 3px 9px; border-radius: 16px; font-size: clamp(0.62rem, 1.2vh, 0.68rem); font-weight: 700;
+    color: #cbd5e1; display: inline-flex; align-items: center; gap: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5); white-space: nowrap; position: relative; z-index: 35; transition: all 0.25s ease;
 }
-.player-badge.active-turn { animation: activeTurnPulse 1s infinite alternate; background: linear-gradient(135deg, #27382b, #0e1c13); transform: scale(1.05); }
+.player-badge.partner { border-color: rgba(56, 189, 248, 0.35); color: #bae6fd; }
+.player-badge.enemy { border-color: rgba(251, 113, 133, 0.3); color: #cbd5e1; }
+.player-badge .card-cnt { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 8px; font-size: 0.58rem; color: #f8fafc; }
+
+/* Turn indicator: Bright gold pulse is strictly reserved for the active turn player */
+@keyframes activeTurnPulse {
+    0% { box-shadow: 0 0 0 0 rgba(229, 193, 88, 0.75), 0 0 12px var(--gold-glow); border-color: #fff; }
+    100% { box-shadow: 0 0 0 4px rgba(229, 193, 88, 0), 0 0 20px var(--gold-primary); border-color: var(--gold-bright); }
+}
+.player-badge.active-turn {
+    animation: activeTurnPulse 1s infinite alternate !important;
+    background: linear-gradient(135deg, #27382b, #0e1c13) !important;
+    border-color: var(--gold-bright) !important;
+    color: #fff !important;
+    transform: scale(1.06);
+    z-index: 50 !important;
+}
 
 /* CARDS */
 .card {
@@ -2034,25 +2032,99 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 <!-- ==================== TOP COMPASS BAR ==================== -->
 <div id="compass-bar">
     <div class="my-compass-tag" id="my-compass-role">🧭 YOU: CONNECTING...</div>
-    <div class="compass-roster">
+    <div class="compass-roster" style="display:none;">
         <span class="c-seat" id="c-seat-0">S: 🤖</span>
         <span class="c-seat" id="c-seat-1">E: 🤖</span>
         <span class="c-seat" id="c-seat-2">N: 🤖</span>
         <span class="c-seat" id="c-seat-3">W: 🤖</span>
     </div>
     <div class="bar-quick-actions">
-        <button class="bar-icon-btn" id="top-diff-btn" onclick="cycleDifficulty()" title="AI Difficulty: Click to change" style="font-weight:700; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5);"><span id="top-diff-dot" style="width:7px; height:7px; border-radius:50%; background:#eab308;"></span><span id="top-diff-label">Medium</span></button>
-        <button class="bar-icon-btn" id="orientation-toggle-btn" onclick="toggleTableOrientation()" title="Table View: 1st-Person vs Compass" style="font-weight:700; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5); color:var(--gold-bright); cursor:pointer;"><span style="font-size:0.85rem;">🧭</span> <span id="orientation-btn-text">1st-Person</span></button>
-        <button class="bar-icon-btn" id="table-speed-btn"  onclick="cycleTableSpeed()" title="Table Pace: 1x (Realistic)" style="font-weight:800; font-size:0.72rem; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(229,193,88,0.4); background:rgba(0,0,0,0.5); color:var(--gold-bright); cursor:pointer;"><span id="table-speed-icon">⚡</span> <span id="table-speed-label">1x</span></button>
-        <div id="ai-status-pill" title="AI Intelligence: OpenRouter (nvidia/nemotron-3.5-super-vl)" style="display:inline-flex; align-items:center; gap:5px; font-size:0.68rem; font-weight:800; color:#86efac; background:rgba(34,197,94,0.18); border:1px solid rgba(74,222,128,0.4); padding:3px 9px; border-radius:14px; white-space:nowrap;"><span style="width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span> 🧠 Nemotron AI</div>
         <button class="bar-icon-btn" onclick="openStatsModal()" id="stats-icon-btn" title="Career Stats & Elo" style="font-weight:700;">🏆 <span id="stats-btn-text">Stats</span></button>
-        <button class="bar-icon-btn" onclick="toggleLanguage()" id="lang-toggle-btn" title="Language / भाषा">🌐 हिन्दी</button>
         <button class="bar-icon-btn" onclick="toggleLogModal()" id="log-icon-btn" title="Game History / Log">📜 <span id="log-btn-text">Log</span></button>
-        <button class="bar-icon-btn" onclick="ui.toggleTrackerDrawer()" id="tracker-icon-btn" title="Cards Played & Honor Tracker">🃏 <span id="tracker-btn-text">Tracker</span></button>
+        <button class="bar-icon-btn" onclick="openSettingsModal()" id="settings-icon-btn" title="Game Settings & Simulation" style="font-weight:700; color:var(--gold-bright); border-color:rgba(229,193,88,0.45); background:rgba(0,0,0,0.5);">⚙️ <span id="settings-btn-text">Settings</span></button>
         <button class="bar-icon-btn" onclick="openShareModal()" id="share-icon-btn" title="Share Room Invite">🔗 Invite</button>
         <button class="bar-icon-btn" onclick="openHandoverModal()" id="handover-icon-btn" title="Hand Over Seat via QR Code" style="display:none; color:var(--gold-bright); font-weight:800; border-color:rgba(229,193,88,0.5);">📲 Handover</button>
         <button class="bar-icon-btn" id="sound-btn" onclick="toggleAudio()" title="Sound On/Off">🔊</button>
-        <button class="bar-icon-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶</button>
+    </div>
+</div>
+
+<!-- ==================== GAME SETTINGS MODAL ==================== -->
+<div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.82); z-index:2250; align-items:center; justify-content:center; padding:14px; backdrop-filter:blur(6px);">
+    <div style="background:linear-gradient(155deg, rgba(15,23,42,0.97), rgba(8,14,26,0.99)); border:1.5px solid rgba(229,193,88,0.4); border-radius:16px; padding:18px 20px; width:100%; max-width:400px; box-shadow:0 12px 35px rgba(0,0,0,0.75); color:#f8fafc;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:8px;">
+            <div style="font-family:'Cinzel',serif; font-size:1.15rem; font-weight:900; color:var(--gold-bright); display:flex; align-items:center; gap:8px;">
+                <span>⚙️</span> <span id="settings-modal-title">Game Settings</span>
+            </div>
+            <button class="log-modal-close" onclick="closeSettingsModal()" style="background:none; border:none; color:#94a3b8; font-size:1.2rem; cursor:pointer;">✕</button>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:12px;">
+            <!-- AI Difficulty -->
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:0.75rem; font-weight:800; color:#cbd5e1;">🤖 AI Difficulty</span>
+                    <span id="settings-diff-pill" style="font-size:0.65rem; font-weight:800; padding:1px 7px; border-radius:8px; background:rgba(234,179,8,0.18); border:1px solid #eab308; color:#fde047;">Medium</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="setting-opt-btn" id="s-diff-easy" onclick="setDifficultyUI('easy')" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">Easy</button>
+                    <button class="setting-opt-btn active" id="s-diff-medium" onclick="setDifficultyUI('medium')" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(229,193,88,0.2); border:1px solid var(--gold-bright); color:var(--gold-bright); cursor:pointer;">Medium</button>
+                    <button class="setting-opt-btn" id="s-diff-hard" onclick="setDifficultyUI('hard')" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">Hard</button>
+                </div>
+            </div>
+
+            <!-- Table Orientation -->
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:0.75rem; font-weight:800; color:#cbd5e1;">🧭 Table Orientation</span>
+                    <span id="settings-orient-pill" style="font-size:0.65rem; font-weight:800; padding:1px 7px; border-radius:8px; background:rgba(56,189,248,0.18); border:1px solid #38bdf8; color:#7dd3fc;">1st-Person</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="setting-opt-btn active" id="s-orient-first" onclick="setOrientationUI('FIRST_PERSON')" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(229,193,88,0.2); border:1px solid var(--gold-bright); color:var(--gold-bright); cursor:pointer;">1st-Person (You at Bottom)</button>
+                    <button class="setting-opt-btn" id="s-orient-compass" onclick="setOrientationUI('COMPASS')" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">Compass (Fixed)</button>
+                </div>
+            </div>
+
+            <!-- Game Pace -->
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:0.75rem; font-weight:800; color:#cbd5e1;">⚡ Game Pace</span>
+                    <span id="settings-speed-pill" style="font-size:0.65rem; font-weight:800; padding:1px 7px; border-radius:8px; background:rgba(16,185,129,0.18); border:1px solid #10b981; color:#6ee7b7;">1x</span>
+                </div>
+                <div style="display:flex; gap:5px;">
+                    <button class="setting-opt-btn" id="s-spd-05" onclick="setSpeedUI(0.5)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">0.5x</button>
+                    <button class="setting-opt-btn" id="s-spd-075" onclick="setSpeedUI(0.75)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">0.75x</button>
+                    <button class="setting-opt-btn active" id="s-spd-1" onclick="setSpeedUI(1.0)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(229,193,88,0.2); border:1px solid var(--gold-bright); color:var(--gold-bright); cursor:pointer;">1x</button>
+                    <button class="setting-opt-btn" id="s-spd-15" onclick="setSpeedUI(1.5)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">1.5x</button>
+                    <button class="setting-opt-btn" id="s-spd-2" onclick="setSpeedUI(2.0)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">2x</button>
+                </div>
+            </div>
+
+            <!-- AI Engine & Model -->
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-size:0.75rem; font-weight:800; color:#cbd5e1;">🧠 AI Intelligence</div>
+                    <div style="font-size:0.62rem; color:#94a3b8;">Nemotron AI + ISMCTS + DDS Engine</div>
+                </div>
+                <div style="display:inline-flex; align-items:center; gap:5px; font-size:0.68rem; font-weight:800; color:#86efac; background:rgba(34,197,94,0.18); border:1px solid rgba(74,222,128,0.4); padding:3px 8px; border-radius:12px;"><span style="width:6px; height:6px; border-radius:50%; background:#22c55e;"></span> Active</div>
+            </div>
+
+            <!-- Language & Extra Tools -->
+            <div style="display:flex; gap:8px;">
+                <button class="menu-btn" onclick="toggleLanguage(); syncSettingsModalUI();" style="flex:1; padding:7px 10px; font-size:0.74rem; justify-content:center;">
+                    <span id="settings-lang-btn-text">🌐 हिन्दी / English</span>
+                </button>
+                <button class="menu-btn" onclick="ui.toggleTrackerDrawer(); closeSettingsModal();" style="flex:1; padding:7px 10px; font-size:0.74rem; justify-content:center;">
+                    <span>🃏 Card Tracker</span>
+                </button>
+                <button class="menu-btn" onclick="toggleFullscreen()" style="padding:7px 12px; font-size:0.78rem; justify-content:center;" title="Fullscreen">
+                    <span>⛶</span>
+                </button>
+            </div>
+        </div>
+
+        <button class="menu-btn primary-gold" style="width:100%; justify-content:center; margin-top:14px; padding:9px;" onclick="closeSettingsModal()">
+            Done
+        </button>
     </div>
 </div>
 
@@ -2256,7 +2328,11 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <div id="player-top" class="hand"></div>
     <div id="player-left" class="hand"></div>
     <div id="player-right" class="hand"></div>
-    <div id="player-bottom" class="hand"></div>
+    <div id="player-bottom" class="hand">
+        <div id="recent-trick-dock" onclick="toggleLogModal()" title="Click to view full game log" style="display:none; cursor:pointer; background:rgba(0,0,0,0.55); border:1px solid rgba(229,193,88,0.3); border-radius:12px; padding:2px 10px; font-size:0.65rem; color:#cbd5e1; margin-bottom:4px; box-shadow:0 2px 8px rgba(0,0,0,0.4); backdrop-filter:blur(4px);">
+            <span id="recent-trick-dock-text">📜 Trick History</span>
+        </div>
+    </div>
     <div id="center-table"></div>
 </div>
 
@@ -2611,6 +2687,115 @@ function triggerHaptic(type) {
             navigator.vibrate([80, 50, 120]);
         }
     } catch(e) {}
+}
+
+
+// ==================== GAME SETTINGS MODAL LOGIC ====================
+function openSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (!modal) return;
+    syncSettingsModalUI();
+    modal.style.display = 'flex';
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function syncSettingsModalUI() {
+    let t = I18N[currentLang] || I18N.en;
+    let isHi = (currentLang === 'hi');
+
+    // Title & labels
+    const titleEl = document.getElementById('settings-modal-title');
+    if (titleEl) titleEl.innerText = isHi ? 'गेम सेटिंग्स' : 'Game Settings';
+    const langBtnText = document.getElementById('settings-lang-btn-text');
+    if (langBtnText) langBtnText.innerText = isHi ? '🌐 English में बदलें' : '🌐 Switch to हिन्दी';
+
+    // Difficulty
+    const diffPill = document.getElementById('settings-diff-pill');
+    if (diffPill) {
+        let diffLabel = currentDifficulty === 'easy' ? (isHi ? 'सरल' : 'Easy') : (currentDifficulty === 'hard' ? (isHi ? 'कठिन' : 'Hard') : (isHi ? 'मध्यम' : 'Medium'));
+        diffPill.innerText = diffLabel;
+        diffPill.style.color = currentDifficulty === 'hard' ? '#f87171' : (currentDifficulty === 'easy' ? '#86efac' : '#fde047');
+    }
+    ['easy', 'medium', 'hard'].forEach(d => {
+        const btn = document.getElementById('s-diff-' + d);
+        if (btn) {
+            let active = (currentDifficulty === d);
+            btn.style.background = active ? 'rgba(229,193,88,0.2)' : 'rgba(0,0,0,0.4)';
+            btn.style.borderColor = active ? 'var(--gold-bright)' : 'rgba(255,255,255,0.1)';
+            btn.style.color = active ? 'var(--gold-bright)' : '#94a3b8';
+        }
+    });
+
+    // Orientation
+    const orientPill = document.getElementById('settings-orient-pill');
+    if (orientPill) {
+        orientPill.innerText = tableOrientation === 'FIRST_PERSON' ? (isHi ? '1st-पर्सन' : '1st-Person') : (isHi ? 'कंपास' : 'Compass');
+    }
+    const bFirst = document.getElementById('s-orient-first');
+    const bCompass = document.getElementById('s-orient-compass');
+    if (bFirst && bCompass) {
+        let isFirst = (tableOrientation === 'FIRST_PERSON');
+        bFirst.style.background = isFirst ? 'rgba(229,193,88,0.2)' : 'rgba(0,0,0,0.4)';
+        bFirst.style.borderColor = isFirst ? 'var(--gold-bright)' : 'rgba(255,255,255,0.1)';
+        bFirst.style.color = isFirst ? 'var(--gold-bright)' : '#94a3b8';
+
+        bCompass.style.background = !isFirst ? 'rgba(229,193,88,0.2)' : 'rgba(0,0,0,0.4)';
+        bCompass.style.borderColor = !isFirst ? 'var(--gold-bright)' : 'rgba(255,255,255,0.1)';
+        bCompass.style.color = !isFirst ? 'var(--gold-bright)' : '#94a3b8';
+    }
+
+    // Speed
+    const spdPill = document.getElementById('settings-speed-pill');
+    let curSpd = window.GAME_SPEED_MULTIPLIER || 1.0;
+    if (spdPill) spdPill.innerText = `${curSpd}x`;
+    [0.5, 0.75, 1.0, 1.5, 2.0].forEach(s => {
+        let sKey = String(s).replace('.', '');
+        if (s === 1.0) sKey = '1';
+        if (s === 2.0) sKey = '2';
+        const btn = document.getElementById('s-spd-' + sKey);
+        if (btn) {
+            let active = (Math.abs(curSpd - s) < 0.05);
+            btn.style.background = active ? 'rgba(229,193,88,0.2)' : 'rgba(0,0,0,0.4)';
+            btn.style.borderColor = active ? 'var(--gold-bright)' : 'rgba(255,255,255,0.1)';
+            btn.style.color = active ? 'var(--gold-bright)' : '#94a3b8';
+        }
+    });
+}
+
+function setDifficultyUI(diff) {
+    currentDifficulty = diff;
+    try { localStorage.setItem('twentyEight_difficulty', diff); } catch(e) {}
+    syncSettingsModalUI();
+    if (typeof showGameToast === 'function') {
+        showGameToast(`🤖 AI Difficulty: <b>${diff.toUpperCase()}</b>`, 1800);
+    }
+}
+
+function setOrientationUI(mode) {
+    tableOrientation = mode;
+    try { localStorage.setItem('twentyEight_orientation', mode); } catch(e) {}
+    syncSettingsModalUI();
+    applyTableOrientation();
+    if (typeof showGameToast === 'function') {
+        let label = mode === 'FIRST_PERSON' ? '1st-Person (You at Bottom)' : 'Fixed Compass';
+        showGameToast(`🧭 Table View: <b>${label}</b>`, 1800);
+    }
+}
+
+function setSpeedUI(speed) {
+    window.GAME_SPEED_MULTIPLIER = speed;
+    try { localStorage.setItem('twentyEight_speed', String(speed)); } catch(e) {}
+    syncSettingsModalUI();
+    if (typeof isHost !== 'undefined' && isHost && typeof gameMode !== 'undefined' && gameMode === 'multi') {
+        broadcastNetMessage({ type: 'SPEED_SYNC', speedMultiplier: speed });
+    }
+    if (typeof showGameToast === 'function') {
+        showGameToast(`⚡ Pace: <b>${speed}x</b>`, 1800);
+    }
 }
 
 function toggleTableOrientation() {
@@ -7858,16 +8043,17 @@ class UIController {
                 }
             }
         }
-        let t1Name = getTeamDisplayName(1);
-        let t2Name = getTeamDisplayName(2);
         let myTeamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
+        let isHi = (currentLang === 'hi');
+        let t1Header = document.getElementById('t1-header');
+        let t2Header = document.getElementById('t2-header');
         if (mySeat === 99) {
-            document.getElementById('t1-header').innerText = t1Name;
-            document.getElementById('t2-header').innerText = t2Name;
+            if (t1Header) t1Header.innerText = isHi ? "टीम 1 (द व उ)" : "Team 1 (S & N)";
+            if (t2Header) t2Header.innerText = isHi ? "टीम 2 (पू व प)" : "Team 2 (E & W)";
         } else {
-            let isTeam1Mine = (myTeamNum === 1);
-            document.getElementById('t1-header').innerText = isTeam1Mine ? `${t1Name} (YOU)` : t1Name;
-            document.getElementById('t2-header').innerText = !isTeam1Mine ? `${t2Name} (YOU)` : t2Name;
+            let isT1Mine = (myTeamNum === 1);
+            if (t1Header) t1Header.innerText = isT1Mine ? (isHi ? "आपकी टीम (YOU)" : "Your Team (You)") : (isHi ? "विरोधी टीम" : "Opponents");
+            if (t2Header) t2Header.innerText = !isT1Mine ? (isHi ? "आपकी टीम (YOU)" : "Your Team (You)") : (isHi ? "विरोधी टीम" : "Opponents");
         }
     }
 
@@ -8729,18 +8915,22 @@ class UIController {
         } else if (this.engine.highestBidder !== -1) {
             document.getElementById('bid-status').innerText = `${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
             if (this.engine.trumpRevealed) {
-                const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ef4444' : '#38bdf8';
-                document.getElementById('trump-status').innerHTML = `
-                    <span style="background:rgba(229,193,88,0.22); border:1.5px solid var(--gold-bright); border-radius:12px; padding:2px 8px; color:var(--gold-bright); font-weight:800; font-size:0.75rem; display:inline-flex; align-items:center; gap:5px; box-shadow:0 0 12px rgba(229,193,88,0.45);">
-                        <span style="color:#cbd5e1; font-size:0.62rem; text-transform:uppercase;">${t.trump}:</span>
-                        <span style="color:${suitColor}; font-size:1.15rem; line-height:1; font-weight:900;">${suit}</span>
-                    </span>
-                `;
+                // Eliminate duplicate header trump pill once revealed next to bidder's seat on table
+                const tpEl = document.getElementById('trump-status');
+                if (tpEl) tpEl.style.display = 'none';
             } else if (mySeat === this.engine.highestBidder && this.engine.trumpSuit) {
                 const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ef4444' : '#38bdf8';
-                document.getElementById('trump-status').innerHTML = `${t.trump}: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span> (${currentLang === 'hi' ? 'गुप्त' : 'Secret'})`;
+                const tpEl = document.getElementById('trump-status');
+                if (tpEl) {
+                    tpEl.style.display = 'inline-block';
+                    tpEl.innerHTML = `${t.trump}: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span> (${currentLang === 'hi' ? 'गुप्त' : 'Secret'})`;
+                }
             } else {
-                document.getElementById('trump-status').innerText = t.secretTrump;
+                const tpEl = document.getElementById('trump-status');
+                if (tpEl) {
+                    tpEl.style.display = 'inline-block';
+                    tpEl.innerText = t.secretTrump;
+                }
             }
         }
 
@@ -9117,60 +9307,69 @@ class UIController {
         `;
         table.appendChild(div);
 
-        // Delicate humanlike card placement onto felt - strictly centered with xPercent/yPercent
+        // 4-Point Directional Cross Fan: Offset each played card toward its respective seat
+        // Keeps corner rank indices and point badges 100% visible and unobstructed
         if (window.gsap) {
-            // Anchor center with xPercent and yPercent so transforms are NEVER off-center
             gsap.set(div, { xPercent: -50, yPercent: -50 });
 
-            // Gentle, short proximity offset (as if held in fingers right beside their table slot)
             let startX = 0, startY = 0;
+            let endX = 0, endY = 0, endRot = 0;
+
             if (visualPos === 0) {
-                // Bottom player (You): gently slides card forward onto the table
-                startY = 35;
-                startX = (Math.random() - 0.5) * 6;
+                // South (Bottom / You): offsets downward toward South
+                startX = (Math.random() - 0.5) * 4;
+                startY = 40;
+                endX = 0;
+                endY = 18;
+                endRot = (Math.random() - 0.5) * 2;
             } else if (visualPos === 1) {
-                // East (Right): gently lays card toward center from right
-                startX = 38;
-                startY = (Math.random() - 0.5) * 6;
+                // East (Right): offsets rightward toward East
+                startX = 42;
+                startY = (Math.random() - 0.5) * 4;
+                endX = 24;
+                endY = -2;
+                endRot = 6 + (Math.random() - 0.5) * 2;
             } else if (visualPos === 2) {
-                // North (Partner): gently lowers card forward from top
-                startY = -35;
-                startX = (Math.random() - 0.5) * 6;
+                // North (Top / Partner): offsets upward toward North
+                startX = (Math.random() - 0.5) * 4;
+                startY = -40;
+                endX = 0;
+                endY = -18;
+                endRot = -1 + (Math.random() - 0.5) * 2;
             } else if (visualPos === 3) {
-                // West (Left): gently lays card toward center from left
-                startX = -38;
-                startY = (Math.random() - 0.5) * 6;
+                // West (Left): offsets leftward toward West
+                startX = -42;
+                startY = (Math.random() - 0.5) * 4;
+                endX = -24;
+                endY = -2;
+                endRot = -6 + (Math.random() - 0.5) * 2;
             }
 
-            // Natural, organic resting angle on the felt
-            let baseRot = visualPos === 1 ? 7 : (visualPos === 3 ? -7 : (visualPos === 2 ? 2 : -2));
-            let endRot = baseRot + (Math.random() - 0.5) * 3;
             let startRot = endRot + (Math.random() - 0.5) * 4;
 
-            // Delicate glide & soft rest: Starts slightly lifted and smoothly settles perfectly centered onto felt
             gsap.fromTo(div, 
                 { 
                     xPercent: -50,
                     yPercent: -50,
                     x: startX, 
                     y: startY, 
-                    scale: 1.05, 
+                    scale: 1.06, 
                     rotation: startRot, 
                     opacity: 0.85,
-                    boxShadow: "0 10px 20px rgba(0,0,0,0.45)"
+                    boxShadow: "0 10px 22px rgba(0,0,0,0.5)"
                 },
                 { 
                     xPercent: -50,
                     yPercent: -50,
-                    x: 0, 
-                    y: 0, 
+                    x: endX, 
+                    y: endY, 
                     scale: 1, 
                     rotation: endRot, 
                     opacity: 1, 
-                    duration: 0.5, 
-                    delay: delaySec,
-                    ease: "power2.out",
-                    boxShadow: "0 3px 8px rgba(0,0,0,0.55)",
+                    duration: 0.45, 
+                    delay: delaySec, 
+                    ease: "power2.out", 
+                    boxShadow: "0 4px 10px rgba(0,0,0,0.6)",
                     onComplete: () => {
                         div.style.opacity = '1';
                         div.style.visibility = 'visible';
@@ -9570,6 +9769,17 @@ class UIController {
                 this.clearTrickWinnerHalo();
                 if (this.engine.trickCards && this.engine.trickCards.length === 4) {
                     this.engine.resolveTrick();
+                // Update in-table docked trick history
+                const dock = document.getElementById('recent-trick-dock');
+                const dockText = document.getElementById('recent-trick-dock-text');
+                if (dock && dockText && this.engine.roundTricks && this.engine.roundTricks.length > 0) {
+                    let lastTrk = this.engine.roundTricks[this.engine.roundTricks.length - 1];
+                    let wName = (typeof getCompassShort === 'function' ? getCompassShort(lastTrk.winningPlayer) : COMPASS_SHORT[lastTrk.winningPlayer]) || `P${lastTrk.winningPlayer}`;
+                    let isMine = (lastTrk.winningPlayer === mySeat);
+                    let prefix = isMine ? '🏆 You won trick' : `🃏 ${wName} won trick`;
+                    dockText.innerHTML = `${prefix} (+${lastTrk.points} pts) &bull; <span style="opacity:0.7;">History ▾</span>`;
+                    dock.style.display = 'inline-flex';
+                }
                     if (typeof flashTrickHUD === 'function') flashTrickHUD();
                 }
                 if (isHost) this.broadcastGameState();
