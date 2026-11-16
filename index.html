@@ -32,10 +32,17 @@
     --danger: #ef4444; --success: #22c55e;
     --suit-red: #dc2626; --suit-black: #0f172a;
 
-    --card-w: clamp(40px, min(10vw, 10vh), 68px);
-    --card-h: clamp(58px, min(15vw, 14.5vh), 96px);
-    --opp-card-w: clamp(24px, min(6.5vw, 6.2vh), 42px);
-    --opp-card-h: clamp(36px, min(9.5vw, 9vh), 60px);
+    /* Scales smoothly from 360px mobile phones up to 800px+ tablets */
+    --card-w: clamp(46px, 12.5vw, 68px);
+    --card-h: calc(var(--card-w) * 1.42);
+    --mini-card-w: clamp(28px, 7.5vw, 40px);
+    --mini-card-h: calc(var(--mini-card-w) * 1.42);
+    --opp-card-w: var(--mini-card-w);
+    --opp-card-h: var(--mini-card-h);
+
+    /* Hand overlap tightens automatically on narrow screens when holding 8 cards */
+    --hand-overlap: clamp(-24px, -4.5vw, -12px);
+    --side-stack-overlap: clamp(-34px, -5.2vh, -24px);
 }
 body.theme-sapphire {
     --felt-center: #173860; --felt-mid: #0e223c; --felt-edge: #060e19;
@@ -283,6 +290,10 @@ body.theme-crimson {
     z-index: 60;
     pointer-events: none;
 }
+#player-right .turn-ring-container {
+    right: auto;
+    left: -14px;
+}
 .turn-ring-svg {
     position: absolute;
     inset: 0;
@@ -369,6 +380,14 @@ body.theme-crimson {
     z-index: 50;
     letter-spacing: 0.3px;
 }
+#player-right .turn-timer-badge {
+    right: auto;
+    left: -8px;
+}
+body.hide-turn-timer .turn-timer-badge,
+body.hide-turn-timer .turn-ring-container {
+    display: none !important;
+}
 .turn-timer-badge.warning {
     background: linear-gradient(135deg, #ef4444, #b91c1c);
     border-color: #fca5a5;
@@ -404,6 +423,14 @@ html, body {
     background: radial-gradient(ellipse at 50% 48%, var(--felt-center) 0%, var(--felt-mid) 60%, var(--felt-edge) 100%);
     color: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden;
     display: flex; flex-direction: column; user-select: none; -webkit-font-smoothing: antialiased;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+}
+.game-shell {
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
 }
 body::before {
     content: ""; position: absolute; inset: 0;
@@ -616,38 +643,67 @@ body::before {
     pointer-events: none; z-index: 2; display: flex; flex-direction: column;
     align-items: center; justify-content: center; padding: 8px;
 }
-#trick-hud-pill {
-    display: none !important; /* Removed to resolve overlapping North seat confusion */
-}
-#trick-hud-pill.hud-winning-friend {
-    border: 1.5px solid #22c55e !important;
-    background: rgba(6, 78, 59, 0.94) !important;
-    color: #86efac !important;
-    box-shadow: 0 0 16px rgba(34, 197, 94, 0.6) !important;
-}
-#trick-hud-pill.hud-winning-enemy {
-    border: 1.5px solid #ef4444 !important;
-    background: rgba(127, 29, 29, 0.94) !important;
-    color: #fca5a5 !important;
-    box-shadow: 0 0 16px rgba(239, 68, 68, 0.6) !important;
-}
-#trick-pts-pill {
+/* ==================== CENTER TRICK METADATA CLUSTER ==================== */
+.trick-meta-cluster {
     position: absolute;
-    top: calc(var(--table-center-y, 42%) + var(--hud-pill-offset, clamp(85px, min(24vw, 18vh), 118px)));
+    top: calc(var(--table-center-y, 42%) + var(--hud-pill-offset, clamp(72px, min(20vw, 16vh), 96px)));
     left: 50%;
     transform: translateX(-50%);
-    z-index: 95;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
     pointer-events: none;
-    padding: 2px 10px;
-    border-radius: 12px;
-    background: rgba(5, 14, 9, 0.88);
-    border: 1px solid rgba(229, 193, 88, 0.35);
-    font-size: clamp(0.62rem, 1.2vh, 0.7rem);
-    color: var(--gold-primary);
-    font-weight: 700;
-    backdrop-filter: blur(8px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 95;
     white-space: nowrap;
+}
+.trick-winner-pill {
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: clamp(0.62rem, 1.3vh, 0.72rem);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.trick-winner-pill.winner-user-team {
+    background: rgba(6, 78, 59, 0.90);
+    border: 1px solid rgba(52, 211, 153, 0.6);
+    color: #a7f3d0;
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+}
+.trick-winner-pill.winner-opp-team {
+    background: rgba(76, 5, 25, 0.90);
+    border: 1px solid rgba(251, 113, 133, 0.6);
+    color: #fecdd3;
+    box-shadow: 0 0 14px rgba(244, 63, 94, 0.35);
+}
+.trick-winner-card-badge {
+    padding: 1px 5px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    font-weight: 800;
+}
+.trick-pts-pill {
+    padding: 2.5px 12px;
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: clamp(0.6rem, 1.2vh, 0.68rem);
+    color: rgba(254, 240, 138, 0.95);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+#trick-hud-pill {
+    display: none !important;
 }
 #center-table {
     position: absolute; top: var(--table-center-y, 48%); left: 50%; transform: translate(-50%, -50%);
@@ -660,7 +716,7 @@ body::before {
 #player-left { left: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-left, 0px)); top: var(--table-center-y, 48%); transform: translateY(-50%); flex-direction: column; }
 #player-right { right: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-right, 0px)); top: var(--table-center-y, 48%); transform: translateY(-50%); flex-direction: column; }
 #player-bottom {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--south-bottom, clamp(6px, 1.5vh, 14px)));
+    bottom: max(14px, env(safe-area-inset-bottom, 14px));
     left: 50%; transform: translateX(-50%);
     z-index: 120; perspective: 900px; flex-direction: column; align-items: center;
 }
@@ -669,7 +725,7 @@ body::before {
 #player-top .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-left: calc(var(--opp-card-w) * -0.55); }
 #player-top .opp-cards-row .card-back:first-child { margin-left: 0; }
 #player-left .opp-cards-row, #player-right .opp-cards-row { flex-direction: column; }
-#player-left .opp-cards-row .card-back, #player-right .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-top: calc(var(--opp-card-h) * -0.82); }
+#player-left .opp-cards-row .card-back, #player-right .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-top: var(--side-stack-overlap); }
 #player-left .opp-cards-row .card-back:first-child, #player-right .opp-cards-row .card-back:first-child { margin-top: 0; }
 
 .my-cards-row {
@@ -677,10 +733,25 @@ body::before {
     padding: 4px 8px 0px 8px; min-height: calc(var(--card-h) + 12px);
     max-width: 98vw; margin: 0 auto;
 }
-.my-cards-row .card { margin-left: var(--sparse-card-margin, clamp(-12px, -2.5vw, -6px)); transform-origin: bottom center; }
-.my-cards-row .card:first-child { margin-left: 0 !important; }
-.my-cards-row.dense-hand .card { margin-left: var(--dense-card-margin, clamp(-26px, -6.5vw, -20px)) !important; }
-.my-cards-row.dense-hand .card:first-child { margin-left: 0 !important; }
+.player-hand-card, .my-cards-row .card {
+    width: var(--card-w);
+    height: var(--card-h);
+    margin-left: var(--hand-overlap);
+    transform-origin: bottom center;
+    transition: transform 160ms ease, filter 160ms ease;
+}
+.player-hand-card:first-child, .my-cards-row .card:first-child {
+    margin-left: 0 !important;
+}
+.my-cards-row.dense-hand .card {
+    margin-left: clamp(-30px, -6.8vw, -22px) !important;
+}
+.my-cards-row.dense-hand .card:first-child {
+    margin-left: 0 !important;
+}
+.player-hand-card.is-playable, .my-cards-row .card.playable {
+    transform: translateY(clamp(-12px, -1.8vh, -8px));
+}
 
 .player-badge {
     background: rgba(7, 17, 11, 0.92); border: 1.5px solid rgba(229, 193, 88, 0.45);
@@ -727,10 +798,14 @@ body::before {
 .card-corner .corner-suit { font-size: 0.72em; margin-top: 1px; }
 .card-corner.bottom { align-self: flex-end; transform: rotate(180deg); }
 .card-pt-badge {
-    position: absolute; top: 3px; right: 3px;
-    background: rgba(229, 193, 88, 0.28); border: 1px solid rgba(158, 120, 24, 0.45);
+    position: absolute; top: 3px; right: 3px; z-index: 10;
+    background: rgba(229, 193, 88, 0.35); border: 1px solid rgba(158, 120, 24, 0.6);
     color: #713f12; font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 0.52rem; font-weight: 800; padding: 1px 3px; border-radius: 3px;
+    font-size: 0.52rem; font-weight: 800; padding: 1px 3px; border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25); pointer-events: none;
+}
+.trick-card .card-pt-badge {
+    top: 3px; right: 3px;
 }
 .card-center-suit {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -2035,7 +2110,7 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 }
 </style>
 </head>
-<body>
+<body class="game-shell">
 
 <!-- ==================== TOP COMPASS BAR ==================== -->
 <div id="compass-bar">
@@ -2104,6 +2179,18 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
                     <button class="setting-opt-btn active" id="s-spd-1" onclick="setSpeedUI(1.0)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(229,193,88,0.2); border:1px solid var(--gold-bright); color:var(--gold-bright); cursor:pointer;">1x</button>
                     <button class="setting-opt-btn" id="s-spd-15" onclick="setSpeedUI(1.5)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">1.5x</button>
                     <button class="setting-opt-btn" id="s-spd-2" onclick="setSpeedUI(2.0)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">2x</button>
+                </div>
+            </div>
+
+            <!-- Turn Timer Display -->
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:0.75rem; font-weight:800; color:#cbd5e1;">⏱️ Turn Countdown Timer</span>
+                    <span id="settings-timer-pill" style="font-size:0.65rem; font-weight:800; padding:1px 7px; border-radius:8px; background:rgba(16,185,129,0.18); border:1px solid #10b981; color:#6ee7b7;">Visible</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="setting-opt-btn active" id="s-timer-show" onclick="setTimerVisibilityUI(true)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(229,193,88,0.2); border:1px solid var(--gold-bright); color:var(--gold-bright); cursor:pointer;">Show Timer</button>
+                    <button class="setting-opt-btn" id="s-timer-hide" onclick="setTimerVisibilityUI(false)" style="flex:1; padding:5px; border-radius:8px; font-size:0.72rem; font-weight:700; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; cursor:pointer;">Hide Timer</button>
                 </div>
             </div>
 
@@ -2325,12 +2412,19 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <div id="game-toast-container"></div>
     <!-- QoL: Keyboard Hint Bar -->
     <div id="kbd-hint-bar"><kbd>1</kbd>–<kbd>8</kbd> play card &nbsp;|&nbsp; <kbd>R</kbd> reveal trump &nbsp;|&nbsp; <kbd>B</kbd> pass</div>
-    <div id="trick-hud-pill">Waiting for lead...</div>
+    <div id="trick-hud-pill" style="display:none;"></div>
     <div id="casino-ring">
         <div style="font-family:'Cinzel',serif; font-size:1.3rem; color:rgba(229,193,88,0.15); font-weight:900;">♠ ♥ ♣ ♦</div>
         <div id="lead-suit-watermark"></div>
     </div>
-    <div id="trick-pts-pill"><span id="trick-pts-icon">💰</span> <span id="trick-pts-val">Trick: 0 pts</span></div>
+    <!-- Center Trick Metadata Cluster: Current Winner Pill + Trick Pot & Led Suit -->
+    <div id="trick-meta-cluster" class="trick-meta-cluster">
+        <div id="trick-winner-pill" class="trick-winner-pill" style="display:none;"></div>
+        <div id="trick-pts-pill" class="trick-pts-pill">
+            <span id="trick-pts-icon">💰</span>
+            <span id="trick-pts-val">Trick: 0 pts</span>
+        </div>
+    </div>
     <div id="secret-trump-vault" style="display:none;" onclick="ui.onVaultTokenClick()" title="Secret Trump Vault"></div>
 
     <div id="player-top" class="hand"></div>
@@ -2772,6 +2866,44 @@ function syncSettingsModalUI() {
             btn.style.color = active ? 'var(--gold-bright)' : '#94a3b8';
         }
     });
+
+    // Turn Timer Visibility
+    const timerPill = document.getElementById('settings-timer-pill');
+    if (timerPill) {
+        timerPill.innerText = showTurnTimerSetting ? (isHi ? 'दिखाई दे रहा है' : 'Visible') : (isHi ? 'छिपा हुआ' : 'Hidden');
+        timerPill.style.color = showTurnTimerSetting ? '#6ee7b7' : '#94a3b8';
+    }
+    const bTimerShow = document.getElementById('s-timer-show');
+    const bTimerHide = document.getElementById('s-timer-hide');
+    if (bTimerShow && bTimerHide) {
+        bTimerShow.style.background = showTurnTimerSetting ? 'rgba(229,193,88,0.2)' : 'rgba(0,0,0,0.4)';
+        bTimerShow.style.borderColor = showTurnTimerSetting ? 'var(--gold-bright)' : 'rgba(255,255,255,0.1)';
+        bTimerShow.style.color = showTurnTimerSetting ? 'var(--gold-bright)' : '#94a3b8';
+
+        bTimerHide.style.background = !showTurnTimerSetting ? 'rgba(229,193,88,0.2)' : 'rgba(0,0,0,0.4)';
+        bTimerHide.style.borderColor = !showTurnTimerSetting ? 'var(--gold-bright)' : 'rgba(255,255,255,0.1)';
+        bTimerHide.style.color = !showTurnTimerSetting ? 'var(--gold-bright)' : '#94a3b8';
+    }
+}
+
+var showTurnTimerSetting = true;
+try {
+    let saved = localStorage.getItem('twentyEight_showTurnTimer');
+    if (saved !== null) {
+        showTurnTimerSetting = (saved === 'true');
+        if (!showTurnTimerSetting) document.body.classList.add('hide-turn-timer');
+    }
+} catch(e) {}
+
+function setTimerVisibilityUI(show) {
+    showTurnTimerSetting = show;
+    try { localStorage.setItem('twentyEight_showTurnTimer', show ? 'true' : 'false'); } catch(e) {}
+    if (show) {
+        document.body.classList.remove('hide-turn-timer');
+    } else {
+        document.body.classList.add('hide-turn-timer');
+    }
+    syncSettingsModalUI();
 }
 
 function setDifficultyUI(diff) {
@@ -8741,6 +8873,8 @@ class UIController {
             const crown = el.querySelector('.seat-winner-crown');
             if (crown) crown.remove();
         }
+        const winPill = document.getElementById('trick-winner-pill');
+        if (winPill) winPill.style.display = 'none';
     }
 
     updateTrickWinnerHalo(winner) {
@@ -8781,41 +8915,37 @@ class UIController {
     updateTrickHUD() {
         const pill = document.getElementById('trick-hud-pill');
         const ptsPill = document.getElementById('trick-pts-pill');
+        const winPill = document.getElementById('trick-winner-pill');
         let t = I18N[currentLang];
 
         if (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
             this.clearTrickWinnerHalo();
+            if (winPill) winPill.style.display = 'none';
             let isRound2 = (this.engine.phase === 'DEALING_2');
             let dealText = isRound2 
                 ? (currentLang === 'hi' ? '🎴 राउंड 2 के पत्ते बांटे जा रहे हैं...' : '🎴 Dealing Round 2 (4 Cards)...')
                 : (currentLang === 'hi' ? '🎴 पहले 4 पत्ते बांटे जा रहे हैं...' : '🎴 Dealing 4 Cards...');
-            pill.className = '';
-            pill.innerHTML = `<span>${dealText}</span>`;
-            ptsPill.innerText = isRound2 ? (currentLang === 'hi' ? 'अंतिम राउंड' : 'Final Round') : (currentLang === 'hi' ? 'न्यूनतम बोली: 16' : 'Min Bid: 16');
+            if (pill) { pill.className = ''; pill.innerHTML = `<span>${dealText}</span>`; }
+            if (ptsPill) ptsPill.innerHTML = `<span>💰 ${isRound2 ? (currentLang === 'hi' ? 'अंतिम राउंड' : 'Final Round') : (currentLang === 'hi' ? 'न्यूनतम बोली: 16' : 'Min Bid: 16')}</span>`;
             return;
         }
 
         if (this.engine.phase === 'BIDDING') {
             this.clearTrickWinnerHalo();
+            if (winPill) winPill.style.display = 'none';
             let currentTurnName = this.playerNames[this.engine.currentTurn] || COMPASS_FULL[this.engine.currentTurn];
             let partnerIdx = mySeat === 99 ? 2 : (mySeat + 2) % 4;
             let isPartnerTurn = (this.engine.currentTurn === partnerIdx && mySeat !== 99);
             let isMyTurn = (this.engine.currentTurn === mySeat && mySeat !== 99);
             
             if (isMyTurn) {
-                pill.innerHTML = `<span style="color:var(--gold-bright); font-weight:800;">👉 ${currentLang === 'hi' ? 'आपकी बारी (बोली लगाएं)' : 'YOUR TURN TO BID!'}</span>`;
-            
                 if (typeof showYourTurnBanner === 'function') showYourTurnBanner('🎯 YOUR TURN — Place Your Bid', 0);
-            } else if (isPartnerTurn) {
-                if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
-                pill.innerHTML = `<span style="color:var(--team1-blue); font-weight:800;">🤝 Partner (${currentTurnName}) ${t.decidingBid || 'is deciding bid...'}</span>`;
             } else {
                 if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
-                pill.innerHTML = `<span>⏳ ${currentTurnName} ${t.decidingBid || 'is deciding bid...'}</span>`;
             }
             
-            let highStr = this.engine.highestBidder === -1 ? t.minBid : `High: ${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
-            ptsPill.innerText = highStr;
+            let highStr = this.engine.highestBidder === -1 ? t.minBid : `🎯 High: ${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
+            if (ptsPill) ptsPill.innerHTML = `<span>${highStr}</span>`;
             return;
         }
 
@@ -8824,55 +8954,66 @@ class UIController {
 
         if (this.engine.trickCards.length === 0) {
             this.clearTrickWinnerHalo();
+            if (winPill) winPill.style.display = 'none';
             let leaderName = this.playerNames[this.engine.currentTurn];
-            pill.className = '';
-            pill.innerHTML = (t.waitingToLead || 'Waiting for {name} to lead').replace('{name}', `<b>${leaderName}</b>`);
-            ptsPill.innerText = `${potLabel}: 0 ${ptsWord}`;
+            if (ptsPill) ptsPill.innerHTML = `<span>💰 ${potLabel}: 0 ${ptsWord}</span>`;
             // Show your-turn banner if it's human's lead
             if (this.engine.currentTurn === mySeat && mySeat !== 99) {
-                pill.classList.add('your-turn-active');
                 if (typeof showYourTurnBanner === 'function') showYourTurnBanner('✨ YOUR TURN — Lead a Card', 0);
                 if (typeof showKbdHintBar === 'function') showKbdHintBar();
             } else {
-                pill.classList.remove('your-turn-active');
                 if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
             }
         } else {
             let winner = this.engine._getCurrentTrickWinner();
             this.updateTrickWinnerHalo(winner);
             let pts = this.engine._countPointsInTrick();
-            let myTeam = (mySeat === 0 || mySeat === 2) ? 1 : 2;
-            if (mySeat === 99) myTeam = 1;
+            let myTeam = (mySeat === 0 || mySeat === 2 || mySeat === 99) ? 1 : 2;
             let winTeam = (winner.player === 0 || winner.player === 2) ? 1 : 2;
-            let isFriend = (winTeam === myTeam);
+            let isUserTeam = (winTeam === myTeam);
 
-            pill.className = isFriend ? 'hud-winning-friend' : 'hud-winning-enemy';
+            // Render Center Trick Winner Pill
+            if (winPill && winner && winner.card) {
+                let seatLabel = '';
+                if (winner.player === mySeat && mySeat !== 99) {
+                    seatLabel = currentLang === 'hi' ? 'आप (S)' : 'You (S)';
+                } else if (winner.player === (mySeat + 2) % 4 && mySeat !== 99) {
+                    let pDir = COMPASS_SHORT[winner.player];
+                    seatLabel = currentLang === 'hi' ? `साथी (${pDir})` : `Partner (${pDir})`;
+                } else {
+                    let oppDir = COMPASS_SHORT[winner.player];
+                    seatLabel = currentLang === 'hi' ? `विरोधी (${oppDir})` : `Opponent (${oppDir})`;
+                }
 
-            let winWho = '';
-            if (winner.player === mySeat) {
-                winWho = currentLang === 'hi' ? 'आप जीत रहे हैं' : 'YOU ARE WINNING';
-            } else if (winner.player === (mySeat + 2) % 4) {
-                winWho = currentLang === 'hi' ? 'साथी जीत रहे हैं' : 'PARTNER IS WINNING';
-            } else {
-                let oppDir = COMPASS_SHORT[winner.player];
-                winWho = currentLang === 'hi' ? `विरोधी (${oppDir})` : `OPPONENT (${oppDir})`;
+                let isCardRed = (winner.card.suit === '♥' || winner.card.suit === '♦');
+                let cardBadgeHTML = `<span class="trick-winner-card-badge" style="color:${isCardRed ? '#f87171' : '#fff'};">${winner.card.rank}${winner.card.suit}</span>`;
+
+                winPill.className = `trick-winner-pill ${isUserTeam ? 'winner-user-team' : 'winner-opp-team'}`;
+                winPill.innerHTML = `
+                    <span>${isUserTeam ? '👑' : '⚔️'}</span>
+                    <span>Winning: ${seatLabel}</span>
+                    ${cardBadgeHTML}
+                `;
+                winPill.style.display = 'flex';
             }
 
-            let leadColor = (this.engine.leadSuit === '♥' || this.engine.leadSuit === '♦') ? '#f87171' : '#f8fafc';
-            let winColor = isFriend ? '#86efac' : '#fca5a5';
+            // Render Trick Pot & Led Suit pill
+            let ledSuit = this.engine.leadSuit || (this.engine.trickCards[0] && this.engine.trickCards[0].card ? this.engine.trickCards[0].card.suit : '');
+            let ledColor = (ledSuit === '♥' || ledSuit === '♦') ? '#f87171' : '#f8fafc';
+            if (ptsPill) {
+                ptsPill.innerHTML = `
+                    <span>Led: <b style="color:${ledColor}; font-weight:800;">${ledSuit}</b></span>
+                    <span style="opacity:0.4;">•</span>
+                    <span>${potLabel}: <b>${pts}</b> ${ptsWord}</span>
+                `;
+            }
 
-            pill.innerHTML = `<span style="color:${leadColor}; font-weight:800;">${this.engine.leadSuit}</span> &bull; <b style="color:${winColor};">${winWho}</b> (${winner.card.rank}${winner.card.suit})`;
             // Show/hide banner based on whose turn it is mid-trick
             if (this.engine.currentTurn === mySeat && mySeat !== 99) {
-                pill.classList.add('your-turn-active');
                 if (typeof showYourTurnBanner === 'function') showYourTurnBanner('✨ YOUR TURN — Follow Suit', 0);
             } else {
-                pill.classList.remove('your-turn-active');
                 if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
             }
-            const ptsValEl = document.getElementById('trick-pts-val');
-            if (ptsValEl) ptsValEl.innerText = `${potLabel}: ${pts} ${ptsWord}`;
-            else ptsPill.innerText = `${potLabel}: ${pts} ${ptsWord}`;
         }
 
         // Update Lead Suit Watermark on center felt
@@ -9326,7 +9467,7 @@ class UIController {
         let isRed = (card.suit === '♥' || card.suit === '♦' || card.suit === 'hearts' || card.suit === 'diamonds');
         
         div.className = `card trick-card pos-${visualPos} ${partnerClass} ${isRed ? 'red' : 'black'}`;
-        div.style.zIndex = (table.children.length + 15);
+        div.style.zIndex = (table.children.length + 15) + (visualPos === 1 ? 2 : 0);
         div.style.opacity = '1';
         div.style.visibility = 'visible';
         div.innerHTML = `
@@ -9346,33 +9487,33 @@ class UIController {
             let endX = 0, endY = 0, endRot = 0;
 
             if (visualPos === 0) {
-                // South (Bottom / You): offset downward by 34px (+16px) so all 4 card corner indices remain legible
+                // South (Bottom / You): offset downward toward South
                 startX = (Math.random() - 0.5) * 4;
                 startY = 44;
                 endX = 0;
-                endY = 34;
+                endY = 26; // S: (0, +26px)
                 endRot = (Math.random() - 0.5) * 2;
             } else if (visualPos === 1) {
-                // East (Right): offsets rightward toward East
-                startX = 42;
+                // East (Right): wider diamond coordinate so top-left corner index remains 100% visible
+                startX = 44;
                 startY = (Math.random() - 0.5) * 4;
-                endX = 24;
-                endY = -2;
-                endRot = 6 + (Math.random() - 0.5) * 2;
+                endX = 30; // E: (+30px, 0)
+                endY = 0;
+                endRot = 4 + (Math.random() - 0.5) * 2;
             } else if (visualPos === 2) {
                 // North (Top / Partner): offsets upward toward North
                 startX = (Math.random() - 0.5) * 4;
                 startY = -40;
                 endX = 0;
-                endY = -18;
+                endY = -24; // N: (0, -24px)
                 endRot = -1 + (Math.random() - 0.5) * 2;
             } else if (visualPos === 3) {
                 // West (Left): offsets leftward toward West
-                startX = -42;
+                startX = -44;
                 startY = (Math.random() - 0.5) * 4;
-                endX = -24;
-                endY = -2;
-                endRot = -6 + (Math.random() - 0.5) * 2;
+                endX = -30; // W: (-30px, 0)
+                endY = 0;
+                endRot = -4 + (Math.random() - 0.5) * 2;
             }
 
             let startRot = endRot + (Math.random() - 0.5) * 4;
