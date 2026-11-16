@@ -704,14 +704,19 @@ body::before {
     left: 50%; transform: translateX(-50%);
     z-index: 120; perspective: 900px; flex-direction: column; align-items: center;
 }
+/* South identity is already shown in the top-left header */
+#player-bottom .player-badge { display: none !important; }
 
 .opp-cards-row { display: flex; align-items: center; justify-content: center; margin-top: 3px; }
 #player-top .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-left: calc(var(--opp-card-w) * -0.55); }
 #player-top .opp-cards-row .card-back:first-child { margin-left: 0; }
-#player-left .opp-cards-row, #player-right .opp-cards-row { flex-direction: column; }
+#player-left .opp-cards-row, #player-right .opp-cards-row { flex-direction: column; align-items: center; }
 #player-left .opp-cards-row .card-back, #player-right .opp-cards-row .card-back { 
     width: var(--opp-card-w); height: var(--opp-card-h); 
     margin-top: var(--side-stack-overlap); 
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    align-self: center;
     transform: translate3d(0, 0, 0);
 }
 #player-left .opp-cards-row .card-back:first-child, #player-right .opp-cards-row .card-back:first-child { margin-top: 0; }
@@ -822,25 +827,46 @@ body::before {
     opacity: 1; visibility: visible; display: flex; z-index: 25;
 }
 .trick-card.partner-card { border: 2px solid var(--team1-blue); box-shadow: 0 0 14px rgba(56, 189, 248, 0.6); }
-.pos-0 { top: calc(50% + 14px); left: 50%; --rot: -2deg; transform: translate(-50%, -50%) rotate(var(--rot)); }
-.pos-1 { top: 50%; left: calc(50% + 18px); --rot: 7deg; transform: translate(-50%, -50%) rotate(var(--rot)); }
-.pos-2 { top: calc(50% - 14px); left: 50%; --rot: 2deg; transform: translate(-50%, -50%) rotate(var(--rot)); }
-.pos-3 { top: 50%; left: calc(50% - 18px); --rot: -7deg; transform: translate(-50%, -50%) rotate(var(--rot)); }
+/* All trick cards centered at 50%/50%; GSAP handles proportional diamond offsets */
+.trick-card.pos-0,
+.trick-card.pos-1,
+.trick-card.pos-2,
+.trick-card.pos-3,
+.pos-0, .pos-1, .pos-2, .pos-3 {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
 .anim-drop-in { opacity: 1; }
 
-/* ACTION BUTTONS & BOTTOM TURN ROW: Single horizontal flex row (gap-2) above South seat pill */
+/* ACTION BUTTONS & BOTTOM TURN ROW: Strictly single horizontal flex row clearing lifted playable cards */
 .bottom-action-row {
     position: absolute;
-    bottom: calc(var(--card-h) + clamp(42px, 7vh, 56px) + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--card-h) + clamp(46px, 7.5dvh, 62px) + env(safe-area-inset-bottom, 0px));
     left: 50%; transform: translateX(-50%);
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px;
-    z-index: 130; pointer-events: none; max-width: 96vw;
+    display: flex; flex-wrap: nowrap; white-space: nowrap; align-items: center; justify-content: center; gap: 6px;
+    z-index: 130; pointer-events: none; max-width: 98vw; padding: 0 4px; box-sizing: border-box;
 }
-.bottom-action-row > * { pointer-events: auto; }
+.bottom-action-row > * { pointer-events: auto; flex-shrink: 0; }
+.bottom-action-row .turn-ring-container.docked-inline {
+    position: relative; top: auto; right: auto; bottom: auto; left: auto;
+    transform: none; margin: 0; flex-shrink: 0;
+    width: clamp(22px, 5vw, 28px); height: clamp(22px, 5vw, 28px);
+}
 .action-btn-container {
-    display: inline-flex; align-items: center; gap: 6px;
+    display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap;
 }
-.act-btn { display: none; padding: 4px 12px; border-radius: 9999px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: clamp(0.68rem, 1.25vh, 0.76rem); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.2s ease; }
+.act-btn { display: none; padding: clamp(4px, 0.9dvh, 6px) clamp(9px, 2.4vw, 12px); border-radius: 9999px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: clamp(0.64rem, 1.3dvh, 0.76rem); cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; transition: all 0.2s ease; }
+@media (max-width: 480px), (max-height: 500px) {
+    .bottom-action-row {
+        gap: 4px;
+        bottom: calc(var(--card-h) + clamp(42px, 7dvh, 54px) + env(safe-area-inset-bottom, 0px));
+    }
+    .act-btn {
+        padding: 3px 8px;
+        font-size: clamp(0.6rem, 2.5vw, 0.68rem);
+    }
+}
 #reveal-btn { 
     background: linear-gradient(180deg, #f43f5e 0%, #be123c 100%); 
     color: #fff; border: 1px solid rgba(253, 164, 175, 0.65); 
@@ -1656,11 +1682,10 @@ body::before {
 }
 
 /* ==================== 6. SECRET TRUMP VAULT TOKEN ==================== */
+/* Docked into top header pill; never float a card over the felt */
 #secret-trump-vault {
-    position: absolute; z-index: 105; pointer-events: auto;
-    perspective: 800px; width: 38px; height: 54px;
-    transition: transform 0.4s ease, opacity 0.4s ease;
-    cursor: pointer;
+    display: none !important;
+    pointer-events: none;
 }
 .vault-card-inner {
     width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
@@ -8776,65 +8801,22 @@ class UIController {
 
     updateSecretTrumpVault() {
         const vault = document.getElementById('secret-trump-vault');
-        if (!vault) return;
-        if (this.engine.phase === 'LOBBY' || this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1' || this.engine.highestBidder === -1) {
-            vault.style.display = 'none';
-            return;
+        if (vault) vault.style.display = 'none';
+
+        const headerPill = document.getElementById('trump-status') || document.getElementById('header-trump-status') || document.getElementById('trump-badge');
+        if (!headerPill) return;
+
+        const isActive = !(this.engine.phase === 'LOBBY' || this.engine.phase === 'BIDDING' || this.engine.phase === 'DEALING_1' || this.engine.highestBidder === -1);
+        const isBidderMe = (this.engine.highestBidder === mySeat && mySeat !== 99);
+        const canPeek = isActive && !this.engine.trumpRevealed && isBidderMe;
+        const canAskReveal = isActive && !this.engine.trumpRevealed && !isBidderMe && this.engine.canRevealTrump(mySeat);
+
+        headerPill.style.cursor = (canPeek || canAskReveal) ? 'pointer' : 'default';
+        headerPill.title = canPeek ? 'Tap to peek secret trump' : (canAskReveal ? 'Tap to reveal trump' : '');
+        if (!headerPill.dataset.vaultBound) {
+            headerPill.dataset.vaultBound = '1';
+            headerPill.addEventListener('click', () => this.onVaultTokenClick());
         }
-
-        const bidderIdx = this.engine.highestBidder;
-        const positions = ['bottom', 'right', 'top', 'left'];
-        let visualPos = getVisualPosition(bidderIdx);
-        const seatEl = document.getElementById(`player-${positions[visualPos]}`);
-        const boardEl = document.getElementById('board');
-        if (!seatEl || !boardEl) { vault.style.display = 'none'; return; }
-
-        vault.style.display = 'block';
-        const isRevealed = this.engine.trumpRevealed;
-        const suit = this.engine.trumpSuit || '♠';
-        const isRed = (suit === '♥' || suit === '♦');
-        const isBidderMe = (bidderIdx === mySeat && mySeat !== 99);
-
-        // Position vault card safely without overlapping cards
-        const seatRect = seatEl.getBoundingClientRect();
-        const boardRect = boardEl.getBoundingClientRect();
-        let top, left;
-
-        if (visualPos === 0) {
-            // South / Human player: dock inline above hand, safely clear of bottom-right hand cards
-            top = Math.max(10, (seatRect.top - boardRect.top) - 58);
-            left = Math.min(boardRect.width - 65, (boardRect.width / 2) + 95);
-        } else if (visualPos === 1) {
-            // East (right seat): place near East's badge
-            top = (seatRect.top - boardRect.top) + seatRect.height + 6;
-            left = boardRect.width - 55;
-        } else if (visualPos === 2) {
-            // North (top seat): place to the right of North's badge
-            top = 16;
-            left = (seatRect.left - boardRect.left) + seatRect.width + 12;
-        } else {
-            // West (left seat): place near West's badge
-            top = (seatRect.top - boardRect.top) + seatRect.height + 6;
-            left = 12;
-        }
-
-        vault.style.top = `${Math.round(top)}px`;
-        vault.style.left = `${Math.round(left)}px`;
-
-        let peekHint = isBidderMe && !isRevealed ? `<span style="font-size:0.42rem; opacity:0.85; margin-top:1px;">PEEK</span>` : '';
-        vault.innerHTML = `
-            <div class="vault-card-inner ${isRevealed ? 'flipped' : ''}">
-                <div class="vault-face vault-front">
-                    <span class="lock-icon">🔒</span>
-                    <span class="vault-label">TRUMP</span>
-                    ${peekHint}
-                </div>
-                <div class="vault-face vault-back ${isRed ? 'red' : 'black'}">
-                    <span class="v-suit">${suit}</span>
-                    <span style="font-size:0.46rem; font-weight:800; letter-spacing:0.5px; color:#64748b; text-transform:uppercase; margin-top:2px;">TRUMP</span>
-                </div>
-            </div>
-        `;
     }
 
     onVaultTokenClick() {
@@ -8847,19 +8829,22 @@ class UIController {
             this.renderLog(currentLang === 'hi' ? "🔒 हुकुम गुप्त है! जब आपके पास चाल का रंग न हो, तब 'हुकुम खोलें' बटन दबाएं।" : "🔒 Secret Trump is locked! Click 'Reveal Trump' when you have no cards of the led suit.");
             return;
         }
-        const vault = document.getElementById('secret-trump-vault');
-        const inner = vault?.querySelector('.vault-card-inner');
-        if (inner && window.gsap) {
-            playSound('trump_select');
-            gsap.to(inner, {
-                rotationY: 180,
-                scale: 1.18,
-                duration: 0.35,
-                yoyo: true,
-                repeat: 1,
-                repeatDelay: 1.4,
-                ease: "back.out(1.5)"
-            });
+        playSound('trump_select');
+        const suit = this.engine.trumpSuit || '♠';
+        const isRed = (suit === '♥' || suit === '♦');
+        const color = isRed ? '#ef4444' : '#38bdf8';
+        const headerPill = document.getElementById('trump-status') || document.getElementById('header-trump-status') || document.getElementById('trump-badge');
+        if (headerPill) {
+            if (this._peekTimer) clearTimeout(this._peekTimer);
+            const prevHtml = headerPill.dataset.lockedHtml || headerPill.innerHTML;
+            headerPill.dataset.lockedHtml = prevHtml;
+            headerPill.innerHTML = `👁️ <span style="color:${color}; font-weight:bold;">${suit}</span> (Secret)`;
+            this._peekTimer = setTimeout(() => {
+                if (!this.engine.trumpRevealed && headerPill.dataset.lockedHtml) {
+                    headerPill.innerHTML = headerPill.dataset.lockedHtml;
+                }
+                delete headerPill.dataset.lockedHtml;
+            }, 1800);
         }
     }
 
@@ -9120,10 +9105,10 @@ class UIController {
                 let turnMsg = '';
                 if (!hasLead && leadSuit) {
                     turnMsg = (currentLang === 'hi')
-                        ? `✨ आपकी बारी — ${leadSuit} नहीं है (${canReveal ? 'हुकुम खोलें या ' : ''}कोई भी चलें)`
-                        : `✨ YOUR TURN — Void in ${leadSuit} (${canReveal ? 'Reveal Trump or ' : ''}Play Any)`;
+                        ? `✨ आपकी बारी • ${leadSuit} नहीं है`
+                        : `✨ YOUR TURN • Void in ${leadSuit}`;
                 } else {
-                    turnMsg = (currentLang === 'hi') ? '✨ आपकी बारी — चाल का रंग चलें' : '✨ YOUR TURN — Follow Suit';
+                    turnMsg = (currentLang === 'hi') ? '✨ आपकी बारी • चाल का रंग' : '✨ YOUR TURN • Follow Suit';
                 }
                 if (typeof showYourTurnBanner === 'function') showYourTurnBanner(turnMsg, 0);
             } else {
@@ -9610,35 +9595,41 @@ class UIController {
         if (window.gsap) {
             gsap.set(div, { xPercent: -50, yPercent: -50 });
 
+            const rect = div.getBoundingClientRect();
+            const cardW = rect.width || 68;
+            const cardH = rect.height || 96;
+            const offsetX = Math.round(cardW * 0.55);
+            const offsetY = Math.round(cardH * 0.42);
+
             let startX = 0, startY = 0;
             let endX = 0, endY = 0, endRot = 0;
 
             if (visualPos === 0) {
-                // South (Bottom / You): (0, +34px), zIndex 30
+                // South (Bottom / You): (0, +0.42 * cardHeight), zIndex 30
                 startX = (Math.random() - 0.5) * 4;
-                startY = 48;
+                startY = offsetY + 14;
                 endX = 0;
-                endY = 34;
+                endY = offsetY;
                 endRot = (Math.random() - 0.5) * 2;
             } else if (visualPos === 1) {
-                // East (Right): (+40px, 0), zIndex 20 - completely clear of North's card
-                startX = 52;
+                // East (Right): (+0.55 * cardWidth, 0), zIndex 20
+                startX = offsetX + 12;
                 startY = (Math.random() - 0.5) * 4;
-                endX = 40;
+                endX = offsetX;
                 endY = 0;
                 endRot = 4 + (Math.random() - 0.5) * 2;
             } else if (visualPos === 2) {
-                // North (Top / Partner): (0, -34px), zIndex 10
+                // North (Top / Partner): (0, -0.42 * cardHeight), zIndex 10
                 startX = (Math.random() - 0.5) * 4;
-                startY = -48;
+                startY = -(offsetY + 14);
                 endX = 0;
-                endY = -34;
+                endY = -offsetY;
                 endRot = -1 + (Math.random() - 0.5) * 2;
             } else if (visualPos === 3) {
-                // West (Left): (-40px, 0), zIndex 15
-                startX = -52;
+                // West (Left): (-0.55 * cardWidth, 0), zIndex 15
+                startX = -(offsetX + 12);
                 startY = (Math.random() - 0.5) * 4;
-                endX = -40;
+                endX = -offsetX;
                 endY = 0;
                 endRot = -4 + (Math.random() - 0.5) * 2;
             }
@@ -10404,16 +10395,28 @@ class UIController {
     }
 
     updateTurnRingUI(seat, secLeft, ratio, circumference) {
-        let visualPos = getVisualPosition(seat);
-        const posNames = ['bottom', 'right', 'top', 'left'];
-        const pBox = document.getElementById(`player-${posNames[visualPos]}`);
-        if (!pBox) return;
+        const isMe = (seat === mySeat && mySeat !== 99);
+        const actionRow = isMe ? document.querySelector('.bottom-action-row') : null;
 
-        const badge = pBox.querySelector('.player-badge') || pBox;
-        let ring = badge.querySelector('.turn-ring-container');
+        let container = actionRow;
+        if (!container) {
+            let visualPos = getVisualPosition(seat);
+            const posNames = ['bottom', 'right', 'top', 'left'];
+            const pBox = document.getElementById(`player-${posNames[visualPos]}`);
+            if (!pBox) return;
+            container = pBox.querySelector('.player-badge') || pBox;
+        }
+
+        // Remove stale docked ring from actionRow when turn moves to an opponent
+        if (!isMe) {
+            const staleInline = document.querySelector('.bottom-action-row .turn-ring-container.docked-inline');
+            if (staleInline) staleInline.style.display = 'none';
+        }
+
+        let ring = container.querySelector('.turn-ring-container');
         if (!ring) {
             ring = document.createElement('div');
-            ring.className = 'turn-ring-container';
+            ring.className = isMe ? 'turn-ring-container docked-inline' : 'turn-ring-container';
             ring.innerHTML = `
                 <svg class="turn-ring-svg" viewBox="0 0 36 36">
                     <path class="turn-ring-circle-bg"
@@ -10427,7 +10430,13 @@ class UIController {
                 </svg>
                 <div class="turn-ring-label">${secLeft}</div>
             `;
-            badge.appendChild(ring);
+            if (isMe) {
+                container.prepend(ring);
+            } else {
+                container.appendChild(ring);
+            }
+        } else if (isMe) {
+            ring.classList.add('docked-inline');
         }
         const progressPath = ring.querySelector('.turn-ring-circle-progress');
         const label = ring.querySelector('.turn-ring-label');
