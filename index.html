@@ -439,20 +439,29 @@ body::before {
 }
 
 /* ==================== TOP COMPASS BAR ==================== */
-#compass-bar {
+#compass-bar, .top-nav-bar {
     display: none; position: relative; z-index: 2100;
     background: linear-gradient(90deg, #040d08 0%, #0d2618 50%, #040d08 100%);
     border-bottom: 1.5px solid var(--gold-primary);
-    padding: clamp(3px, 0.6vh, 6px) clamp(6px, 1.5vw, 12px);
+    padding: clamp(3px, 0.6vh, 6px) clamp(6px, 1.5vw, 10px);
     align-items: center; justify-content: space-between;
-    gap: 6px; font-size: clamp(0.68rem, 1.3vh, 0.75rem);
+    gap: 8px; font-size: clamp(0.68rem, 1.3vh, 0.75rem);
     box-shadow: 0 4px 15px rgba(0,0,0,0.7);
 }
-.my-compass-tag {
+.my-compass-tag, .player-identity-pill {
     background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary));
-    color: #09150d; font-weight: 800; padding: 2px 10px; border-radius: 20px;
-    white-space: nowrap; font-size: clamp(0.65rem, 1.2vh, 0.72rem); letter-spacing: 0.5px;
+    color: #09150d; font-weight: 800; padding: 2px 8px; border-radius: 20px;
+    white-space: nowrap; font-size: clamp(0.65rem, 1.2vh, 0.72rem); letter-spacing: 0.4px;
     box-shadow: 0 0 10px var(--gold-glow); display: flex; align-items: center; gap: 4px;
+    min-width: 0; flex: 1 1 auto; max-width: fit-content; overflow: hidden; text-overflow: ellipsis;
+}
+.pill-dir-short { display: none; }
+@media (max-width: 600px) {
+    .pill-dir-full { display: none; }
+    .pill-dir-short { display: inline; }
+    #stats-btn-text, #log-btn-text, #settings-btn-text, #exit-btn-text { display: none !important; }
+    .bar-icon-btn { padding: 3px 5px !important; font-size: 0.72rem !important; }
+    .my-compass-tag, .player-identity-pill { font-size: 0.65rem !important; padding: 2px 6px !important; max-width: 145px; }
 }
 .compass-roster {
     display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow-x: auto;
@@ -466,13 +475,8 @@ body::before {
 .c-seat.me { border-color: var(--gold-bright); color: var(--gold-bright); background: rgba(229, 193, 88, 0.25); }
 .c-seat.turn { box-shadow: 0 0 10px var(--gold-primary); border-color: #fff; background: rgba(229, 193, 88, 0.4); }
 
-.bar-quick-actions {
-    display: flex; align-items: center; gap: 3px; flex-shrink: 0; padding-right: 4px; box-sizing: border-box;
-}
-@media (max-width: 600px) {
-    #stats-btn-text, #log-btn-text, #settings-btn-text { display: none !important; }
-    .bar-icon-btn { padding: 3px 6px !important; font-size: 0.72rem !important; }
-    .my-compass-tag { font-size: 0.65rem !important; padding: 2px 6px !important; max-width: 130px; }
+.bar-quick-actions, .top-nav-actions {
+    display: flex; align-items: center; gap: 4px; flex-shrink: 0; padding-right: 2px; box-sizing: border-box;
 }
 .bar-icon-btn {
     background: rgba(0,0,0,0.45); border: 1px solid rgba(229, 193, 88, 0.4);
@@ -612,10 +616,21 @@ body::before {
     border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
     padding: 2px 8px; max-width: 175px;
 }
+.team-hud {
+    width: clamp(100px, 28vw, 150px);
+    background: rgba(4, 18, 11, 0.88);
+    border: 1px solid rgba(229, 193, 88, 0.25);
+    border-radius: 12px;
+    padding: 4px 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
 .team-hud.t1 { border-left: 3px solid var(--team1-blue); }
 .team-hud.t2 { border-right: 3px solid var(--team2-coral); justify-self: end; text-align: right; }
-.team-title-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.team-name { font-size: clamp(0.55rem, 1.4vw, 0.68rem); font-weight: 700; text-transform: uppercase; color: #cbd5e1; }
+.team-title-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; white-space: nowrap; }
+.team-name { font-size: clamp(0.55rem, 1.4vw, 0.68rem); font-weight: 800; text-transform: uppercase; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .game-pts-row { font-size: 0.8rem; line-height: 1; display: flex; gap: 1px; }
 .team-score-row { display: flex; align-items: baseline; justify-content: space-between; margin-top: 1px; gap: 4px; }
 .round-pts { font-size: clamp(0.76rem, 2vh, 0.92rem); font-weight: 800; color: var(--gold-bright); }
@@ -705,10 +720,26 @@ body::before {
 #trick-hud-pill {
     display: none !important;
 }
-#center-table {
+#center-table, .trick-arena {
     position: absolute; top: var(--table-center-y, 48%); left: 50%; transform: translate(-50%, -50%);
-    width: calc(var(--card-w) * 2.2); height: calc(var(--card-h) * 1.5); z-index: 15; pointer-events: none;
+    width: clamp(160px, 46vw, 210px); height: clamp(160px, 46vw, 210px);
+    z-index: 15; pointer-events: none;
 }
+.trick-card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--card-w);
+    height: var(--card-h);
+    margin-left: calc(var(--card-w) * -0.5);
+    margin-top: calc(var(--card-h) * -0.5);
+    transform-origin: center center;
+}
+/* Non-overlapping diamond offset: East starts at +40px, clear of North's card */
+.trick-card[data-seat="N"], .trick-card.pos-2 { z-index: 10; }
+.trick-card[data-seat="E"], .trick-card.pos-1 { z-index: 20; }
+.trick-card[data-seat="S"], .trick-card.pos-0 { z-index: 30; }
+.trick-card[data-seat="W"], .trick-card.pos-3 { z-index: 15; }
 
 /* PLAYER SEATS */
 .hand { position: absolute; display: flex; align-items: center; justify-content: center; z-index: 20; }
@@ -725,7 +756,11 @@ body::before {
 #player-top .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-left: calc(var(--opp-card-w) * -0.55); }
 #player-top .opp-cards-row .card-back:first-child { margin-left: 0; }
 #player-left .opp-cards-row, #player-right .opp-cards-row { flex-direction: column; }
-#player-left .opp-cards-row .card-back, #player-right .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-top: var(--side-stack-overlap); }
+#player-left .opp-cards-row .card-back, #player-right .opp-cards-row .card-back { 
+    width: var(--opp-card-w); height: var(--opp-card-h); 
+    margin-top: var(--side-stack-overlap); 
+    transform: translate3d(0, 0, 0);
+}
 #player-left .opp-cards-row .card-back:first-child, #player-right .opp-cards-row .card-back:first-child { margin-top: 0; }
 
 .my-cards-row {
@@ -2121,13 +2156,14 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
         <span class="c-seat" id="c-seat-2">N: 🤖</span>
         <span class="c-seat" id="c-seat-3">W: 🤖</span>
     </div>
-    <div class="bar-quick-actions">
+    <div class="bar-quick-actions top-nav-actions">
         <button class="bar-icon-btn" onclick="openStatsModal()" id="stats-icon-btn" title="Career Stats & Elo" style="font-weight:700;">🏆 <span id="stats-btn-text">Stats</span></button>
         <button class="bar-icon-btn" onclick="toggleLogModal()" id="log-icon-btn" title="Game History / Log">📜 <span id="log-btn-text">Log</span></button>
         <button class="bar-icon-btn" onclick="openSettingsModal()" id="settings-icon-btn" title="Game Settings & Simulation" style="font-weight:700; color:var(--gold-bright); border-color:rgba(229,193,88,0.45); background:rgba(0,0,0,0.5);">⚙️ <span id="settings-btn-text">Settings</span></button>
-        <button class="bar-icon-btn" onclick="openShareModal()" id="share-icon-btn" title="Share Room Invite">🔗 Invite</button>
+        <button class="bar-icon-btn" id="sound-btn" onclick="toggleAudio()" title="Toggle Sound">🔊</button>
+        <button class="bar-icon-btn" onclick="exitToMainMenu()" id="exit-icon-btn" title="Leave Match & Return to Menu">🚪 <span id="exit-btn-text">Exit</span></button>
+        <button class="bar-icon-btn" onclick="openShareModal()" id="share-icon-btn" title="Share Room Invite" style="display:none;">🔗 Invite</button>
         <button class="bar-icon-btn" onclick="openHandoverModal()" id="handover-icon-btn" title="Hand Over Seat via QR Code" style="display:none; color:var(--gold-bright); font-weight:800; border-color:rgba(229,193,88,0.5);">📲 Handover</button>
-        <button class="bar-icon-btn" id="sound-btn" onclick="toggleAudio()" title="Sound On/Off">🔊</button>
     </div>
 </div>
 
@@ -2306,10 +2342,6 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
             <div class="config-label" id="cfg-nick-label">Your Nickname</div>
             <input type="text" id="player-name-input" class="config-input" placeholder="Player 1" value="Player 1">
         </div>
-        <div>
-            <div class="config-label" id="cfg-room-label">Room Code</div>
-            <input type="text" id="room-code-input" class="config-input" placeholder="e.g. ROYAL28" style="text-transform:uppercase;">
-        </div>
         <div style="margin-top:2px;">
             <div class="config-label" id="cfg-diff-label">AI Difficulty</div>
             <div class="diff-btn-group">
@@ -2336,10 +2368,19 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
                 <span id="btn-host-title">👑 Create & Host Room</span>
                 <span class="btn-sub" id="btn-host-sub">Starts as SOUTH (Host)</span>
             </button>
-            <button class="menu-btn secondary-btn" onclick="joinNetworkGame('FULL', 'CLIENT')">
+            <button class="menu-btn secondary-btn" id="btn-join-toggle" onclick="toggleJoinRoomInput()">
                 <span id="btn-join-title">⚡ Join Existing Room</span>
                 <span class="btn-sub" id="btn-join-sub">Connect to Host</span>
             </button>
+            <div id="join-room-container" style="display:none; flex-direction:column; gap:6px; margin-top:6px; background:rgba(0,0,0,0.45); border:1px solid rgba(56,189,248,0.4); border-radius:10px; padding:10px;">
+                <div class="config-label" id="cfg-room-label" style="font-size:0.68rem; color:#bae6fd;">Enter 6-Letter Room Code</div>
+                <div style="display:flex; gap:6px;">
+                    <input type="text" id="room-code-input" class="config-input" placeholder="e.g. ROYAL28" style="text-transform:uppercase; flex:1; padding:6px 10px; font-weight:800; letter-spacing:1.5px;">
+                    <button class="menu-btn primary-gold" style="padding:6px 14px; font-size:0.75rem;" onclick="joinNetworkGame('FULL', 'CLIENT')">
+                        Connect ➔
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="menu-card">
@@ -2365,7 +2406,10 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <div id="host-controls">
         <button class="menu-btn start-match-btn" id="btn-start-match" onclick="hostStartGame()">🏁 START MATCH (FILL EMPTY WITH AI)</button>
         <button class="menu-btn" style="justify-content:center; font-size:0.78rem; opacity:0.85;" id="btn-view-invite" onclick="openShareModal()">🔗 View Invite Link & QR Code</button>
-        <button class="menu-btn" style="justify-content:center; font-size:0.78rem; opacity:0.8;" id="btn-reset-lobby" onclick="resetServerLobby()">🔄 Reset Lobby</button>
+        <div style="display:flex; gap:8px; width:100%;">
+            <button class="menu-btn" style="flex:1; justify-content:center; font-size:0.78rem; opacity:0.85;" id="btn-back-menu" onclick="backToMainMenu()">← Back to Menu</button>
+            <button class="menu-btn" style="flex:1; justify-content:center; font-size:0.78rem; opacity:0.8;" id="btn-reset-lobby" onclick="resetServerLobby()">🔄 Reset Lobby</button>
+        </div>
     </div>
 </div>
 
@@ -4700,18 +4744,19 @@ function updateTopCompassBar() {
         saveActiveSeatSession(currentRoom, mySeat);
     }
 
+    let dirShort = (typeof getCompassShort === 'function' ? getCompassShort(mySeat) : COMPASS_SHORT[mySeat]) || 'S';
+    let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
+    let selfName = myNickname || (currentLang === 'hi' ? 'आप' : 'Player 1');
+
     if (gameMode !== 'multi') {
         if (shareBtn) shareBtn.style.display = 'none';
-        let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
-        let selfName = myNickname || (currentLang === 'hi' ? 'आप' : 'YOU');
-        roleEl.innerText = `🧭 ${selfName} (${dirName} • T${teamNum})`;
+        roleEl.innerHTML = `<span>🧭</span> <span style="font-weight:800;">${selfName}</span> &bull; <span class="pill-dir-full">${dirName}</span><span class="pill-dir-short">${dirShort}</span> (T${teamNum})`;
     } else {
-        if (shareBtn) shareBtn.style.display = 'flex';
+        if (shareBtn) shareBtn.style.display = 'inline-flex';
         if (mySeat === 99) {
-            roleEl.innerText = currentLang === 'hi' ? `📺 मुख्य टेबल` : `📺 CENTER TABLE`;
+            roleEl.innerHTML = `<span>📺</span> <span>${currentLang === 'hi' ? 'मुख्य टेबल' : 'CENTER TABLE'}</span>`;
         } else {
-            let teamNum = (mySeat === 0 || mySeat === 2) ? 1 : 2;
-            roleEl.innerText = `🧭 ${myNickname} (${dirName} • T${teamNum})`;
+            roleEl.innerHTML = `<span>🧭</span> <span style="font-weight:800;">${selfName}</span> &bull; <span class="pill-dir-full">${dirName}</span><span class="pill-dir-short">${dirShort}</span> (T${teamNum})`;
         }
     }
 
@@ -4738,13 +4783,43 @@ function updateTopCompassBar() {
 
 function startSinglePlayer() {
     gameMode = 'ai'; mySeat = 0; isHost = true; humanSeats = [0]; viewMode = 'FULL';
-    myNickname = document.getElementById('player-name-input').value.trim() || "You";
+    myNickname = document.getElementById('player-name-input').value.trim() || "Player 1";
     playerCustomNames[0] = myNickname;
     updateTopCompassBar();
     document.getElementById('menu-sections').style.display = 'none';
     document.getElementById('lobby-status').innerText = 'Single Player vs 3 Grandmaster Bots Ready.';
     document.getElementById('lobby-status').style.display = 'block';
     document.getElementById('host-controls').style.display = 'flex';
+    const inviteBtn = document.getElementById('btn-view-invite');
+    if (inviteBtn) inviteBtn.style.display = 'none';
+    const backBtn = document.getElementById('btn-back-menu');
+    if (backBtn) backBtn.style.display = 'inline-flex';
+}
+
+function backToMainMenu() {
+    document.getElementById('start-screen').style.display = 'flex';
+    document.getElementById('menu-sections').style.display = 'grid';
+    document.getElementById('lobby-status').style.display = 'none';
+    document.getElementById('host-controls').style.display = 'none';
+    const rosterCard = document.querySelector('.lobby-roster-card');
+    if (rosterCard) rosterCard.remove();
+}
+
+function exitToMainMenu() {
+    if (confirm('Leave match and return to the main menu?')) {
+        location.reload();
+    }
+}
+
+function toggleJoinRoomInput() {
+    const box = document.getElementById('join-room-container');
+    if (!box) return;
+    const isHidden = (box.style.display === 'none');
+    box.style.display = isHidden ? 'flex' : 'none';
+    if (isHidden) {
+        const inp = document.getElementById('room-code-input');
+        if (inp) inp.focus();
+    }
 }
 
 function resetServerLobby() {
@@ -8200,8 +8275,8 @@ class UIController {
             if (t2Header) t2Header.innerText = isHi ? "टीम 2 (पू व प)" : "Team 2 (E & W)";
         } else {
             let isT1Mine = (myTeamNum === 1);
-            if (t1Header) t1Header.innerText = isT1Mine ? (isHi ? "आपकी टीम (YOU)" : "Your Team (You)") : (isHi ? "विरोधी टीम" : "Opponents");
-            if (t2Header) t2Header.innerText = !isT1Mine ? (isHi ? "आपकी टीम (YOU)" : "Your Team (You)") : (isHi ? "विरोधी टीम" : "Opponents");
+            if (t1Header) t1Header.innerText = isT1Mine ? (isHi ? "आप (टीम 1)" : "YOU (TEAM 1)") : (isHi ? "विरोधी" : "OPPONENTS");
+            if (t2Header) t2Header.innerText = !isT1Mine ? (isHi ? "आप (टीम 2)" : "YOU (TEAM 2)") : (isHi ? "विरोधी" : "OPPONENTS");
         }
     }
 
@@ -9076,10 +9151,13 @@ class UIController {
 
         let t = I18N[currentLang];
         if (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
-            document.getElementById('bid-status').innerText = (this.engine.phase === 'DEALING_2') 
-                ? (currentLang === 'hi' ? 'राउंड 2 वितरण' : 'Dealing Round 2') 
-                : (currentLang === 'hi' ? 'कार्ड वितरण' : 'Dealing 4 Cards');
-            document.getElementById('trump-status').innerText = (currentLang === 'hi' ? 'चरण 1' : 'Phase 1');
+            let isRound2 = (this.engine.phase === 'DEALING_2');
+            document.getElementById('bid-status').innerText = isRound2 
+                ? (currentLang === 'hi' ? 'अंतिम राउंड' : 'Final Round') 
+                : (currentLang === 'hi' ? 'न्यूनतम बोली: 16' : 'Min Bid: 16');
+            document.getElementById('trump-status').innerText = isRound2
+                ? (currentLang === 'hi' ? 'चरण 2 • 4 पत्ते' : 'Phase 2 • Dealing 4 Cards')
+                : (currentLang === 'hi' ? 'चरण 1 • 4 पत्ते' : 'Phase 1 • Dealing 4 Cards');
         } else if (this.engine.phase === 'BIDDING') {
             document.getElementById('bid-status').innerText = this.engine.highestBidder === -1 ? t.bidding : `BID: ${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
             document.getElementById('trump-status').innerText = t.phase1;
@@ -9257,7 +9335,7 @@ class UIController {
         // 1. Spawn 3D Center Dealer Deck (anchored with xPercent/yPercent)
         const deckEl = document.createElement('div');
         deckEl.className = 'dealer-deck';
-        let badgeText = this.engine.phase === 'DEALING_2' ? 'Dealing Round 2' : 'Dealing 4 Cards';
+        let badgeText = this.engine.phase === 'DEALING_2' ? (currentLang === 'hi' ? 'अंतिम राउंड' : 'Final Round') : (currentLang === 'hi' ? 'न्यूनतम बोली: 16' : 'Min Bid: 16');
         deckEl.innerHTML = `<div class="dealer-deck-badge">${badgeText}</div>`;
         dealLayer.appendChild(deckEl);
 
@@ -9360,10 +9438,13 @@ class UIController {
                         if (targetCardEl) {
                             targetCardEl.style.visibility = 'visible';
                             targetCardEl.style.opacity = '1';
+                            targetCardEl.style.transform = 'translate3d(0, 0, 0)';
                             if (window.gsap) {
                                 gsap.fromTo(targetCardEl,
-                                    { scale: 1.12 },
-                                    { scale: 1, duration: 0.18, ease: "back.out(2)" }
+                                    { scale: 1.08 },
+                                    { scale: 1, duration: 0.18, ease: "power2.out", onComplete: () => {
+                                        targetCardEl.style.transform = 'translate3d(0, 0, 0)';
+                                    }}
                                 );
                             }
                         }
@@ -9422,6 +9503,9 @@ class UIController {
                         document.querySelectorAll('[data-seat]').forEach(c => {
                             c.style.visibility = 'visible';
                             c.style.opacity = '1';
+                            if (c.classList.contains('card-back')) {
+                                c.style.transform = 'translate3d(0, 0, 0)';
+                            }
                         });
                         for (let i = 0; i < 4; i++) {
                             const b = document.getElementById(`badge-cnt-${i}`);
@@ -9466,8 +9550,11 @@ class UIController {
         let ptBadge = card.value > 0 ? `<div class="card-pt-badge">+${card.value}</div>` : '';
         let isRed = (card.suit === '♥' || card.suit === '♦' || card.suit === 'hearts' || card.suit === 'diamonds');
         
+        const seatKeys = ['S', 'E', 'N', 'W'];
         div.className = `card trick-card pos-${visualPos} ${partnerClass} ${isRed ? 'red' : 'black'}`;
-        div.style.zIndex = (table.children.length + 15) + (visualPos === 1 ? 2 : 0);
+        div.setAttribute('data-seat', seatKeys[visualPos]);
+        let baseZ = visualPos === 2 ? 10 : (visualPos === 1 ? 20 : (visualPos === 0 ? 30 : 15));
+        div.style.zIndex = baseZ;
         div.style.opacity = '1';
         div.style.visibility = 'visible';
         div.innerHTML = `
@@ -9478,8 +9565,8 @@ class UIController {
         `;
         table.appendChild(div);
 
-        // 4-Point Directional Cross Fan: Offset each played card toward its respective seat
-        // Keeps corner rank indices and point badges 100% visible and unobstructed
+        // 4-Point Directional Cross Fan: Wide non-overlapping diamond offset
+        // East starts at +40px, clear of North's card, keeping all top-left corner indices 100% visible
         if (window.gsap) {
             gsap.set(div, { xPercent: -50, yPercent: -50 });
 
@@ -9487,31 +9574,31 @@ class UIController {
             let endX = 0, endY = 0, endRot = 0;
 
             if (visualPos === 0) {
-                // South (Bottom / You): offset downward toward South
+                // South (Bottom / You): (0, +34px), zIndex 30
                 startX = (Math.random() - 0.5) * 4;
-                startY = 44;
+                startY = 48;
                 endX = 0;
-                endY = 26; // S: (0, +26px)
+                endY = 34;
                 endRot = (Math.random() - 0.5) * 2;
             } else if (visualPos === 1) {
-                // East (Right): wider diamond coordinate so top-left corner index remains 100% visible
-                startX = 44;
+                // East (Right): (+40px, 0), zIndex 20 - completely clear of North's card
+                startX = 52;
                 startY = (Math.random() - 0.5) * 4;
-                endX = 30; // E: (+30px, 0)
+                endX = 40;
                 endY = 0;
                 endRot = 4 + (Math.random() - 0.5) * 2;
             } else if (visualPos === 2) {
-                // North (Top / Partner): offsets upward toward North
+                // North (Top / Partner): (0, -34px), zIndex 10
                 startX = (Math.random() - 0.5) * 4;
-                startY = -40;
+                startY = -48;
                 endX = 0;
-                endY = -24; // N: (0, -24px)
+                endY = -34;
                 endRot = -1 + (Math.random() - 0.5) * 2;
             } else if (visualPos === 3) {
-                // West (Left): offsets leftward toward West
-                startX = -44;
+                // West (Left): (-40px, 0), zIndex 15
+                startX = -52;
                 startY = (Math.random() - 0.5) * 4;
-                endX = -30; // W: (-30px, 0)
+                endX = -40;
                 endY = 0;
                 endRot = -4 + (Math.random() - 0.5) * 2;
             }
