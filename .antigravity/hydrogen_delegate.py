@@ -135,8 +135,10 @@ def invoke_gemini_hydrogen(
     system_instruction: str,
     contents: list[dict],
     timeout: int = 120,
+    max_retries: int = 3,
 ) -> tuple[str, dict]:
-    """Invokes the Gemini 4 Hydrogen generateContent REST API."""
+    """Invokes the Gemini 4 Hydrogen generateContent REST API with transient retry."""
+    import time
     url = f"{API_BASE_URL}/{model}:generateContent"
 
     headers = {
@@ -157,30 +159,49 @@ def invoke_gemini_hydrogen(
     }
 
     req_data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(url, data=req_data, headers=headers, method="POST")
 
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            status_code = response.getcode()
-            raw_data = response.read().decode("utf-8")
-            res_json = json.loads(raw_data)
-            return res_json, {"status": status_code}
-    except urllib.error.HTTPError as e:
-        err_msg = ""
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        req = urllib.request.Request(url, data=req_data, headers=headers, method="POST")
         try:
-            err_body = e.read().decode("utf-8")
-            err_json = json.loads(err_body)
-            err_msg = err_json.get("error", {}).get("message", err_body)
-        except Exception:
-            err_msg = str(e)
-        sanitized = sanitize_text(f"HTTP Error {e.code}: {err_msg}", api_key)
-        raise RuntimeError(sanitized) from None
-    except urllib.error.URLError as e:
-        sanitized = sanitize_text(f"Network / URL Error: {e.reason}", api_key)
-        raise RuntimeError(sanitized) from None
-    except Exception as e:
-        sanitized = sanitize_text(f"API Request Failure: {str(e)}", api_key)
-        raise RuntimeError(sanitized) from None
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                status_code = response.getcode()
+                raw_data = response.read().decode("utf-8")
+                res_json = json.loads(raw_data)
+                return res_json, {"status": status_code}
+        except urllib.error.HTTPError as e:
+            err_msg = ""
+            try:
+                err_body = e.read().decode("utf-8")
+                err_json = json.loads(err_body)
+                err_msg = err_json.get("error", {}).get("message", err_body)
+            except Exception:
+                err_msg = str(e)
+            sanitized = sanitize_text(f"HTTP Error {e.code}: {err_msg}", api_key)
+            last_error = sanitized
+
+            # If transient 503 or 429 error and attempts remain, backoff and retry
+            if e.code in (429, 503) and attempt < max_retries:
+                backoff = attempt * 3
+                sys.stderr.write(
+                    f"[Hydrogen Delegate] Notice: {e.code} transient demand spike. Retrying in {backoff}s (attempt {attempt}/{max_retries})...\n"
+                )
+                time.sleep(backoff)
+                continue
+            raise RuntimeError(sanitized) from None
+        except urllib.error.URLError as e:
+            sanitized = sanitize_text(f"Network / URL Error: {e.reason}", api_key)
+            last_error = sanitized
+            if attempt < max_retries:
+                import time
+                time.sleep(attempt * 2)
+                continue
+            raise RuntimeError(sanitized) from None
+        except Exception as e:
+            sanitized = sanitize_text(f"API Request Failure: {str(e)}", api_key)
+            raise RuntimeError(sanitized) from None
+
+    raise RuntimeError(last_error or "Unknown API error during retries")
 
 
 def parse_response_text(res_json: dict) -> str:
@@ -396,14 +417,16 @@ def main():
         sys.stderr.write(f"ERROR: Failed to parse model response: {e}\n")
         sys.exit(1)
 
-    # 9. Log Token Usage to stderr
+    # 9. Log Token Usage and Model Metadata to stderr
+    model_version = res_json.get("modelVersion", args.model)
     usage = res_json.get("usageMetadata", {})
-    if usage:
-        prompt_tokens = usage.get("promptTokenCount", 0)
-        resp_tokens = usage.get("candidatesTokenCount", 0)
-        sys.stderr.write(
-            f"[Hydrogen Delegate] Success: Response received ({resp_tokens} tokens, prompt was {prompt_tokens} tokens).\n"
-        )
+    prompt_tokens = usage.get("promptTokenCount", 0)
+    resp_tokens = usage.get("candidatesTokenCount", 0)
+    thought_tokens = usage.get("thoughtsTokenCount", 0)
+    sys.stderr.write(
+        f"[Hydrogen Delegate] Success: Model={model_version} | Output={resp_tokens} tokens | "
+        f"Thinking={thought_tokens} tokens | Prompt={prompt_tokens} tokens.\n"
+    )
 
     # 10. Write Output
     if args.output:
