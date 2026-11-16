@@ -380,18 +380,11 @@ body.hide-turn-timer .turn-urgency-svg {
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body {
+html, body, .game-shell {
     width: 100vw; height: 100vh; height: 100dvh; margin: 0; padding: 0; position: fixed; inset: 0;
     background: radial-gradient(ellipse at 50% 48%, var(--felt-center) 0%, var(--felt-mid) 60%, var(--felt-edge) 100%);
     color: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden;
     display: flex; flex-direction: column; user-select: none; -webkit-font-smoothing: antialiased;
-    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
-}
-.game-shell {
-    height: 100dvh;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    overflow: hidden;
     padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
 }
 body::before {
@@ -402,7 +395,7 @@ body::before {
 
 /* ==================== TOP COMPASS BAR ==================== */
 #compass-bar, .top-nav-bar {
-    display: none; position: relative; z-index: 2100;
+    display: none; position: relative; z-index: 2100; flex-shrink: 0;
     background: linear-gradient(90deg, #040d08 0%, #0d2618 50%, #040d08 100%);
     border-bottom: 1.5px solid var(--gold-primary);
     padding: clamp(3px, 0.6vh, 6px) clamp(6px, 1.5vw, 10px);
@@ -566,7 +559,7 @@ body::before {
 
 /* ==================== TOP HUD ==================== */
 #top-hud {
-    position: relative; z-index: 60;
+    position: relative; z-index: 60; flex-shrink: 0;
     background: linear-gradient(180deg, rgba(4, 12, 8, 0.96) 0%, rgba(8, 22, 14, 0.85) 100%);
     border-bottom: 1px solid rgba(229, 193, 88, 0.28);
     padding: clamp(3px, 0.8vh, 6px) clamp(8px, 2.5vw, 18px);
