@@ -135,7 +135,7 @@ def invoke_gemini_hydrogen(
     system_instruction: str,
     contents: list[dict],
     timeout: int = 120,
-    max_retries: int = 3,
+    max_retries: int = 5,
 ) -> tuple[str, dict]:
     """Invokes the Gemini 4 Hydrogen generateContent REST API with transient retry."""
     import time
@@ -182,7 +182,7 @@ def invoke_gemini_hydrogen(
 
             # If transient 503 or 429 error and attempts remain, backoff and retry
             if e.code in (429, 503) and attempt < max_retries:
-                backoff = attempt * 3
+                backoff = attempt * 4
                 sys.stderr.write(
                     f"[Hydrogen Delegate] Notice: {e.code} transient demand spike. Retrying in {backoff}s (attempt {attempt}/{max_retries})...\n"
                 )
