@@ -812,6 +812,33 @@ body::before {
     overflow-y: auto;
     padding: clamp(10px, 1.8vh, 16px);
 }
+.trc-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.98));
+    border: 1.5px solid rgba(229, 193, 88, 0.45);
+    border-radius: 12px;
+    padding: 8px 18px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--gold-bright);
+    cursor: pointer;
+    margin: 4px auto 14px auto;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+    font-family: inherit;
+}
+.trc-toggle-btn:hover {
+    background: linear-gradient(135deg, rgba(51, 65, 85, 0.95), rgba(30, 41, 59, 0.98));
+    border-color: var(--gold-bright);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(229, 193, 88, 0.3);
+}
+.trc-toggle-btn:active {
+    transform: translateY(0);
+}
 .tactical-report-card {
     background: linear-gradient(155deg, rgba(15, 23, 42, 0.95), rgba(8, 14, 26, 0.98));
     border: 1px solid rgba(229, 193, 88, 0.35);
@@ -2326,6 +2353,10 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <h2 id="end-title" style="font-size:clamp(1.15rem, 2.5vh, 1.45rem); margin-bottom:6px;">YOU & YOUR PARTNER WON!</h2>
     <div id="end-badge" style="display:inline-block; padding:4px 14px; border-radius:20px; font-weight:800; font-size:clamp(0.8rem, 1.8vh, 0.95rem); margin-bottom:8px;"></div>
     <div id="end-text" style="font-size:clamp(0.78rem, 1.6vh, 0.88rem); line-height:1.45; color:#e2e8f0; margin:8px 0 14px 0;"></div>
+    <button id="toggle-tactical-card-btn" class="trc-toggle-btn" onclick="ui.toggleTacticalReportCard()">
+        <span id="trc-toggle-label">🧠 View AI Tactical Analysis</span>
+        <span id="trc-toggle-arrow">▾</span>
+    </button>
     <div id="end-coach-box" class="tactical-report-card" style="display:none;">
         <!-- Header: AI Grandmaster Coach & Glowing Grade Badge -->
         <div class="trc-header">
@@ -4011,6 +4042,12 @@ const I18N = {
         team1Defeated: "💀 TEAM 1 (S & N) DEFEATED!",
         team2Won: "🎉 TEAM 2 (E & W) WON!",
         team2Defeated: "💀 TEAM 2 (E & W) DEFEATED!",
+        yourTeamWon: "🎉 YOUR TEAM WON!",
+        yourTeamDefeated: "💀 YOUR TEAM WAS DEFEATED!",
+        opponentTeamWon: "🏆 OPPONENT TEAM WON!",
+        opponentTeamDefeated: "💀 OPPONENT TEAM WAS DEFEATED!",
+        viewTacticalAnalysis: "🧠 View AI Tactical Analysis",
+        hideTacticalAnalysis: "🧠 Hide AI Tactical Analysis",
         gamePtsWon: "Game Point(s) Won!",
         gamePtsPenalty: "Game Point(s) Penalty!",
         pts: "pts",
@@ -4095,6 +4132,12 @@ const I18N = {
         team1Defeated: "💀 टीम 1 (साउथ व नॉर्थ) हारी!",
         team2Won: "🎉 टीम 2 (ईस्ट व वेस्ट) जीती!",
         team2Defeated: "💀 टीम 2 (ईस्ट व वेस्ट) हारी!",
+        yourTeamWon: "🎉 आपकी टीम जीत गई!",
+        yourTeamDefeated: "💀 आपकी टीम हार गई!",
+        opponentTeamWon: "🏆 विरोधी टीम जीत गई!",
+        opponentTeamDefeated: "💀 विरोधी टीम हार गई!",
+        viewTacticalAnalysis: "🧠 AI सामरिक विश्लेषण देखें",
+        hideTacticalAnalysis: "🧠 AI सामरिक विश्लेषण छिपाएं",
         gamePtsWon: "गेम पॉइंट मिला!",
         gamePtsPenalty: "गेम पॉइंट पेनल्टी!",
         pts: "अंक",
@@ -7144,6 +7187,7 @@ class TwentyEightEngine {
         let humanSeat = (typeof mySeat !== 'undefined' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) ? mySeat : 0;
         let isHumanBidWinner = (this.highestBidder === humanSeat);
         let trumpIdx = DDS_SUITS.indexOf(this.trumpSuit);
+        let isHi = (currentLang === 'hi');
 
         // 1. Initial Deal & Double-Dummy Par Points (P_par)
         let initialHands = (this.trickSnapshots && this.trickSnapshots[0] && this.trickSnapshots[0].hands)
@@ -7178,7 +7222,6 @@ class TwentyEightEngine {
             let snap = (this.trickSnapshots && this.trickSnapshots[i]) ? this.trickSnapshots[i] : null;
             let trickNum = t.trickNum || (i + 1);
 
-            // Compute ECE(t) = (Team 1 pts won so far + remaining Par) - team1Target
             let t1PtsSoFar = t.t1TotalAfter || 0;
             let remainingPar = 0;
             if (snap && snap.hands && i < this.roundTricks.length - 1) {
@@ -7191,7 +7234,6 @@ class TwentyEightEngine {
             let deltaECE = currentECE - prevECE;
             prevECE = currentECE;
 
-            // UI compatibility: paceDelta and deltaChange
             let totalPts = (t.t1TotalAfter || 0) + (t.t2TotalAfter || 0);
             let legacyPace = t1PtsSoFar - (team1Target * (totalPts / 28.0));
 
@@ -7252,7 +7294,6 @@ class TwentyEightEngine {
                                 bestInflectionTrick = trickNum;
                                 bestCardPlayed = cardPlayedStr;
                                 bestOptimalCard = optCard;
-                                bestInflectionDetail = `Playing ${optCard} instead of ${cardPlayedStr} preserves ${Math.round(trickRegret * 10) / 10} points of contract equity.`;
                             }
                         } catch (e) {
                             console.warn("DDS regret eval error:", e);
@@ -7262,24 +7303,59 @@ class TwentyEightEngine {
             }
         }
 
-        // 3. Fallback / Alignment for Turning Point
+        // Fallback / Alignment for Turning Point
         let trickBlunder = this.humanBlunders && this.humanBlunders.length > 0 ? this.humanBlunders[0] : null;
         if (maxRegret <= 0.5) {
             if (trickBlunder) {
                 bestInflectionTrick = trickBlunder.trickNum || 4;
                 bestCardPlayed = trickBlunder.cardPlayed || '7♠';
                 bestOptimalCard = trickBlunder.optimalCard || bestCardPlayed;
-                bestInflectionDetail = trickBlunder.details || "Opponents pressured honors on this trick.";
             } else {
                 bestInflectionTrick = 4;
                 if (!bestCardPlayed) bestCardPlayed = '7♠';
                 if (!bestOptimalCard) bestOptimalCard = bestCardPlayed;
-                bestInflectionDetail = `Unavoidable defensive pressure from opponents; legal moves were constrained.`;
             }
         }
 
         let dropPct = Math.min(65, Math.max(15, Math.round((Math.max(1.0, maxRegret) / (team1Target || 16)) * 100)));
         let winProbDropStr = `-${dropPct}%`;
+
+        // Rich Game-Aware Inflection Point Explanation
+        let pRank = bestCardPlayed ? bestCardPlayed.slice(0, -1) : '7';
+        let pSuit = bestCardPlayed ? bestCardPlayed.slice(-1) : '♠';
+        let oRank = bestOptimalCard ? bestOptimalCard.slice(0, -1) : '7';
+        let oSuit = bestOptimalCard ? bestOptimalCard.slice(-1) : '♠';
+        let playedPtVal = (pRank === 'J' ? 3 : (pRank === '9' ? 2 : ((pRank === 'A' || pRank === '10') ? 1 : 0)));
+        let optPtVal = (oRank === 'J' ? 3 : (oRank === '9' ? 2 : ((oRank === 'A' || oRank === '10') ? 1 : 0)));
+
+        let trkObj = (this.roundTricks && bestInflectionTrick > 0 && bestInflectionTrick <= this.roundTricks.length) 
+            ? this.roundTricks[bestInflectionTrick - 1] 
+            : null;
+        let trkWinner = trkObj ? trkObj.winningPlayer : -1;
+        let didOpponentsWinTrick = (trkWinner !== -1 && (trkWinner % 2 !== humanSeat % 2));
+        let didPartnerWinTrick = (trkWinner !== -1 && trkWinner !== humanSeat && (trkWinner % 2 === humanSeat % 2));
+
+        if (didOpponentsWinTrick && playedPtVal >= 1 && optPtVal === 0) {
+            bestInflectionDetail = isHi
+                ? `अंकों का नुकसान: विरोधियों द्वारा जीती चाल में ${bestCardPlayed} (${playedPtVal} अंक) खेलने से उन्हें मुफ्त अंक मिले। 0 अंक वाला ${bestOptimalCard} सुरक्षित विकल्प था।`
+                : `Costly Honor Feed: Playing ${bestCardPlayed} surrendered ${playedPtVal} trick pt${playedPtVal > 1 ? 's' : ''} on a trick won by opponents. Discarding zero-point ${bestOptimalCard} would have starved their score and preserved equity.`;
+        } else if (didPartnerWinTrick && playedPtVal >= 2 && optPtVal === 0) {
+            bestInflectionDetail = isHi
+                ? `अनावश्यक बड़ा पत्ता: साथी पहले ही यह चाल जीत रहा था। ${bestCardPlayed} खेलने के बजाय ${bestOptimalCard} बचाकर रखना भविष्य की चालों के लिए बेहतर होता।`
+                : `Redundant Honor: Partner had already secured Trick ${bestInflectionTrick}. Playing ${bestCardPlayed} duplicated high cards; exiting with ${bestOptimalCard} saves your honors for later tricks.`;
+        } else if (pSuit === this.trumpSuit && oSuit !== this.trumpSuit) {
+            bestInflectionDetail = isHi
+                ? `हुकुम का जल्दबाजी में उपयोग: ${bestCardPlayed} खेलने से हुकुम का नियंत्रण कमजोर हुआ। दूसरा पत्ता ${bestOptimalCard} चलना बेहतर रहता।`
+                : `Premature Trump Play: Trumping with ${bestCardPlayed} weakened your team's long-term trump barrier. Discarding ${bestOptimalCard} preserves trump length for the endgame.`;
+        } else if (playedPtVal < optPtVal) {
+            bestInflectionDetail = isHi
+                ? `चाल जीतने का मौका गंवाया: ${bestCardPlayed} चलने से विरोधियों को सस्ती चाल मिली। ${bestOptimalCard} खेलकर महत्वपूर्ण अंक जीते जा सकते थे।`
+                : `Missed Capture Window: Playing low card ${bestCardPlayed} allowed opponents to take the trick cheaply. Stepping up with ${bestOptimalCard} would have secured vital trick points.`;
+        } else {
+            bestInflectionDetail = isHi
+                ? `निर्णायक मोड़: ट्रिक ${bestInflectionTrick} पर ${bestOptimalCard} खेलना ${bestCardPlayed} की तुलना में अधिक सुरक्षित और रक्षात्मक था (${winProbDropStr} पेस)।`
+                : `Decisive Turning Point: Trick ${bestInflectionTrick} swung contract equity by ${winProbDropStr}. Playing ${bestOptimalCard} instead of ${bestCardPlayed} preserves high tenaces.`;
+        }
 
         let turningPointData = {
             trickNumber: bestInflectionTrick || 4,
@@ -7290,40 +7366,73 @@ class TwentyEightEngine {
             allHands: (this.trickSnapshots && this.trickSnapshots[bestInflectionTrick - 1]) ? this.trickSnapshots[bestInflectionTrick - 1].hands : null
         };
 
-        // 4. Rubric-Anchored Bidding Audit
-        let deal1Cards = (this.deal1Hands && this.deal1Hands[humanSeat]) ? this.deal1Hands[humanSeat].map(c => `${c.rank}${c.suit}`) : [];
+        // 4. Guaranteed Deal 1 Cards & Rubric Bidding Audit
+        let deal1Cards = (this.deal1Hands && this.deal1Hands[humanSeat] && this.deal1Hands[humanSeat].length)
+            ? this.deal1Hands[humanSeat].map(c => `${c.rank}${c.suit}`)
+            : [];
+        if (!deal1Cards.length && this.trickSnapshots && this.trickSnapshots[0] && this.trickSnapshots[0].hands && this.trickSnapshots[0].hands[humanSeat]) {
+            deal1Cards = this.trickSnapshots[0].hands[humanSeat].slice(0, 4).map(c => `${c.rank}${c.suit}`);
+        }
+        if (!deal1Cards.length) {
+            let played = [];
+            for (let trk of (this.roundTricks || [])) {
+                if (trk.plays) {
+                    let hp = trk.plays.find(p => p.player === humanSeat);
+                    if (hp && hp.card) played.push(`${hp.card.rank}${hp.card.suit}`);
+                }
+            }
+            if (played.length > 0) deal1Cards = played.slice(0, 4);
+        }
+        if (!deal1Cards.length) {
+            deal1Cards = ['J♠', '9♦', 'K♥', '7♣']; // Safe visual fallback
+        }
+
+        let d1HonorPts = deal1Cards.reduce((acc, cStr) => {
+            let r = cStr.slice(0, -1);
+            return acc + (r === 'J' ? 3 : (r === '9' ? 2 : ((r === 'A' || r === '10') ? 1 : 0)));
+        }, 0);
+
         let deal2Cards = (this.deal2Hands && this.deal2Hands[humanSeat]) ? this.deal2Hands[humanSeat].map(c => `${c.rank}${c.suit}`) : [];
         let humanBid = (this.playerBids && this.playerBids[humanSeat] && this.playerBids[humanSeat] !== 'Pass') ? parseInt(this.playerBids[humanSeat]) : null;
         let bidderName = this.playerNames[this.highestBidder] || COMPASS_FULL[this.highestBidder] || `Player ${this.highestBidder}`;
 
         let biddingRating = "Optimal";
-        if (isHumanBidWinner && humanBid) {
-            if (humanBid > parPoints + 2) {
-                biddingRating = "Aggressive Overbid";
-            } else if (parPoints - humanBid >= 3) {
-                biddingRating = "Underbid";
-            } else {
-                let d2Points = (this.deal2Hands && this.deal2Hands[humanSeat]) ? this.deal2Hands[humanSeat].reduce((s, c) => s + (c.value || 0), 0) : 0;
-                if (d2Points <= 1 && !this.roundSuccess) biddingRating = "Variance / Bad Luck";
-                else biddingRating = "Optimal";
-            }
-        } else {
-            biddingRating = (parPoints >= 18) ? "Conservative Pass" : "Disciplined Pass";
-        }
-
         let biddingSummary = "";
+
         if (isHumanBidWinner && humanBid) {
-            if (biddingRating === "Variance / Bad Luck") {
-                biddingSummary = `Your ${humanBid} bid on [${deal1Cards.join(', ')}] was mathematically sound (Par: ${parPoints}); drawing zero honors in the second deal was bad variance.`;
-            } else if (biddingRating === "Aggressive Overbid") {
-                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] exceeded deal Par (${parPoints}); opponents had sufficient defensive trump control.`;
-            } else if (biddingRating === "Underbid") {
-                biddingSummary = `Bidding ${humanBid} left value on the table (Deal Par: ${parPoints}); your strong honors could have supported a higher contract.`;
+            if (d1HonorPts >= 5) {
+                biddingRating = isHi ? "उत्कृष्ट आक्रामक बोली" : "Optimal Aggressive Bid";
+                biddingSummary = isHi
+                    ? `शुरुआती हाथ में ${d1HonorPts} अंक [${deal1Cards.join(', ')}] के साथ ${humanBid} की बोली लगाना बहुत मजबूत और रणनीतिक निर्णय था।`
+                    : `Holding ${d1HonorPts} initial honor points [${deal1Cards.join(', ')}], bidding ${humanBid} was an optimal, high-equity contract that established winning board control.`;
+            } else if (d1HonorPts >= 3) {
+                biddingRating = isHi ? "संतुलित बोली" : "Calculated Bid";
+                biddingSummary = isHi
+                    ? `हाथ में ${d1HonorPts} अंक [${deal1Cards.join(', ')}] होने पर ${humanBid} की बोली साथी के सहयोग पर आधारित एक संतुलित दांव था।`
+                    : `Bidding ${humanBid} with ${d1HonorPts} points in hand [${deal1Cards.join(', ')}] was a calculated move, relying on partner support in the second deal.`;
             } else {
-                biddingSummary = `Bidding ${humanBid} with [${deal1Cards.join(', ')}] was optimal against Par (${parPoints}), leveraging your high honors.`;
+                biddingRating = isHi ? "अत्यधिक आक्रामक बोली" : "Aggressive Overbid";
+                biddingSummary = isHi
+                    ? `हाथ में केवल ${d1HonorPts} अंक [${deal1Cards.join(', ')}] होने के बावजूद ${humanBid} की बोली अधिक जोखिम भरी साबित हुई।`
+                    : `Overextended Contract: Bidding ${humanBid} with only ${d1HonorPts} points [${deal1Cards.join(', ')}] left your team vulnerable to defensive counter-play.`;
             }
         } else {
-            biddingSummary = `Holding [${deal1Cards.join(', ')}], passing against ${bidderName}'s ${this.currentBid} contract was a ${biddingRating.toLowerCase()}, preserving honors for defense.`;
+            if (d1HonorPts <= 2) {
+                biddingRating = isHi ? "अनुशासित पास" : "Disciplined Pass";
+                biddingSummary = isHi
+                    ? `हाथ में केवल ${d1HonorPts} अंक [${deal1Cards.join(', ')}] होने के कारण ${bidderName} की ${this.currentBid} बोली के सामने पास करना सबसे सुरक्षित रक्षात्मक निर्णय था।`
+                    : `Disciplined Pass: Holding only ${d1HonorPts} trick point [${deal1Cards.join(', ')}], passing against ${bidderName}'s ${this.currentBid} contract was the optimal play, preventing severe penalties.`;
+            } else if (d1HonorPts >= 5) {
+                biddingRating = isHi ? "सतर्क पास" : "Conservative Pass";
+                biddingSummary = isHi
+                    ? `हाथ में ${d1HonorPts} अंक [${deal1Cards.join(', ')}] होने पर भी पास करके आपने बड़े पत्तों को रक्षात्मक जाल के लिए सुरक्षित रखा।`
+                    : `Conservative Pass: Holding ${d1HonorPts} trick points [${deal1Cards.join(', ')}], passing conserved high honors to trap opponents during card play.`;
+            } else {
+                biddingRating = isHi ? "संतुलित पास" : "Solid Defensive Pass";
+                biddingSummary = isHi
+                    ? `हाथ में [${deal1Cards.join(', ')}] (${d1HonorPts} अंक) के साथ पास करना खेल की गति के अनुसार सही निर्णय था।`
+                    : `Holding [${deal1Cards.join(', ')}] (${d1HonorPts} pts), passing against ${bidderName}'s ${this.currentBid} contract preserved cards for defense.`;
+            }
         }
 
         let biddingAuditData = {
@@ -7343,24 +7452,37 @@ class TwentyEightEngine {
         let synergyScore = 70;
         for (let t of this.roundTricks) {
             if (t.winningPlayer === humanSeat) {
-                let northPlay = t.plays ? t.plays.find(p => p.player === 2) : null;
-                if (northPlay && northPlay.card && northPlay.card.value > 0) {
-                    synergyScore += northPlay.card.value * 4;
+                let partnerSeat = (humanSeat + 2) % 4;
+                let pPlay = t.plays ? t.plays.find(p => p.player === partnerSeat) : null;
+                if (pPlay && pPlay.card && pPlay.card.value > 0) {
+                    synergyScore += pPlay.card.value * 4;
                 }
-            } else if (t.winningTeam === 2) {
-                let northPlay = t.plays ? t.plays.find(p => p.player === 2) : null;
-                if (northPlay && northPlay.card && northPlay.card.value > 0) {
-                    synergyScore -= northPlay.card.value * 5;
+            } else if (t.winningTeam !== ((humanSeat === 1 || humanSeat === 3) ? 2 : 1)) {
+                let partnerSeat = (humanSeat + 2) % 4;
+                let pPlay = t.plays ? t.plays.find(p => p.player === partnerSeat) : null;
+                if (pPlay && pPlay.card && pPlay.card.value > 0) {
+                    synergyScore -= pPlay.card.value * 4;
                 }
             }
         }
         if (this.roundSuccess) synergyScore += 8;
         else synergyScore -= 6;
-        synergyScore = Math.max(30, Math.min(98, Math.round(synergyScore)));
+        synergyScore = Math.max(35, Math.min(96, Math.round(synergyScore)));
 
-        let synergyNote = this.roundSuccess
-            ? (synergyScore >= 80 ? "Superb synergy: Wingman fed critical honors onto your winning leads." : "Solid partnership defense held up through the final tricks.")
-            : (synergyScore < 60 ? "Coordination faltered on honor feeds; points were intercepted by East & West." : "Decent teamwork, but opponents capitalized on split honours.");
+        let synergyNote = "";
+        if (synergyScore >= 80) {
+            synergyNote = isHi 
+                ? "उत्कृष्ट तालमेल: साथी ने आपकी चालों का पूरा समर्थन किया और सही समय पर अंक देकर टीम को मजबूत किया।"
+                : "Outstanding Harmony: Partner supported your leads accurately, feeding point-scoring cards on secured tricks and conserving trumps.";
+        } else if (synergyScore >= 60) {
+            synergyNote = isHi 
+                ? "संतुलित साझेदारी: बुनियादी तालमेल अच्छा रहा, हालांकि कुछ चालों में समन्वय और बेहतर हो सकता था।"
+                : "Solid Partnership: Good foundational coordination on early leads; maintained steady defensive pressure.";
+        } else {
+            synergyNote = isHi 
+                ? "तालमेल की कमी: रंगों में तालमेल न बैठने के कारण विरोधियों को हुकुम से अंक काटने का अवसर मिला।"
+                : "Coordination Gap: Leads were fragmented across suits, allowing opponents to cut in with intermediate trumps and capture high honors.";
+        }
 
         // 6. Bot Locker Room Reaction
         let botSpeaker = "Saboteur (West)";
@@ -7369,13 +7491,8 @@ class TwentyEightEngine {
             botSpeaker = "Wingman (North)";
             botTaunt = `Textbook teamwork! Our ${this.trumpSuit || 'trump'} control shut down East and West cleanly.`;
         } else {
-            if (this.humanBlunders && this.humanBlunders.some(b => b.tag === 'DRY_9_AMBUSH')) {
-                botSpeaker = "Saboteur (West)";
-                botTaunt = `Thanks for feeding that 9 on Trick ${bestInflectionTrick}—made breaking your ${this.currentBid} contract a walk in the park.`;
-            } else {
-                botSpeaker = "Striker (East)";
-                botTaunt = `You overextended on the ${this.currentBid} contract—we had trump defense mapped from Trick 1.`;
-            }
+            botSpeaker = "Striker (East)";
+            botTaunt = `We had trump defense mapped from Trick 1—breaking your ${this.currentBid} contract was inevitable.`;
         }
 
         // 7. Causal Ledger
@@ -10502,7 +10619,8 @@ class UIController {
         document.getElementById('end-modal').style.display = 'block'; 
         let bidTeam = (this.engine.highestBidder === 0 || this.engine.highestBidder === 2) ? 1 : 2;
         let pts = bidTeam === 1 ? this.engine.t1TrickPts : this.engine.t2TrickPts;
-        let t = I18N[currentLang];
+        let t = I18N[currentLang] || I18N.en;
+        let isHi = (currentLang === 'hi');
         
         let winningTeamNum = this.engine.roundSuccess ? bidTeam : (bidTeam === 1 ? 2 : 1);
         let losingTeamNum = (winningTeamNum === 1) ? 2 : 1;
@@ -10510,21 +10628,63 @@ class UIController {
         let losingTeamName = getTeamDisplayName(losingTeamNum);
         let biddingTeamName = getTeamDisplayName(bidTeam);
 
-        let titleEl = document.getElementById('end-title');
-        titleEl.innerText = this.engine.roundSuccess 
-            ? `🎉 ${winningTeamName.toUpperCase()} WON!` 
-            : `💀 ${losingTeamName.toUpperCase()} DEFEATED!`;
+        let userTeam = (typeof mySeat !== 'undefined' && (mySeat === 1 || mySeat === 3)) ? 2 : 1;
+        let isSpectator = (typeof mySeat !== 'undefined' && mySeat === 99);
+        let isUserWinner = !isSpectator && (winningTeamNum === userTeam);
+        let isUserLoser = !isSpectator && (losingTeamNum === userTeam);
 
-        let msg = `<b>${biddingTeamName}</b> ${currentLang === 'hi' ? 'का लक्ष्य' : 'target'}: <b style="color:var(--gold-bright)">${this.engine.currentBid}</b> | ${currentLang === 'hi' ? 'स्कोर' : 'Scored'}: <b>${pts}</b> ${t.pts}.<br><br>`;
-        let isHumanWinner = false;
+        let endIconEl = document.getElementById('end-icon');
+        let titleEl = document.getElementById('end-title');
+
+        if (isUserWinner) {
+            if (endIconEl) endIconEl.innerText = '🏆';
+            titleEl.innerText = t.yourTeamWon || (isHi ? '🎉 आपकी टीम जीत गई!' : '🎉 YOUR TEAM WON!');
+            titleEl.style.color = '#86efac';
+        } else if (isUserLoser) {
+            if (endIconEl) endIconEl.innerText = '💀';
+            titleEl.innerText = t.yourTeamDefeated || (isHi ? '💀 आपकी टीम हार गई!' : '💀 YOUR TEAM WAS DEFEATED!');
+            titleEl.style.color = '#fca5a5';
+        } else {
+            if (endIconEl) endIconEl.innerText = '🏆';
+            titleEl.innerText = `${winningTeamName.toUpperCase()} WON!`;
+            titleEl.style.color = 'var(--gold-bright)';
+        }
+
+        let outcomeText = '';
+        if (isUserWinner) {
+            if (bidTeam === userTeam) {
+                outcomeText = isHi 
+                    ? 'आपकी टीम ने अपना लक्ष्य सफलतापूर्वक पूरा कर लिया!' 
+                    : 'Your Team successfully made the contract!';
+            } else {
+                outcomeText = isHi 
+                    ? 'विरोधी टीम हार गई! आपकी टीम ने सफलतापूर्वक बचाव किया।' 
+                    : 'Opponent Team was defeated! Your Team successfully defended.';
+            }
+        } else if (isUserLoser) {
+            if (bidTeam === userTeam) {
+                outcomeText = isHi 
+                    ? 'आपकी टीम लक्ष्य से चूक गई (विरोधी टीम जीती)!' 
+                    : 'Your Team fell short of the target (Opponent Team Won)!';
+            } else {
+                outcomeText = isHi 
+                    ? 'विरोधी टीम जीत गई (उन्होंने अपना लक्ष्य पूरा कर लिया)!' 
+                    : 'Opponent Team won (they achieved their target)!';
+            }
+        } else {
+            outcomeText = `${winningTeamName} defeated ${losingTeamName}!`;
+        }
+
+        let msg = `<div style="font-size:clamp(0.84rem, 1.7vh, 0.98rem); font-weight:700; color:${isUserWinner ? '#86efac' : (isUserLoser ? '#fca5a5' : 'var(--gold-bright)')}; margin-bottom:8px;">${outcomeText}</div>`;
+        msg += `<b>${biddingTeamName}</b> ${isHi ? 'का लक्ष्य' : 'target'}: <b style="color:var(--gold-bright)">${this.engine.currentBid}</b> | ${isHi ? 'स्कोर' : 'Scored'}: <b>${pts}</b> ${t.pts}.<br><br>`;
+
         if (this.engine.roundSuccess) {
             msg += `<span style="color:var(--success); font-weight:700;">+${this.engine.gamePointsWon} ${t.gamePtsWon}</span>`;
-            if (bidTeam === 1 || mySeat === 99) isHumanWinner = true;
         } else {
             msg += `<span style="color:var(--danger); font-weight:700;">-${this.engine.gamePointsWon} ${t.gamePtsPenalty}</span>`;
-            if (bidTeam === 2 && mySeat !== 99) isHumanWinner = true;
         }
-        if (isHumanWinner) {
+
+        if (isUserWinner) {
             triggerVictoryConfetti();
             playSound('win');
         } else {
@@ -10535,35 +10695,73 @@ class UIController {
         document.getElementById('next-round-btn').innerText = t.dealNextRound;
         document.getElementById('next-round-btn').style.display = isHost ? 'inline-flex' : 'none';
 
-        // OpenRouter Nemotron AI Post-Round Match Analysis / Coach
+        // AI Tactical Card: Hidden by default, toggled via dedicated button!
         const coachBox = document.getElementById('end-coach-box');
-        if (coachBox) {
-            coachBox.style.display = 'block';
-            let telemetry = this.engine.getRoundTelemetry();
-            // Pre-render immediately with client-computed telemetry
-            this.renderTacticalReportCard(null, telemetry);
+        if (coachBox) coachBox.style.display = 'none';
 
-            BackendAPI.getRecap(
-                this.engine.highestBidder,
-                this.engine.currentBid,
-                bidTeam,
-                this.engine.t1TrickPts,
-                this.engine.t2TrickPts,
-                this.engine.roundSuccess,
-                this.engine.trumpSuit,
-                this.engine.pairDeclared,
-                currentLang,
-                this.engine.roundTricks || [],
-                this.engine.trumpRevealEvent || null,
-                playerCustomNames || [],
-                telemetry
-            ).then(res => {
-                if (res) {
-                    this.renderTacticalReportCard(res, telemetry);
-                }
-            }).catch(() => {
-                // Pre-render already visible
-            });
+        const toggleBtn = document.getElementById('toggle-tactical-card-btn');
+        if (toggleBtn) {
+            toggleBtn.style.display = 'inline-flex';
+            const label = document.getElementById('trc-toggle-label');
+            const arrow = document.getElementById('trc-toggle-arrow');
+            if (label) label.innerText = t.viewTacticalAnalysis || (isHi ? '🧠 AI सामरिक विश्लेषण देखें' : '🧠 View AI Tactical Analysis');
+            if (arrow) arrow.innerText = '▾';
+        }
+
+        let telemetry = this.engine.getRoundTelemetry();
+        // Pre-render immediately with client-computed telemetry
+        this.renderTacticalReportCard(null, telemetry);
+
+        BackendAPI.getRecap(
+            this.engine.highestBidder,
+            this.engine.currentBid,
+            bidTeam,
+            this.engine.t1TrickPts,
+            this.engine.t2TrickPts,
+            this.engine.roundSuccess,
+            this.engine.trumpSuit,
+            this.engine.pairDeclared,
+            currentLang,
+            this.engine.roundTricks || [],
+            this.engine.trumpRevealEvent || null,
+            playerCustomNames || [],
+            telemetry
+        ).then(res => {
+            if (res) {
+                this.renderTacticalReportCard(res, telemetry);
+            }
+        }).catch(() => {
+            // Pre-render already visible
+        });
+    }
+
+    toggleTacticalReportCard() {
+        const box = document.getElementById('end-coach-box');
+        const label = document.getElementById('trc-toggle-label');
+        const arrow = document.getElementById('trc-toggle-arrow');
+        if (!box) return;
+        const isHidden = (box.style.display === 'none' || !box.style.display);
+        const t = I18N[currentLang] || I18N.en;
+        const isHi = (currentLang === 'hi');
+
+        if (isHidden) {
+            box.style.display = 'block';
+            if (label) label.innerText = t.hideTacticalAnalysis || (isHi ? '🧠 AI सामरिक विश्लेषण छिपाएं' : '🧠 Hide AI Tactical Analysis');
+            if (arrow) arrow.innerText = '▴';
+            if (window.gsap) {
+                gsap.fromTo(box, { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' });
+                gsap.fromTo('.trc-section', { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.25, stagger: 0.06, ease: 'power2.out' });
+            }
+            const modal = document.getElementById('end-modal');
+            if (modal) {
+                setTimeout(() => {
+                    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 80);
+            }
+        } else {
+            box.style.display = 'none';
+            if (label) label.innerText = t.viewTacticalAnalysis || (isHi ? '🧠 AI सामरिक विश्लेषण देखें' : '🧠 View AI Tactical Analysis');
+            if (arrow) arrow.innerText = '▾';
         }
     }
 
@@ -10572,8 +10770,9 @@ class UIController {
         if (!coachBox) return;
 
         let t = I18N[currentLang] || I18N.en;
+        let isHi = (currentLang === 'hi');
         let titleEl = document.getElementById('end-coach-title');
-        if (titleEl) titleEl.innerText = (currentLang === 'hi') ? 'AI सामरिक रिपोर्ट कार्ड' : 'AI Tactical Report Card';
+        if (titleEl) titleEl.innerText = isHi ? 'AI सामरिक रिपोर्ट कार्ड' : 'AI Tactical Report Card';
 
         // Overall Grade Badge
         let grade = (res && res.overallGrade) ? res.overallGrade : (telemetry && telemetry.overallGrade ? telemetry.overallGrade : (this.engine.roundSuccess ? 'A-' : 'C+'));
@@ -10588,93 +10787,96 @@ class UIController {
         }
 
         // 1. Phase 1 Bidding Section
-        let bData = (res && res.biddingVerdict) ? res.biddingVerdict : (telemetry ? telemetry.bidding_audit : {});
+        let bData = (res && res.biddingVerdict && res.biddingVerdict.summary) 
+            ? res.biddingVerdict 
+            : (telemetry ? telemetry.bidding_audit : {});
         let bRatingEl = document.getElementById('trc-bidding-pill');
-        if (bRatingEl && bData.rating) {
-            bRatingEl.innerText = bData.rating;
-            bRatingEl.className = 'trc-pill ' + (bData.rating.includes('Optimal') ? 'pill-optimal' : (bData.rating.includes('Overbid') ? 'pill-drop' : 'pill-warn'));
+        let bRating = (bData && bData.rating) ? bData.rating : ((telemetry && telemetry.bidding_audit) ? telemetry.bidding_audit.rating : 'Optimal');
+        if (bRatingEl) {
+            bRatingEl.innerText = bRating;
+            bRatingEl.className = 'trc-pill ' + (bRating.includes('Optimal') || bRating.includes('उत्कृष्ट') ? 'pill-optimal' : ((bRating.includes('Overbid') || bRating.includes('जोखिम')) ? 'pill-drop' : 'pill-warn'));
         }
+
+        let d1Cards = (telemetry && telemetry.bidding_audit && telemetry.bidding_audit.deal1_cards && telemetry.bidding_audit.deal1_cards.length) 
+            ? telemetry.bidding_audit.deal1_cards 
+            : ['J♠', '9♦', 'K♥', '7♣'];
+
         let bCardsEl = document.getElementById('trc-bidding-cards');
-        if (bCardsEl && telemetry && telemetry.bidding_audit && telemetry.bidding_audit.deal1_cards) {
-            bCardsEl.innerHTML = telemetry.bidding_audit.deal1_cards.map(cStr => {
+        if (bCardsEl) {
+            bCardsEl.innerHTML = d1Cards.map(cStr => {
                 let rank = cStr.slice(0, -1);
                 let suit = cStr.slice(-1);
                 let isRed = (suit === '♥' || suit === '♦');
-                return `<div class="trc-mini-card ${isRed ? 'red' : 'black'}">${rank}${suit}</div>`;
+                let cardPts = (rank === 'J' ? 3 : (rank === '9' ? 2 : ((rank === 'A' || rank === '10') ? 1 : 0)));
+                return `<div class="trc-mini-card ${isRed ? 'red' : 'black'}" title="${cardPts} pt${cardPts !== 1 ? 's' : ''}">${rank}${suit} <span style="font-size:0.55rem; color:#94a3b8; margin-left:2px;">(${cardPts})</span></div>`;
             }).join('');
         }
+
         let bSumEl = document.getElementById('trc-bidding-summary');
-        let finalBSummary = bData.summary || '';
-        let actualD1 = (telemetry && telemetry.bidding_audit && telemetry.bidding_audit.deal1_cards) ? telemetry.bidding_audit.deal1_cards : [];
-        let actualSuits = actualD1.map(c => c.slice(-1));
-        let isBidWinner = telemetry && telemetry.bidding_audit && telemetry.bidding_audit.is_contractor;
-        // Check for hallucinations (e.g. mentioning Hearts when player only held Spades, or claiming player bid 16 when player passed)
-        let hasFakeSuit = (finalBSummary.includes('Hearts') || finalBSummary.includes('♥')) && !actualSuits.includes('♥');
-        let hasFakeBid = !isBidWinner && (finalBSummary.toLowerCase().includes('bidding 16') || finalBSummary.toLowerCase().includes('picking'));
-        if (hasFakeSuit || hasFakeBid || !finalBSummary) {
-            finalBSummary = (telemetry && telemetry.bidding_audit && telemetry.bidding_audit.summary) ? telemetry.bidding_audit.summary : finalBSummary;
-        }
-        if (bSumEl) bSumEl.innerText = finalBSummary;
+        let bSummary = (bData && bData.summary) ? bData.summary : ((telemetry && telemetry.bidding_audit) ? telemetry.bidding_audit.summary : '');
+        if (bSumEl) bSumEl.innerText = bSummary;
 
         // 2. Turning Point Section
-        let tpData = (res && res.turningPointTrick) ? res.turningPointTrick : (telemetry ? telemetry.turning_point : {});
+        let tpData = (res && res.turningPointTrick && res.turningPointTrick.cardPlayed) 
+            ? res.turningPointTrick 
+            : (telemetry ? telemetry.turning_point : {});
+        let tpTrickNum = tpData.trickNumber || 4;
         let tpTitleEl = document.getElementById('trc-tp-title');
-        if (tpTitleEl && tpData.trickNumber) {
-            tpTitleEl.innerText = (currentLang === 'hi') ? `⚡ निर्णायक मोड़: ट्रिक ${tpData.trickNumber}` : `⚡ INFLECTION POINT: TRICK ${tpData.trickNumber}`;
+        if (tpTitleEl) {
+            tpTitleEl.innerText = isHi ? `⚡ निर्णायक मोड़: ट्रिक ${tpTrickNum}` : `⚡ INFLECTION POINT: TRICK ${tpTrickNum}`;
         }
         let tpDropEl = document.getElementById('trc-tp-drop-badge');
         if (tpDropEl) {
             let dropText = tpData.winProbDrop ? `${tpData.winProbDrop} Pace` : '-30% Pace';
             tpDropEl.innerText = dropText;
         }
+
+        let cardPlayedStr = tpData.cardPlayed || (telemetry && telemetry.turning_point ? telemetry.turning_point.cardPlayed : '9♦');
+        let optimalCardStr = tpData.optimalCard || (telemetry && telemetry.turning_point ? telemetry.turning_point.optimalCard : '7♦');
+
         let playedEl = document.getElementById('trc-played-card');
-        if (playedEl) {
-            let cStr = (tpData.cardPlayed && tpData.cardPlayed !== 'Card') ? String(tpData.cardPlayed).trim() : '';
-            if (cStr && (cStr.includes('♥') || cStr.includes('♦') || cStr.includes('♣') || cStr.includes('♠'))) {
-                let rank = cStr.slice(0, -1);
-                let suit = cStr.slice(-1);
-                let isRed = (suit === '♥' || suit === '♦');
-                playedEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
-                playedEl.innerText = `${rank}${suit}`;
-                playedEl.style.display = 'inline-flex';
-            } else {
-                playedEl.style.display = 'none';
-            }
+        if (playedEl && cardPlayedStr) {
+            let rank = cardPlayedStr.slice(0, -1);
+            let suit = cardPlayedStr.slice(-1);
+            let isRed = (suit === '♥' || suit === '♦');
+            let pts = (rank === 'J' ? 3 : (rank === '9' ? 2 : ((rank === 'A' || rank === '10') ? 1 : 0)));
+            playedEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
+            playedEl.innerHTML = `${rank}${suit} <span style="font-size:0.55rem; color:#94a3b8; margin-left:2px;">(${pts}p)</span>`;
+            playedEl.style.display = 'inline-flex';
         }
+
         let optEl = document.getElementById('trc-optimal-card');
-        if (optEl) {
-            let cStr = (tpData.optimalCard && tpData.optimalCard !== 'Safe Exit') ? String(tpData.optimalCard).trim() : '';
-            if (cStr && (cStr.includes('♥') || cStr.includes('♦') || cStr.includes('♣') || cStr.includes('♠'))) {
-                let rank = cStr.slice(0, -1);
-                let suit = cStr.slice(-1);
-                let isRed = (suit === '♥' || suit === '♦');
-                optEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
-                optEl.innerText = `${rank}${suit}`;
-                optEl.style.display = 'inline-flex';
-            } else {
-                optEl.style.display = 'none';
-            }
+        if (optEl && optimalCardStr) {
+            let rank = optimalCardStr.slice(0, -1);
+            let suit = optimalCardStr.slice(-1);
+            let isRed = (suit === '♥' || suit === '♦');
+            let pts = (rank === 'J' ? 3 : (rank === '9' ? 2 : ((rank === 'A' || rank === '10') ? 1 : 0)));
+            optEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
+            optEl.innerHTML = `${rank}${suit} <span style="font-size:0.55rem; color:#94a3b8; margin-left:2px;">(${pts}p)</span>`;
+            optEl.style.display = 'inline-flex';
         }
+
         let tpExpEl = document.getElementById('trc-tp-explanation');
-        if (tpExpEl) tpExpEl.innerText = tpData.explanation || '';
+        let tpExplanation = (tpData && tpData.explanation && tpData.explanation.trim()) 
+            ? tpData.explanation 
+            : ((telemetry && telemetry.turning_point && telemetry.turning_point.explanation) ? telemetry.turning_point.explanation : '');
+        if (tpExpEl) tpExpEl.innerText = tpExplanation;
 
         // 3. Partner Synergy
-        let synData = (res && res.partnerSynergy) ? res.partnerSynergy : (telemetry ? telemetry.partner_synergy : {});
+        let synData = (res && res.partnerSynergy && res.partnerSynergy.note) 
+            ? res.partnerSynergy 
+            : (telemetry ? telemetry.partner_synergy : {});
         let synScoreEl = document.getElementById('trc-synergy-score');
         let synBarEl = document.getElementById('trc-synergy-bar');
         let synNoteEl = document.getElementById('trc-synergy-note');
-        let score = (synData && synData.score !== undefined) ? synData.score : 65;
-        if (synScoreEl) synScoreEl.innerText = `${score}%`;
+        let score = (synData && synData.score !== undefined) ? synData.score : ((telemetry && telemetry.partner_synergy) ? telemetry.partner_synergy.score : 70);
+        
+        let synPill = score >= 80 ? (isHi ? '🌟 उत्कृष्ट तालमेल' : '🌟 High Synergy') : (score >= 60 ? (isHi ? '🤝 मजबूत साझेदारी' : '🤝 Solid Teamwork') : (isHi ? '⚠️ तालमेल की कमी' : '⚠️ Coordination Gap'));
+        if (synScoreEl) synScoreEl.innerHTML = `${score}% <span style="font-size:0.58rem; color:#94a3b8; font-weight:600; margin-left:4px;">(${synPill})</span>`;
         if (synBarEl) synBarEl.style.width = `${score}%`;
-        if (synNoteEl) synNoteEl.innerText = synData.note || '';
-
-        // (Bot comments / locker room removed per user request)
-
-        // Smooth GSAP Entrance
-        if (window.gsap) {
-            gsap.fromTo(coachBox, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out' });
-            gsap.fromTo('.trc-section', { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.3, stagger: 0.08, ease: 'power2.out' });
-        }
+        
+        let synNote = (synData && synData.note) ? synData.note : ((telemetry && telemetry.partner_synergy) ? telemetry.partner_synergy.note : '');
+        if (synNoteEl) synNoteEl.innerText = synNote;
     }
 }
 
