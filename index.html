@@ -461,7 +461,7 @@ body::before {
     .pill-dir-short { display: inline; }
     #stats-btn-text, #log-btn-text, #settings-btn-text, #exit-btn-text { display: none !important; }
     .bar-icon-btn { padding: 3px 5px !important; font-size: 0.72rem !important; }
-    .my-compass-tag, .player-identity-pill { font-size: 0.65rem !important; padding: 2px 6px !important; max-width: 145px; }
+    .my-compass-tag, .player-identity-pill { font-size: 0.65rem !important; padding: 2px 8px !important; max-width: max-content !important; }
 }
 .compass-roster {
     display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow-x: auto;
@@ -875,13 +875,25 @@ body::before {
 .pos-3 { top: 50%; left: calc(50% - 18px); --rot: -7deg; transform: translate(-50%, -50%) rotate(var(--rot)); }
 .anim-drop-in { opacity: 1; }
 
-/* ACTION BUTTONS */
-.action-btn-container {
-    position: absolute; bottom: calc(var(--card-h) + clamp(26px, 4.5vh, 42px));
-    left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 130; white-space: nowrap;
+/* ACTION BUTTONS & BOTTOM TURN ROW: Single horizontal flex row (gap-2) above South seat pill */
+.bottom-action-row {
+    position: absolute;
+    bottom: calc(var(--card-h) + clamp(26px, 5vh, 38px) + env(safe-area-inset-bottom, 0px));
+    left: 50%; transform: translateX(-50%);
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px;
+    z-index: 130; pointer-events: none; white-space: nowrap; max-width: 96vw;
 }
-.act-btn { display: none; padding: clamp(6px, 1.2vh, 9px) clamp(12px, 2.5vw, 18px); border-radius: 26px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: clamp(0.72rem, 1.3vh, 0.8rem); cursor: pointer; text-transform: uppercase; letter-spacing: 0.8px; transition: all 0.2s ease; }
-#reveal-btn { background: linear-gradient(135deg, #ef4444, #991b1b); color: #fff; border: 1.5px solid #fca5a5; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.55); }
+.bottom-action-row > * { pointer-events: auto; }
+.action-btn-container {
+    display: inline-flex; align-items: center; gap: 6px;
+}
+.act-btn { display: none; padding: 4px 12px; border-radius: 9999px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: clamp(0.68rem, 1.25vh, 0.76rem); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.2s ease; }
+#reveal-btn { 
+    background: linear-gradient(180deg, #f43f5e 0%, #be123c 100%); 
+    color: #fff; border: 1px solid rgba(253, 164, 175, 0.65); 
+    box-shadow: 0 0 16px rgba(244, 63, 94, 0.45); 
+}
+#reveal-btn:active { transform: scale(0.95); }
 #pair-btn { background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary)); color: #0f172a; border: 1.5px solid #fff; box-shadow: 0 4px 14px var(--gold-glow); animation: pulseGlow 1.5s infinite; }
 #reshuffle-btn { background: linear-gradient(135deg, #d97706, #92400e); color: #fff; border: 1.5px solid var(--gold-bright); box-shadow: 0 4px 14px rgba(217, 119, 6, 0.6); animation: pulseGlow 1.6s infinite; }
 .modal-reshuffle-btn { width: 100%; padding: clamp(6px, 1.3vh, 9px); margin: 4px 0 8px 0; border-radius: 10px; background: linear-gradient(135deg, #b45309, #78350f); border: 1.5px solid var(--gold-bright); color: #fff; font-weight: 800; cursor: pointer; font-size: clamp(0.72rem, 1.4vh, 0.82rem); letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.5); transition: transform 0.18s ease; }
@@ -1991,30 +2003,25 @@ body::before {
 
 /* ===== QoL UI IMPROVEMENTS ===== */
 
-/* Your-Turn floating banner - positioned in visible open table area above hand */
+/* Your-Turn status pill - rendered side-by-side with Reveal Trump inside .bottom-action-row */
 #your-turn-banner {
-    position: fixed;
-    bottom: calc(var(--card-h) + clamp(42px, 8vh, 65px));
-    left: 50%;
-    transform: translateX(-50%) translateY(14px) scale(0.9);
-    opacity: 0;
-    pointer-events: none;
-    background: linear-gradient(135deg, rgba(16, 52, 25, 0.96) 0%, rgba(6, 22, 11, 0.96) 100%);
-    border: 1.8px solid var(--gold-bright);
-    border-radius: 30px;
-    padding: 7px 22px;
-    color: var(--gold-bright);
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.82);
+    border: 1px solid rgba(253, 224, 71, 0.65);
+    border-radius: 9999px;
+    padding: 4px 12px;
+    color: #fef08a;
     font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: clamp(0.74rem, 1.4vh, 0.84rem);
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    z-index: 9999;
-    white-space: nowrap;
-    box-shadow: 0 0 25px rgba(229, 193, 88, 0.65), 0 8px 30px rgba(0, 0, 0, 0.85);
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+    font-size: clamp(0.66rem, 1.2vh, 0.74rem);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.25);
+    transition: opacity 0.2s ease;
 }
 #your-turn-banner.visible {
-    transform: translateX(-50%) translateY(0) scale(1);
+    display: inline-flex;
     opacity: 1;
 }
 #your-turn-banner span { animation: yourTurnPulse 0.9s ease-in-out infinite alternate; display: inline-block; }
@@ -2451,7 +2458,7 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 
 <div id="board">
     <!-- QoL: Your Turn Banner -->
-    <div id="your-turn-banner"><span>✨ YOUR TURN — Play a Card</span></div>
+    
     <!-- QoL: Toast Container -->
     <div id="game-toast-container"></div>
     <!-- QoL: Keyboard Hint Bar -->
@@ -2461,13 +2468,13 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
         <div style="font-family:'Cinzel',serif; font-size:1.3rem; color:rgba(229,193,88,0.15); font-weight:900;">♠ ♥ ♣ ♦</div>
         <div id="lead-suit-watermark"></div>
     </div>
-    <!-- Center Trick Metadata Cluster: Current Winner Pill + Trick Pot & Led Suit -->
+    <!-- Center Trick Metadata Cluster: Trick Pot on top, Live Trick Leader directly below it -->
     <div id="trick-meta-cluster" class="trick-meta-cluster">
-        <div id="trick-winner-pill" class="trick-winner-pill" style="display:none;"></div>
         <div id="trick-pts-pill" class="trick-pts-pill">
             <span id="trick-pts-icon">💰</span>
             <span id="trick-pts-val">Trick: 0 pts</span>
         </div>
+        <div id="trick-winner-pill" class="trick-winner-pill" style="display:none;"></div>
     </div>
     <div id="secret-trump-vault" style="display:none;" onclick="ui.onVaultTokenClick()" title="Secret Trump Vault"></div>
 
@@ -2482,10 +2489,14 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <div id="center-table"></div>
 </div>
 
-<div class="action-btn-container">
-    <button id="reshuffle-btn" class="act-btn" onclick="ui.onReshuffleClick()">🔄 0 Pts Reshuffle</button>
-    <button id="reveal-btn" class="act-btn" onclick="ui.onAskRevealClick()">🚨 Reveal Trump</button>
-    <button id="pair-btn" class="act-btn" onclick="ui.onDeclarePairClick()">👑 Declare K-Q Pair</button>
+<!-- Bottom Action Row: Turn Status + Reveal Trump Side-by-Side (No Overlap) -->
+<div id="bottom-action-row" class="bottom-action-row">
+    <div id="your-turn-banner"><span>✨ YOUR TURN — Follow Suit</span></div>
+    <div class="action-btn-container" id="action-btn-container">
+        <button id="reveal-btn" class="act-btn" onclick="ui.onAskRevealClick()">🔓 Reveal Trump</button>
+        <button id="pair-btn" class="act-btn" onclick="ui.onDeclarePairClick()">👑 Declare K-Q Pair</button>
+        <button id="reshuffle-btn" class="act-btn" onclick="ui.onReshuffleClick()">🔄 0 Pts Reshuffle</button>
+    </div>
 </div>
 
 <div id="log-modal" onclick="if(event.target===this) toggleLogModal()">
@@ -4750,13 +4761,17 @@ function updateTopCompassBar() {
 
     if (gameMode !== 'multi') {
         if (shareBtn) shareBtn.style.display = 'none';
-        roleEl.innerHTML = `<span>🧭</span> <span style="font-weight:800;">${selfName}</span> &bull; <span class="pill-dir-full">${dirName}</span><span class="pill-dir-short">${dirShort}</span> (T${teamNum})`;
+        let isMobileScreen = (window.innerWidth <= 600);
+        let seatText = isMobileScreen ? `${dirShort} (T${teamNum})` : `${dirName} • T${teamNum}`;
+        roleEl.innerHTML = `<span>🧭</span> <span style="font-weight:800;">${selfName}</span> &bull; <span>${seatText}</span>`;
     } else {
         if (shareBtn) shareBtn.style.display = 'inline-flex';
         if (mySeat === 99) {
             roleEl.innerHTML = `<span>📺</span> <span>${currentLang === 'hi' ? 'मुख्य टेबल' : 'CENTER TABLE'}</span>`;
         } else {
-            roleEl.innerHTML = `<span>🧭</span> <span style="font-weight:800;">${selfName}</span> &bull; <span class="pill-dir-full">${dirName}</span><span class="pill-dir-short">${dirShort}</span> (T${teamNum})`;
+            let isMobileScreen = (window.innerWidth <= 600);
+        let seatText = isMobileScreen ? `${dirShort} (T${teamNum})` : `${dirName} • T${teamNum}`;
+        roleEl.innerHTML = `<span>🧭</span> <span style="font-weight:800;">${selfName}</span> &bull; <span>${seatText}</span>`;
         }
     }
 
@@ -8275,8 +8290,8 @@ class UIController {
             if (t2Header) t2Header.innerText = isHi ? "टीम 2 (पू व प)" : "Team 2 (E & W)";
         } else {
             let isT1Mine = (myTeamNum === 1);
-            if (t1Header) t1Header.innerText = isT1Mine ? (isHi ? "आप (टीम 1)" : "YOU (TEAM 1)") : (isHi ? "विरोधी" : "OPPONENTS");
-            if (t2Header) t2Header.innerText = !isT1Mine ? (isHi ? "आप (टीम 2)" : "YOU (TEAM 2)") : (isHi ? "विरोधी" : "OPPONENTS");
+            if (t1Header) t1Header.innerText = isT1Mine ? (isHi ? "आप (T1)" : "YOU (T1)") : (isHi ? "विरोधी" : "OPPONENTS");
+            if (t2Header) t2Header.innerText = !isT1Mine ? (isHi ? "आप (T2)" : "YOU (T2)") : (isHi ? "विरोधी" : "OPPONENTS");
         }
     }
 
@@ -9050,14 +9065,14 @@ class UIController {
             // Render Center Trick Winner Pill
             if (winPill && winner && winner.card) {
                 let seatLabel = '';
+                let dirFull = COMPASS_FULL[winner.player] || 'West';
+                let dirLetter = COMPASS_SHORT[winner.player] || 'W';
                 if (winner.player === mySeat && mySeat !== 99) {
-                    seatLabel = currentLang === 'hi' ? 'आप (S)' : 'You (S)';
+                    seatLabel = currentLang === 'hi' ? `आप (${dirLetter})` : `You (${dirLetter})`;
                 } else if (winner.player === (mySeat + 2) % 4 && mySeat !== 99) {
-                    let pDir = COMPASS_SHORT[winner.player];
-                    seatLabel = currentLang === 'hi' ? `साथी (${pDir})` : `Partner (${pDir})`;
+                    seatLabel = currentLang === 'hi' ? `साथी (${dirLetter})` : `Partner (${dirLetter})`;
                 } else {
-                    let oppDir = COMPASS_SHORT[winner.player];
-                    seatLabel = currentLang === 'hi' ? `विरोधी (${oppDir})` : `Opponent (${oppDir})`;
+                    seatLabel = `${dirFull} (${dirLetter})`;
                 }
 
                 let isCardRed = (winner.card.suit === '♥' || winner.card.suit === '♦');
@@ -9083,9 +9098,22 @@ class UIController {
                 `;
             }
 
-            // Show/hide banner based on whose turn it is mid-trick
+            // Show/hide banner based on whose turn it is mid-trick with context-aware void guidance
             if (this.engine.currentTurn === mySeat && mySeat !== 99) {
-                if (typeof showYourTurnBanner === 'function') showYourTurnBanner('✨ YOUR TURN — Follow Suit', 0);
+                let myHand = this.engine.players[mySeat] || [];
+                let leadSuit = this.engine.leadSuit || (this.engine.trickCards[0] && this.engine.trickCards[0].card ? this.engine.trickCards[0].card.suit : null);
+                let hasLead = leadSuit ? myHand.some(c => c && c.suit === leadSuit) : true;
+                let canReveal = this.engine.canRevealTrump(mySeat);
+
+                let turnMsg = '';
+                if (!hasLead && leadSuit) {
+                    turnMsg = (currentLang === 'hi')
+                        ? `✨ आपकी बारी — ${leadSuit} नहीं है (${canReveal ? 'हुकुम खोलें या ' : ''}कोई भी चलें)`
+                        : `✨ YOUR TURN — Void in ${leadSuit} (${canReveal ? 'Reveal Trump or ' : ''}Play Any)`;
+                } else {
+                    turnMsg = (currentLang === 'hi') ? '✨ आपकी बारी — चाल का रंग चलें' : '✨ YOUR TURN — Follow Suit';
+                }
+                if (typeof showYourTurnBanner === 'function') showYourTurnBanner(turnMsg, 0);
             } else {
                 if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner();
             }
