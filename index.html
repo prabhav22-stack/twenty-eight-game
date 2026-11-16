@@ -311,7 +311,7 @@ body.theme-crimson {
     stroke: #38bdf8;
     stroke-width: 3.6;
     stroke-linecap: round;
-    transition: stroke-dashoffset 0.85s linear, stroke 0.3s ease;
+    transition: stroke-dashoffset 0.18s linear, stroke 0.3s ease;
 }
 .turn-ring-container.warning .turn-ring-circle-progress {
     stroke: #f59e0b;
@@ -320,20 +320,6 @@ body.theme-crimson {
 .turn-ring-container.critical .turn-ring-circle-progress {
     stroke: #ef4444;
     filter: drop-shadow(0 0 9px rgba(239, 68, 68, 0.95));
-}
-.turn-timer-badge.warning {
-    background: linear-gradient(135deg, #f59e0b, #d97706) !important;
-    border-color: #fef08a !important;
-    animation: pulseGlow 0.8s infinite alternate;
-}
-.turn-timer-badge.critical {
-    background: linear-gradient(135deg, #ef4444, #b91c1c) !important;
-    border-color: #fca5a5 !important;
-    animation: pulseGlow 0.5s infinite alternate;
-}
-.turn-ring-container.warning_old .turn-ring-circle-progress {
-    stroke: #ef4444;
-    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.85));
 }
 .turn-ring-label {
     position: relative;
@@ -364,34 +350,10 @@ body.theme-crimson {
     margin-top: 0 !important;
 }
 
-.turn-timer-badge {
-    position: absolute;
-    top: -12px;
-    right: -8px;
-    background: linear-gradient(135deg, #0284c7, #0369a1);
-    border: 1.5px solid #fff;
-    color: #fff;
-    font-size: 0.62rem;
-    font-weight: 900;
-    padding: 1px 6px;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
-    display: none;
-    z-index: 50;
-    letter-spacing: 0.3px;
-}
-#player-right .turn-timer-badge {
-    right: auto;
-    left: -8px;
-}
-body.hide-turn-timer .turn-timer-badge,
-body.hide-turn-timer .turn-ring-container {
+/* Remove duplicate .turn-timer-badge & .warning_old rules, and update hide rule: */
+body.hide-turn-timer .turn-ring-container,
+body.hide-turn-timer .turn-urgency-svg {
     display: none !important;
-}
-.turn-timer-badge.warning {
-    background: linear-gradient(135deg, #ef4444, #b91c1c);
-    border-color: #fca5a5;
-    animation: pulseGlow 0.6s infinite alternate;
 }
 #afk-resume-banner {
     position: fixed;
@@ -4256,6 +4218,32 @@ function playSound(type) {
             gain.connect(ctx.destination);
             osc.start(now);
             osc.stop(now + 0.045);
+        } else if (type === 'tick') {
+            // Subtle crisp countdown tick
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, now);
+            osc.frequency.exponentialRampToValueAtTime(1760, now + 0.02);
+            gain.gain.setValueAtTime(0.06, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.03);
+        } else if (type === 'tick_urgent') {
+            // Urgent final-second warning tick
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1200, now);
+            osc.frequency.exponentialRampToValueAtTime(2400, now + 0.03);
+            gain.gain.setValueAtTime(0.12, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.04);
         } else if (type === 'pass') {
             // Soft, discreet felt tap
             const osc = ctx.createOscillator();
@@ -5430,9 +5418,18 @@ function handleIncomingNetworkMessage(sourceConn, data) {
         location.reload();
     }
     else if (isHost) {
-        if (data.type === 'SUBMIT_BID') { game.submitBid(data.player, data.val); ui.gameLoop(); }
-        else if (data.type === 'SET_TRUMP') { game.setTrump(data.suit); ui.gameLoop(); }
+        if (data.type === 'SUBMIT_BID') { 
+            consecutiveTimeouts[data.player] = 0;
+            game.submitBid(data.player, data.val); 
+            ui.gameLoop(); 
+        }
+        else if (data.type === 'SET_TRUMP') { 
+            consecutiveTimeouts[data.player] = 0;
+            game.setTrump(data.suit); 
+            ui.gameLoop(); 
+        }
         else if (data.type === 'DECLARE_PAIR') {
+            consecutiveTimeouts[data.player] = 0;
             broadcastNetMessage({ type: 'UI_EVENT', pairEvent: { player: data.player } });
             ui.playRoyalPairAnimation(data.player, () => {
                 game.declarePair(data.player);
@@ -5442,7 +5439,11 @@ function handleIncomingNetworkMessage(sourceConn, data) {
                 ui.gameLoop();
             });
         }
-        else if (data.type === 'PLAY_CARD') { game.playCard(data.player, data.cardIndex); ui.gameLoop(); }
+        else if (data.type === 'PLAY_CARD') { 
+            consecutiveTimeouts[data.player] = 0;
+            game.playCard(data.player, data.cardIndex); 
+            ui.gameLoop(); 
+        }
         else if (data.type === 'REVEAL_TRUMP') { game.revealTrump(data.player); ui.gameLoop(); }
         else if (data.type === 'RESHUFFLE_REQUEST') { game.reshuffleRound(data.player); ui.gameLoop(); }
     }
@@ -5788,7 +5789,9 @@ class PeerManager {
             roundTricksCount: (masterEngine.roundTricks || []).length,
             autoPlaySeats: (typeof autoPlaySeats !== 'undefined') ? autoPlaySeats : [false, false, false, false],
             humanSeats: (typeof humanSeats !== 'undefined') ? humanSeats : [0],
-            playerCustomNames: (typeof playerCustomNames !== 'undefined') ? playerCustomNames : ["SOUTH", "EAST", "NORTH", "WEST"]
+            playerCustomNames: (typeof playerCustomNames !== 'undefined') ? playerCustomNames : ["SOUTH", "EAST", "NORTH", "WEST"],
+            turnDeadline: masterEngine.turnDeadline || null,
+            turnDurationMs: masterEngine.turnDurationMs || 30000
         };
     }
 }
@@ -8043,6 +8046,11 @@ class TwentyEightEngine {
                 if (banner) banner.style.display = autoPlaySeats[mySeat] ? 'flex' : 'none';
             }
         }
+
+        if (state.turnDeadline !== undefined) {
+            this.turnDeadline = state.turnDeadline;
+            this.turnDurationMs = state.turnDurationMs || 30000;
+        }
         if (state.humanSeats) {
             humanSeats = state.humanSeats;
         }
@@ -8105,6 +8113,17 @@ class TwentyEightEngine {
 }
 
 // ==================== UI CONTROLLER ====================
+
+// Context-aware turn duration helper
+function getTurnDurationMs(engine, seat) {
+    if (autoPlaySeats[seat]) return 3000; // Fast auto-sub for AFK players
+    if (engine.phase === 'BIDDING' || engine.phase === 'SET_TRUMP') return 25000;
+    const legal = (typeof engine.getValidPlayIndices === 'function') ? engine.getValidPlayIndices(seat) : [];
+    if (legal && legal.length <= 1) return 10000; // Forced move doesn't need 60s
+    const pace = Math.max(0.5, Math.min(1.5, window.GAME_SPEED_MULTIPLIER || 1.0));
+    return Math.round(35000 * pace);
+}
+
 class UIController {
     clearActiveDealAnimation() {
         this._dealAnimSeq = (this._dealAnimSeq || 0) + 1;
@@ -8616,6 +8635,7 @@ class UIController {
                         ease: "power2.in",
                         onComplete: () => {
                             if (autoPlaySeats[mySeat]) { this.resumeManualControl(); }
+                            if (typeof mySeat !== 'undefined' && mySeat >= 0 && mySeat < 4) consecutiveTimeouts[mySeat] = 0;
                             if (gameMode === 'multi') sendNetMessage({type:'PLAY_CARD', player: mySeat, cardIndex: cardIndex});
                             else { this.engine.playCard(mySeat, cardIndex); this.gameLoop(); }
                         }
@@ -8627,6 +8647,7 @@ class UIController {
                 }
             } else if (!hasMoved) {
                 // Click/tap to play
+                if (typeof mySeat !== 'undefined' && mySeat >= 0 && mySeat < 4) consecutiveTimeouts[mySeat] = 0;
                 uiLocked = true;
                 if (window.gsap) {
                     gsap.to(cardEl, {
@@ -10319,7 +10340,7 @@ class UIController {
 
     manageTurnCountdown(turnPlayer, isHumanTurn) {
         if (!isHumanTurn || this.engine.phase === 'ROUND_OVER' || this.engine.phase === 'TRICK_OVER' || this.engine.phase === 'LOBBY' || this.animatingTrick) {
-            this.stopTurnCountdown();
+            this.stopTurnTimer();
             return;
         }
 
@@ -10327,18 +10348,10 @@ class UIController {
             return; // Timer already active for this turn
         }
 
-        this.stopTurnCountdown();
-        this.turnTimerSeat = turnPlayer;
-        this.turnSecondsLeft = 60; // 60-Second Turn Countdown
-
-        // If it's my turn, trigger crisp turn haptics
-        if (turnPlayer === mySeat && mySeat !== 99) {
-            triggerHaptic('turn');
-        }
-
         // If seat has been taken over by AI Auto-Sub (due to 2 consecutive timeouts), play after short realistic delay
         if (autoPlaySeats[turnPlayer]) {
-            if (isHost) {
+            this.stopTurnTimer();
+            if (isHost || gameMode === 'ai') {
                 setTimeout(() => {
                     if (this.engine.currentTurn === turnPlayer && !this.animatingTrick) {
                         this.executeAFKTimeoutMove(turnPlayer);
@@ -10348,121 +10361,146 @@ class UIController {
             return;
         }
 
-        const updateTimerBadge = () => {
-            let visualPos = getVisualPosition(turnPlayer);
-            const posNames = ['bottom', 'right', 'top', 'left'];
-            const pBox = document.getElementById(`player-${posNames[visualPos]}`);
-            if (pBox) {
-                let ring = pBox.querySelector('.turn-ring-container');
-                if (!ring) {
-                    ring = document.createElement('div');
-                    ring.className = 'turn-ring-container';
-                    ring.innerHTML = `
-                        <svg class="turn-ring-svg" viewBox="0 0 36 36">
-                            <path class="turn-ring-circle-bg"
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            />
-                            <path class="turn-ring-circle-progress"
-                                stroke-dasharray="100, 100"
-                                stroke-dashoffset="0"
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            />
-                        </svg>
-                        <div class="turn-ring-label">${this.turnSecondsLeft}</div>
-                    `;
-                    pBox.appendChild(ring);
-                }
-                const progressPath = ring.querySelector('.turn-ring-circle-progress');
-                const label = ring.querySelector('.turn-ring-label');
-                let dashOffset = ((60 - this.turnSecondsLeft) / 60) * 100;
-                if (progressPath) progressPath.setAttribute('stroke-dashoffset', dashOffset);
-                if (label) label.innerText = this.turnSecondsLeft;
+        // If it's my turn, trigger crisp turn haptics
+        if (turnPlayer === mySeat && mySeat !== 99) {
+            triggerHaptic('turn');
+        }
 
-                // Sync turn-timer-badge text pill
-                let badge = pBox.querySelector('.turn-timer-badge');
-                if (!badge) {
-                    badge = document.createElement('div');
-                    badge.className = 'turn-timer-badge';
-                    pBox.appendChild(badge);
-                }
-                badge.innerText = `⏱️ ${this.turnSecondsLeft}s`;
-                badge.style.display = 'block';
+        let durationMs = (this.engine.turnDurationMs && !isHost)
+            ? this.engine.turnDurationMs
+            : getTurnDurationMs(this.engine, turnPlayer);
 
-                ring.style.display = 'flex';
-                // In the final 15 seconds, turn into a glowing red/amber warning badge
-                if (this.turnSecondsLeft <= 15) {
-                    ring.classList.add('warning');
-                    badge.classList.add('warning');
-                    if (this.turnSecondsLeft <= 5) {
-                        ring.classList.add('critical');
-                        badge.classList.add('critical');
-                    } else {
-                        ring.classList.remove('critical');
-                        badge.classList.remove('critical');
-                    }
-                } else {
-                    ring.classList.remove('warning', 'critical');
-                    badge.classList.remove('warning', 'critical');
-                }
-            }
-
-            if (turnPlayer === mySeat && mySeat !== 99) {
-                let banner = document.getElementById('your-turn-banner');
-                if (banner && banner.style.display === 'block') {
-                    let sub = banner.querySelector('.turn-sub');
-                    if (sub) sub.innerText = `⏱️ ${this.turnSecondsLeft}s remaining`;
-                    if (this.turnSecondsLeft <= 15) {
-                        banner.classList.add('warning-pulse');
-                    } else {
-                        banner.classList.remove('warning-pulse');
-                    }
-                }
-            }
-        };
-
-        updateTimerBadge();
-
-        this.turnCountdownTimer = setInterval(() => {
-            this.turnSecondsLeft--;
-            updateTimerBadge();
-
-            // In the final 15 seconds, audible tick
-            if (this.turnSecondsLeft <= 15 && this.turnSecondsLeft > 0) {
-                playSound('tick');
-            }
-
-            if (this.turnSecondsLeft <= 0) {
-                this.stopTurnCountdown();
-                if (isHost) {
-                    this.executeAFKTimeoutMove(turnPlayer);
-                }
-            }
-        }, 1000);
+        this.startTurnTimer(turnPlayer, durationMs);
     }
 
-    stopTurnCountdown() {
+    startTurnTimer(seat, durationMs) {
+        this.stopTurnTimer();
+        this.turnTimerSeat = seat;
+        const deadline = (this.engine.turnDeadline && !isHost)
+            ? this.engine.turnDeadline
+            : Date.now() + durationMs;
+        if (isHost || gameMode === 'ai') {
+            this.engine.turnDeadline = deadline;
+            this.engine.turnDurationMs = durationMs;
+        }
+
+        let lastWholeSec = Math.ceil(durationMs / 1000);
+        const circumference = 100; // 2 * Math.PI * 15.9155
+
+        this.turnCountdownTimer = setInterval(() => {
+            const remainingMs = Math.max(0, deadline - Date.now());
+            const secLeft = Math.ceil(remainingMs / 1000);
+            const ratio = Math.max(0, Math.min(1, remainingMs / durationMs));
+
+            // Update SVG ring & state classes (normal -> warning <= 10s -> critical <= 5s)
+            this.updateTurnRingUI(seat, secLeft, ratio, circumference);
+
+            if (secLeft !== lastWholeSec) {
+                lastWholeSec = secLeft;
+                if (seat === mySeat && secLeft > 0 && secLeft <= 5) {
+                    this.playTimerTickSound(secLeft === 1);
+                    if (navigator.vibrate) navigator.vibrate(25);
+                }
+            }
+
+            if (remainingMs <= 0) {
+                this.stopTurnTimer();
+                if (isHost || gameMode === 'ai') {
+                    this.handleTurnTimeout(seat);
+                }
+            }
+        }, 200);
+    }
+
+    updateTurnRingUI(seat, secLeft, ratio, circumference) {
+        let visualPos = getVisualPosition(seat);
+        const posNames = ['bottom', 'right', 'top', 'left'];
+        const pBox = document.getElementById(`player-${posNames[visualPos]}`);
+        if (!pBox) return;
+
+        let ring = pBox.querySelector('.turn-ring-container');
+        if (!ring) {
+            ring = document.createElement('div');
+            ring.className = 'turn-ring-container';
+            ring.innerHTML = `
+                <svg class="turn-ring-svg" viewBox="0 0 36 36">
+                    <path class="turn-ring-circle-bg"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    />
+                    <path class="turn-ring-circle-progress"
+                        stroke-dasharray="100, 100"
+                        stroke-dashoffset="0"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    />
+                </svg>
+                <div class="turn-ring-label">${secLeft}</div>
+            `;
+            pBox.appendChild(ring);
+        }
+        const progressPath = ring.querySelector('.turn-ring-circle-progress');
+        const label = ring.querySelector('.turn-ring-label');
+        let dashOffset = (1 - ratio) * 100;
+        if (progressPath) progressPath.setAttribute('stroke-dashoffset', dashOffset);
+        if (label) label.innerText = secLeft;
+
+        ring.style.display = 'flex';
+        if (secLeft <= 5) {
+            ring.classList.add('critical');
+            ring.classList.remove('warning');
+        } else if (secLeft <= 10) {
+            ring.classList.add('warning');
+            ring.classList.remove('critical');
+        } else {
+            ring.classList.remove('warning', 'critical');
+        }
+    }
+
+    playTimerTickSound(isFinal) {
+        if (typeof playSound === 'function') {
+            playSound(isFinal ? 'tick_urgent' : 'tick');
+        }
+    }
+
+    stopTurnTimer() {
         if (this.turnCountdownTimer) {
             clearInterval(this.turnCountdownTimer);
             this.turnCountdownTimer = null;
         }
         this.turnTimerSeat = -1;
         document.querySelectorAll('.turn-ring-container').forEach(r => r.style.display = 'none');
-        document.querySelectorAll('.turn-timer-badge').forEach(b => b.style.display = 'none');
     }
 
-    executeAFKTimeoutMove(player) {
-        if (!isHost) return;
+    stopTurnCountdown() {
+        this.stopTurnTimer();
+    }
+
+    handleTurnTimeout(player) {
+        if (!isHost && gameMode !== 'ai') return;
         consecutiveTimeouts[player] = (consecutiveTimeouts[player] || 0) + 1;
         let pName = playerCustomNames[player] || COMPASS_FULL[player];
 
         if (consecutiveTimeouts[player] >= 2) {
+            // 2nd Consecutive Timeout: Enable full AI Auto-Sub & show persistent resume banner
             autoPlaySeats[player] = true;
             this.renderLog(`🤖 ${pName} missed 2 consecutive turns. AI Auto-Sub taking over.`);
-            sendNetMessage({ type: 'SEAT_TAKEOVER', seat: player, autoPlay: true });
+            if (typeof showGameToast === 'function') {
+                showGameToast(`🤖 ${pName} is AFK — AI Auto-Sub active`, 3500);
+            }
+            if (gameMode === 'multi') {
+                sendNetMessage({ type: 'SEAT_TAKEOVER', seat: player, autoPlay: true });
+            }
         } else {
+            // 1st Timeout: Execute single fallback move, keeping manual control for next turn
             this.renderLog(`⏱️ Auto-played turn for ${pName} (Turn timed out: 1/2)`);
+            if (typeof showGameToast === 'function') {
+                showGameToast("⏱️ Time expired — auto-played 1 card", 3000);
+            }
         }
 
+        this.executeAFKTimeoutMove(player);
+    }
+
+    executeAFKTimeoutMove(player) {
         if (this.engine.phase === 'BIDDING') {
             this.engine.submitBid(player, 'Pass');
             this.gameLoop();
@@ -10471,7 +10509,6 @@ class UIController {
             this.engine.setTrump(suit);
             this.gameLoop();
         } else if (this.engine.phase === 'PLAYING') {
-            // Quietly take over using local AI bot (ISMCTS + DDS)
             let moveIdx = this.engine.getBotPlay(player);
             if (moveIdx === null || moveIdx === undefined || moveIdx < 0) {
                 let valids = this.engine.getValidPlayIndices(player);
@@ -10876,6 +10913,7 @@ class UIController {
     }
 
     onBidSubmit(val) {
+        if (typeof mySeat !== 'undefined' && mySeat >= 0 && mySeat < 4) consecutiveTimeouts[mySeat] = 0;
         uiLocked = true;
         clearTimeout(window._uiLockSafetyTimer);
         window._uiLockSafetyTimer = setTimeout(() => { uiLocked = false; }, 2000);
@@ -11047,6 +11085,7 @@ class UIController {
             btn.innerHTML = `<span style="font-size:1.4rem;">${suit}</span><span style="font-size:0.75rem; margin-top:2px;">${suitName.replace(suit, '').trim()}</span>`;
             btn.style.color = (suit === '♥' || suit === '♦') ? '#dc2626' : '#0f172a';
             btn.onclick = () => { 
+                if (typeof mySeat !== 'undefined' && mySeat >= 0 && mySeat < 4) consecutiveTimeouts[mySeat] = 0;
                 if(uiLocked) return; uiLocked = true;
                 document.getElementById('trump-modal').style.display = 'none';
                 if(gameMode === 'multi') sendNetMessage({type:'SET_TRUMP', suit: suit});
