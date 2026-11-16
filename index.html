@@ -395,7 +395,7 @@ body::before {
 
 /* ==================== TOP COMPASS BAR ==================== */
 #compass-bar, .top-nav-bar {
-    display: none; position: relative; z-index: 2100; flex-shrink: 0;
+    display: none; position: relative; z-index: 1000; flex-shrink: 0;
     background: linear-gradient(90deg, #040d08 0%, #0d2618 50%, #040d08 100%);
     border-bottom: 1.5px solid var(--gold-primary);
     padding: clamp(3px, 0.6vh, 6px) clamp(6px, 1.5vw, 10px);
@@ -885,7 +885,7 @@ body::before {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
     background: rgba(6, 16, 10, 0.96); backdrop-filter: blur(18px);
     border: 1.5px solid var(--gold-primary); padding: clamp(10px, 2vh, 16px); border-radius: 18px;
-    text-align: center; display: none; z-index: 1500; width: clamp(270px, min(90vw, 380px), 380px);
+    text-align: center; display: none; z-index: 2200; width: clamp(270px, min(90vw, 380px), 380px);
     max-height: min(90vh, 90dvh, 520px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -912,7 +912,7 @@ body::before {
 /* ==================== TACTICAL REPORT CARD ==================== */
 #end-modal {
     width: clamp(285px, min(94vw, 430px), 430px);
-    max-height: min(88vh, 88dvh, 680px);
+    max-height: calc(100dvh - 24px);
     overflow-y: auto;
     padding: clamp(10px, 1.8vh, 16px);
 }
@@ -1454,8 +1454,8 @@ body::before {
     }
     .my-cards-row .card .card-pt-badge {
         right: auto;
-        left: clamp(18px, 4.8vw, 24px);
-        top: 2px;
+        left: 4px;
+        top: 26px;
         font-size: clamp(0.5rem, 1vh, 0.58rem);
         padding: 1px 3px;
     }
@@ -2459,11 +2459,10 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     <div id="player-top" class="hand"></div>
     <div id="player-left" class="hand"></div>
     <div id="player-right" class="hand"></div>
-    <div id="player-bottom" class="hand">
-        <div id="recent-trick-dock" onclick="toggleLogModal()" title="Click to view full game log" style="display:none; cursor:pointer; background:rgba(0,0,0,0.55); border:1px solid rgba(229,193,88,0.3); border-radius:12px; padding:2px 10px; font-size:0.65rem; color:#cbd5e1; margin-bottom:4px; box-shadow:0 2px 8px rgba(0,0,0,0.4); backdrop-filter:blur(4px);">
-            <span id="recent-trick-dock-text">📜 Trick History</span>
-        </div>
+    <div id="recent-trick-dock" onclick="toggleLogModal()" title="Click to view full game log" style="display:none; cursor:pointer; background:rgba(0,0,0,0.55); border:1px solid rgba(229,193,88,0.3); border-radius:12px; padding:2px 10px; font-size:0.65rem; color:#cbd5e1; margin-bottom:4px; box-shadow:0 2px 8px rgba(0,0,0,0.4); backdrop-filter:blur(4px);">
+        <span id="recent-trick-dock-text">📜 Trick History</span>
     </div>
+    <div id="player-bottom" class="hand"></div>
     <div id="center-table"></div>
 </div>
 
@@ -2559,7 +2558,7 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
     </div>
 </div>
 
-<div id="end-modal" class="modal" style="top:40%; z-index:1600; text-align:center;">
+<div id="end-modal" class="modal" style="z-index:2200; text-align:center;">
     <div id="end-icon" style="font-size:clamp(2.5rem, 5.5vh, 3.4rem); margin-bottom:4px;">🎉</div>
     <h2 id="end-title" style="font-size:clamp(1.15rem, 2.5vh, 1.45rem); margin-bottom:6px;">YOU & YOUR PARTNER WON!</h2>
     <div id="end-badge" style="display:inline-block; padding:4px 14px; border-radius:20px; font-weight:800; font-size:clamp(0.8rem, 1.8vh, 0.95rem); margin-bottom:8px;"></div>
@@ -2885,7 +2884,8 @@ function syncSettingsModalUI() {
 
     // Speed
     const spdPill = document.getElementById('settings-speed-pill');
-    let curSpd = window.GAME_SPEED_MULTIPLIER || 1.0;
+    const delayToSpeed = { 2.0: 0.5, 1.33: 0.75, 1.0: 1.0, 0.65: 1.5, 0.5: 2.0, 0.35: 2.0 };
+    let curSpd = delayToSpeed[window.GAME_SPEED_MULTIPLIER] || (window.GAME_SPEED_MULTIPLIER ? Math.round((1 / window.GAME_SPEED_MULTIPLIER) * 100) / 100 : 1.0);
     if (spdPill) spdPill.innerText = `${curSpd}x`;
     [0.5, 0.75, 1.0, 1.5, 2.0].forEach(s => {
         let sKey = String(s).replace('.', '');
@@ -2951,8 +2951,13 @@ function setDifficultyUI(diff) {
 function setOrientationUI(mode) {
     tableOrientation = mode;
     try { localStorage.setItem('twentyEight_orientation', mode); } catch(e) {}
+    updateOrientationUI();
     syncSettingsModalUI();
-    applyTableOrientation();
+    if (typeof ui !== 'undefined' && ui) {
+        ui.updatePlayerNames();
+        ui.renderStaticBoard();
+        ui.syncTable();
+    }
     if (typeof showGameToast === 'function') {
         let label = mode === 'FIRST_PERSON' ? '1st-Person (You at Bottom)' : 'Fixed Compass';
         showGameToast(`🧭 Table View: <b>${label}</b>`, 1800);
@@ -2960,14 +2965,21 @@ function setOrientationUI(mode) {
 }
 
 function setSpeedUI(speed) {
-    window.GAME_SPEED_MULTIPLIER = speed;
-    try { localStorage.setItem('twentyEight_speed', String(speed)); } catch(e) {}
+    const numSpeed = parseFloat(speed) || 1.0;
+    const speedToDelay = { 0.5: 2.0, 0.75: 1.33, 1.0: 1.0, 1.5: 0.65, 2.0: 0.5 };
+    const delayMult = speedToDelay[numSpeed] || (1 / numSpeed);
+    window.GAME_SPEED_MULTIPLIER = delayMult;
+    try {
+        localStorage.setItem('28_table_speed', delayMult.toString());
+        localStorage.setItem('twentyEight_speed', numSpeed.toString());
+    } catch(e) {}
+    updateTableSpeedUI();
     syncSettingsModalUI();
     if (typeof isHost !== 'undefined' && isHost && typeof gameMode !== 'undefined' && gameMode === 'multi') {
-        broadcastNetMessage({ type: 'SPEED_SYNC', speedMultiplier: speed });
+        broadcastNetMessage({ type: 'SPEED_SYNC', speedMultiplier: delayMult });
     }
     if (typeof showGameToast === 'function') {
-        showGameToast(`⚡ Pace: <b>${speed}x</b>`, 1800);
+        showGameToast(`⚡ Pace: <b>${numSpeed}x</b>`, 1800);
     }
 }
 
@@ -8120,10 +8132,10 @@ class TwentyEightEngine {
         if (mySeat !== 99 && mySeat >= 0 && mySeat < 4) {
             this.players[mySeat] = state.myHand || []; 
             for(let i=0; i<4; i++) {
-                if(i !== mySeat) this.players[i] = new Array(sizes[i] || 0).fill({isNew: isDealPhase});
+                if(i !== mySeat) this.players[i] = Array.from({ length: sizes[i] || 0 }, () => ({ isNew: isDealPhase }));
             }
         } else {
-            for(let i=0; i<4; i++) this.players[i] = new Array(sizes[i] || 0).fill({isNew: isDealPhase});
+            for(let i=0; i<4; i++) this.players[i] = Array.from({ length: sizes[i] || 0 }, () => ({ isNew: isDealPhase }));
         }
     }
 }
@@ -9189,9 +9201,13 @@ class UIController {
         } else if (this.engine.highestBidder !== -1) {
             document.getElementById('bid-status').innerText = `${this.engine.currentBid} (${COMPASS_SHORT[this.engine.highestBidder]})`;
             if (this.engine.trumpRevealed) {
-                // Eliminate duplicate header trump pill once revealed next to bidder's seat on table
                 const tpEl = document.getElementById('trump-status');
-                if (tpEl) tpEl.style.display = 'none';
+                if (tpEl) {
+                    const suit = this.engine.trumpSuit || '♠';
+                    const suitColor = (suit === '♥' || suit === '♦') ? '#ef4444' : '#38bdf8';
+                    tpEl.style.display = 'inline-block';
+                    tpEl.innerHTML = `${t.trump}: <span style="color:${suitColor}; font-size:0.95rem; font-weight:bold;">${suit}</span>`;
+                }
             } else if (mySeat === this.engine.highestBidder && this.engine.trumpSuit) {
                 const suit = this.engine.trumpSuit; const suitColor = (suit === '♥' || suit === '♦') ? '#ef4444' : '#38bdf8';
                 const tpEl = document.getElementById('trump-status');
@@ -10510,10 +10526,16 @@ class UIController {
             this.engine.setTrump(suit);
             this.gameLoop();
         } else if (this.engine.phase === 'PLAYING') {
-            let moveIdx = this.engine.getBotPlay(player);
-            if (moveIdx === null || moveIdx === undefined || moveIdx < 0) {
-                let valids = this.engine.getValidPlayIndices(player);
-                moveIdx = (valids && valids.length > 0) ? valids[0] : 0;
+            const aiMove = this.engine.getAIPlay();
+            let moveIdx = aiMove ? aiMove.index : 0;
+            if (aiMove && aiMove.reveal) {
+                this.engine.revealTrump(player);
+            }
+            const legalMoves = (typeof this.engine.getValidPlayIndices === 'function')
+                ? this.engine.getValidPlayIndices(player)
+                : [];
+            if (legalMoves && legalMoves.length > 0 && !legalMoves.includes(moveIdx)) {
+                moveIdx = legalMoves[0];
             }
             this.engine.playCard(player, moveIdx);
             this.gameLoop();
@@ -11526,7 +11548,7 @@ document.addEventListener('keydown', function(e) {
 
     // R: Reveal trump
     if (key === 'r' || key === 'R') {
-        var revealBtn = document.getElementById('reveal-trump-btn');
+        var revealBtn = document.getElementById('reveal-btn');
         if (revealBtn && revealBtn.style.display !== 'none' && !revealBtn.disabled) {
             revealBtn.click();
         }
@@ -11535,13 +11557,18 @@ document.addEventListener('keydown', function(e) {
 
     // B: Pass bid
     if (key === 'b' || key === 'B') {
-        var passBtn = document.getElementById('pass-btn');
+        var passBtn = document.getElementById('modal-pass-btn') || document.getElementById('pass-btn');
         if (passBtn && passBtn.offsetParent !== null) passBtn.click();
         return;
     }
 
-    // Escape: close open drawers
+    // Escape: close open modals / drawers
     if (key === 'Escape') {
+        var logModal = document.getElementById('log-modal');
+        if (logModal && logModal.style.display === 'block' && typeof toggleLogModal === 'function') {
+            toggleLogModal();
+            return;
+        }
         var logDrawer = document.getElementById('log-drawer');
         if (logDrawer && logDrawer.classList.contains('open') && ui && ui.toggleLogDrawer) ui.toggleLogDrawer();
         var trackerDrawer = document.getElementById('tracker-drawer');
@@ -11629,8 +11656,8 @@ document.addEventListener('visibilitychange', () => {
             ui.syncTable();
             ui.renderStaticBoard();
             if (ui.engine.phase === 'PLAYING' && ui.engine.currentTurn === mySeat && mySeat !== 99) {
-                if (typeof updateYourTurnBanner === 'function') {
-                    updateYourTurnBanner(ui.engine, mySeat);
+                if (typeof showYourTurnBanner === 'function') {
+                    showYourTurnBanner('✨ YOUR TURN', 0);
                 }
             }
             if (!ui.animatingTrick && !ui.animatingReveal && !ui.dealingAnimationActive && ui.engine.phase !== 'ROUND_OVER') {
