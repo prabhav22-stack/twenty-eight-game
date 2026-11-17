@@ -2577,14 +2577,14 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
                     <div class="trc-subtitle">Grandmaster Telemetry & Counterfactual Audit</div>
                 </div>
             </div>
-            <div id="end-coach-grade-badge" class="trc-grade-badge">B+</div>
+            <div id="end-coach-grade-badge" class="trc-grade-badge">--</div>
         </div>
 
         <!-- Section 1: Phase 1 4-Card Bidding Audit -->
         <div class="trc-section" id="trc-bidding-section">
             <div class="trc-section-header">
                 <span class="trc-sec-title">PHASE 1: BIDDING AUDIT</span>
-                <span id="trc-bidding-pill" class="trc-pill pill-optimal">Optimal</span>
+                <span id="trc-bidding-pill" class="trc-pill pill-optimal">--</span>
             </div>
             <div id="trc-bidding-cards" class="trc-cards-row"></div>
             <div id="trc-bidding-summary" class="trc-body-text"></div>
@@ -2594,17 +2594,17 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
         <div class="trc-section trc-inflection" id="trc-turning-point-section">
             <div class="trc-section-header">
                 <span id="trc-tp-title" class="trc-sec-title">⚡ CRITICAL INFLECTION POINT</span>
-                <span id="trc-tp-drop-badge" class="trc-pill pill-drop">-38% Pace Drop</span>
+                <span id="trc-tp-drop-badge" class="trc-pill pill-drop">--</span>
             </div>
             <div class="trc-replay-row">
                 <div class="trc-card-compare">
                     <span class="trc-card-label">❌ Played:</span>
-                    <div id="trc-played-card" class="trc-mini-card red">9♦</div>
+                    <div id="trc-played-card" class="trc-mini-card" style="display:none;"></div>
                 </div>
                 <div class="trc-arrow">➔</div>
                 <div class="trc-card-compare">
                     <span class="trc-card-label">✅ Optimal:</span>
-                    <div id="trc-optimal-card" class="trc-mini-card red">7♦</div>
+                    <div id="trc-optimal-card" class="trc-mini-card" style="display:none;"></div>
                 </div>
             </div>
             <div id="trc-tp-explanation" class="trc-body-text"></div>
@@ -2615,10 +2615,10 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
             <div class="trc-synergy-box">
                 <div class="trc-synergy-header">
                     <span>Partner Synergy</span>
-                    <span id="trc-synergy-score" class="trc-synergy-pct">65%</span>
+                    <span id="trc-synergy-score" class="trc-synergy-pct">--%</span>
                 </div>
                 <div class="trc-progress-track">
-                    <div id="trc-synergy-bar" class="trc-progress-fill" style="width:65%;"></div>
+                    <div id="trc-synergy-bar" class="trc-progress-fill" style="width:0%;"></div>
                 </div>
                 <div id="trc-synergy-note" class="trc-micro-text"></div>
             </div>
@@ -11307,6 +11307,7 @@ class UIController {
             return;
         }
         document.getElementById('end-modal').style.display = 'block'; 
+        if (typeof hideYourTurnBanner === 'function') hideYourTurnBanner(); 
         let bidTeam = (this.engine.highestBidder === 0 || this.engine.highestBidder === 2) ? 1 : 2;
         let pts = bidTeam === 1 ? this.engine.t1TrickPts : this.engine.t2TrickPts;
         let t = I18N[currentLang] || I18N.en;
@@ -11368,10 +11369,26 @@ class UIController {
         let msg = `<div style="font-size:clamp(0.84rem, 1.7vh, 0.98rem); font-weight:700; color:${isUserWinner ? '#86efac' : (isUserLoser ? '#fca5a5' : 'var(--gold-bright)')}; margin-bottom:8px;">${outcomeText}</div>`;
         msg += `<b>${biddingTeamName}</b> ${isHi ? 'का लक्ष्य' : 'target'}: <b style="color:var(--gold-bright)">${this.engine.currentBid}</b> | ${isHi ? 'स्कोर' : 'Scored'}: <b>${pts}</b> ${t.pts}.<br><br>`;
 
-        if (this.engine.roundSuccess) {
-            msg += `<span style="color:var(--success); font-weight:700;">+${this.engine.gamePointsWon} ${t.gamePtsWon}</span>`;
+        if (isUserWinner) {
+            if (bidTeam === userTeam) {
+                msg += `<span style="color:var(--success); font-weight:700;">+${this.engine.gamePointsWon} ${t.gamePtsWon}</span>`;
+            } else {
+                let penPrefix = isHi ? 'विरोधी टीम पर दंड' : 'Opponents Penalized';
+                msg += `<span style="color:var(--success); font-weight:700;">${penPrefix}: -${this.engine.gamePointsWon} ${t.gamePtsPenalty}</span>`;
+            }
+        } else if (isUserLoser) {
+            if (bidTeam === userTeam) {
+                msg += `<span style="color:var(--danger); font-weight:700;">-${this.engine.gamePointsWon} ${t.gamePtsPenalty}</span>`;
+            } else {
+                let oppPrefix = isHi ? 'विरोधी टीम को' : 'Opponents Won';
+                msg += `<span style="color:var(--danger); font-weight:700;">${oppPrefix}: +${this.engine.gamePointsWon} ${t.gamePtsWon}</span>`;
+            }
         } else {
-            msg += `<span style="color:var(--danger); font-weight:700;">-${this.engine.gamePointsWon} ${t.gamePtsPenalty}</span>`;
+            if (this.engine.roundSuccess) {
+                msg += `<span style="color:var(--gold-bright); font-weight:700;">+${this.engine.gamePointsWon} ${t.gamePtsWon}</span>`;
+            } else {
+                msg += `<span style="color:var(--gold-bright); font-weight:700;">-${this.engine.gamePointsWon} ${t.gamePtsPenalty}</span>`;
+            }
         }
 
         if (isUserWinner) {
@@ -11398,9 +11415,18 @@ class UIController {
             if (arrow) arrow.innerText = '▾';
         }
 
-        let telemetry = this.engine.getRoundTelemetry();
+        let telemetry = null;
+        try {
+            telemetry = this.engine.getRoundTelemetry();
+        } catch (err) {
+            console.warn('[showEndModal] getRoundTelemetry fallback:', err);
+        }
         // Pre-render immediately with client-computed telemetry
-        this.renderTacticalReportCard(null, telemetry);
+        try {
+            this.renderTacticalReportCard(null, telemetry);
+        } catch (err) {
+            console.warn('[showEndModal] renderTacticalReportCard error:', err);
+        }
 
         BackendAPI.getRecap(
             this.engine.highestBidder,
@@ -11418,7 +11444,11 @@ class UIController {
             telemetry
         ).then(res => {
             if (res) {
-                this.renderTacticalReportCard(res, telemetry);
+                try {
+                    this.renderTacticalReportCard(res, telemetry);
+                } catch (err) {
+                    console.warn('[showEndModal] recap renderTacticalReportCard error:', err);
+                }
             }
         }).catch(() => {
             // Pre-render already visible
@@ -11506,6 +11536,11 @@ class UIController {
 
         let bSumEl = document.getElementById('trc-bidding-summary');
         let bSummary = (bData && bData.summary) ? bData.summary : ((telemetry && telemetry.bidding_audit) ? telemetry.bidding_audit.summary : '');
+        if (!bSummary || !bSummary.trim()) {
+            bSummary = isHi 
+                ? 'अनुशासित रक्षात्मक खेल: शुरुआती चालों में पत्तों को सुरक्षित रखकर टीम के लिए मजबूत आधार तैयार किया गया।'
+                : 'Disciplined play: South maintained solid position and saved key honors for defensive counters.';
+        }
         if (bSumEl) bSumEl.innerText = bSummary;
 
         // 2. Turning Point Section
@@ -11560,6 +11595,11 @@ class UIController {
         let tpExplanation = (tpData && tpData.explanation && tpData.explanation.trim()) 
             ? tpData.explanation 
             : ((telemetry && telemetry.turning_point && telemetry.turning_point.explanation) ? telemetry.turning_point.explanation : '');
+        if (!tpExplanation || !tpExplanation.trim()) {
+            tpExplanation = isHi
+                ? `ट्रिक ${tpTrickNum} इस राउंड की निर्णायक चाल रही जहाँ अंक और चाल का नियंत्रण तय हुआ।`
+                : `Trick ${tpTrickNum} was the pivotal inflection trick of the round, deciding crucial trick points.`;
+        }
         if (tpExpEl) tpExpEl.innerText = tpExplanation;
 
         // 3. Partner Synergy
@@ -11576,6 +11616,11 @@ class UIController {
         if (synBarEl) synBarEl.style.width = `${score}%`;
         
         let synNote = (synData && synData.note) ? synData.note : ((telemetry && telemetry.partner_synergy) ? telemetry.partner_synergy.note : '');
+        if (!synNote || !synNote.trim()) {
+            synNote = isHi
+                ? 'विंगमैन (नॉर्थ) के साथ तालमेल संतुलित रहा; अहम मौकों पर बड़े पत्तों का संरक्षण हुआ।'
+                : 'Wingman maintained discipline in defense, backing your leads on critical tricks.';
+        }
         if (synNoteEl) synNoteEl.innerText = synNote;
     }
 }
