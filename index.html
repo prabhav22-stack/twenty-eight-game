@@ -5690,7 +5690,7 @@ const BackendAPI = {
     async getRecap(biddingWinner, contract, biddingTeam, t1Pts, t2Pts, success, trumpSuit, pairDeclared, language, tricks, trumpRevealEvent, customNames, telemetry) {
         try {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 5500);
+            const timer = setTimeout(() => ctrl.abort(), 7500);
             const res = await fetch('/api/recap', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -5707,7 +5707,8 @@ const BackendAPI = {
                     tricks: tricks || [],
                     trump_reveal_event: trumpRevealEvent || null,
                     custom_names: customNames || null,
-                    telemetry: telemetry || null
+                    telemetry: telemetry || null,
+                    event_log: (telemetry && telemetry.event_log) ? telemetry.event_log : null
                 }),
                 signal: ctrl.signal
             });
@@ -6666,6 +6667,7 @@ class TwentyEightEngine {
         this.humanBlunders = [];
         this.trickSnapshots = [];
         this.pendingPrematureReveal = null;
+        this.roundEventLog = null;
     }
 
     resetRound() {
@@ -6709,6 +6711,7 @@ class TwentyEightEngine {
         this.humanBlunders = [];
         this.trickSnapshots = [];
         this.pendingPrematureReveal = null;
+        this.roundEventLog = null;
     }
 
     log(msg) {
@@ -6741,6 +6744,22 @@ class TwentyEightEngine {
         }
         this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
         this.deal1Hands = this.players.map(p => p.map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })));
+        const hSeatRedeal = (typeof mySeat !== 'undefined' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) ? mySeat : 0;
+        this.roundEventLog = {
+            roundId: Date.now(),
+            bidding: {
+                sequence: [],
+                winner: null,
+                contract: 16,
+                trumpSuit: null,
+                parPoints: 16,
+                humanDeal1: (this.players && this.players[hSeatRedeal]) ? this.players[hSeatRedeal].map(c => `${c.rank}${c.suit}`) : []
+            },
+            trumpReveal: null,
+            tricks: [],
+            swingMoments: [],
+            outcome: null
+        };
         this.phase = 'DEALING_1';
         this.log(`🔄 Redeal requested by Player ${pIndex} (0 points in hand). Fresh hands dealt!`);
     }
@@ -6766,6 +6785,22 @@ class TwentyEightEngine {
         }
         this.sortHand(0); this.sortHand(1); this.sortHand(2); this.sortHand(3);
         this.deal1Hands = this.players.map(p => p.map(c => ({ suit: c.suit, rank: c.rank, value: c.value, power: c.power })));
+        const humanSeat = (typeof mySeat !== 'undefined' && mySeat !== 99 && mySeat >= 0 && mySeat < 4) ? mySeat : 0;
+        this.roundEventLog = {
+            roundId: Date.now(),
+            bidding: {
+                sequence: [],
+                winner: null,
+                contract: 16,
+                trumpSuit: null,
+                parPoints: 16,
+                humanDeal1: (this.players && this.players[humanSeat]) ? this.players[humanSeat].map(c => `${c.rank}${c.suit}`) : []
+            },
+            trumpReveal: null,
+            tricks: [],
+            swingMoments: [],
+            outcome: null
+        };
         this.phase = 'DEALING_1';
         this.log("♣ Dealing first 4 cards — Bidding begins!");
     }
@@ -6785,6 +6820,9 @@ class TwentyEightEngine {
         if (this.currentTurn !== pIndex || this.phase !== 'BIDDING') return; 
         this.playerBids[pIndex] = val;
         this.biddingHistory.push({ player: pIndex, bid: val });
+        if (this.roundEventLog && this.roundEventLog.bidding) {
+            this.roundEventLog.bidding.sequence.push({ player: pIndex, bid: val });
+        }
 
         if (val === 'Pass') { 
             this.hasPassed[pIndex] = true;
@@ -6809,6 +6847,10 @@ class TwentyEightEngine {
             this.log("🔄 All passed — Dealer forced to 16.");
             this.currentBid = 16;
             this.highestBidder = pIndex;
+            if (this.roundEventLog && this.roundEventLog.bidding) {
+                this.roundEventLog.bidding.winner = this.highestBidder;
+                this.roundEventLog.bidding.contract = 16;
+            }
             this.phase = 'SET_TRUMP';
             this.currentTurn = this.highestBidder;
             if(this.callbacks.onBidWon) this.callbacks.onBidWon(this.highestBidder, 16);
@@ -6823,6 +6865,10 @@ class TwentyEightEngine {
         if (passedCount >= 3 && this.highestBidder !== -1) { 
             this.phase = 'SET_TRUMP'; 
             this.currentTurn = this.highestBidder;
+            if (this.roundEventLog && this.roundEventLog.bidding) {
+                this.roundEventLog.bidding.winner = this.highestBidder;
+                this.roundEventLog.bidding.contract = this.currentBid;
+            }
             this.log(`🎯 Player ${this.highestBidder} wins contract at ${this.currentBid}`); 
             if(this.callbacks.onBidWon) this.callbacks.onBidWon(this.highestBidder, this.currentBid);
             if(gameMode === 'multi' && isHost) {
@@ -7036,6 +7082,11 @@ class TwentyEightEngine {
         this.trumpSuit = suit;
         this.hiddenTrumpCard = null;
         this.hasHiddenTrump = false;
+        if (this.roundEventLog && this.roundEventLog.bidding) {
+            this.roundEventLog.bidding.trumpSuit = suit;
+            this.roundEventLog.bidding.winner = this.highestBidder;
+            this.roundEventLog.bidding.contract = this.currentBid;
+        }
         this.log(`🤫 Player ${this.highestBidder} chose Secret Trump.`);
         playSound('trump_select');
 
@@ -7506,6 +7557,22 @@ class TwentyEightEngine {
             this.pendingPrematureReveal = null;
         }
         this.roundTricks.push(trickRecord);
+        if (this.roundEventLog) {
+            this.roundEventLog.tricks.push({
+                trickNum: trickRecord.trickNum,
+                leadSeat: trickRecord.leader,
+                plays: (this.trickCards || []).map(tc => ({
+                    player: tc.player,
+                    card: tc.card ? `${tc.card.rank}${tc.card.suit}` : '',
+                    pts: (tc.card && tc.card.value !== undefined) ? tc.card.value : 0
+                })),
+                winningPlayer: trickRecord.winningPlayer,
+                winningTeam: trickRecord.winningTeam,
+                points: trickRecord.points,
+                t1Total: trickRecord.t1TotalAfter,
+                t2Total: trickRecord.t2TotalAfter
+            });
+        }
         this.justRevealedInCurrentTrick = false;
         this.justRevealedByPlayer = -1;
 
@@ -7519,6 +7586,15 @@ class TwentyEightEngine {
         if (totalRemaining === 0 && this.roundTricks.length >= 8) {
             if (!this.trumpRevealed) this.revealTrump(this.highestBidder, true);
             this.calculateRoundScore();
+            if (this.roundEventLog) {
+                this.roundEventLog.outcome = {
+                    t1Pts: this.t1TrickPts,
+                    t2Pts: this.t2TrickPts,
+                    contract: this.currentBid,
+                    biddingTeam: (this.highestBidder === 0 || this.highestBidder === 2) ? 1 : 2,
+                    success: this.roundSuccess
+                };
+            }
             this.phase = 'ROUND_OVER';
         } else {
             this.phase = 'PLAYING';
@@ -7749,28 +7825,50 @@ class TwentyEightEngine {
             }
         }
 
-        // Fallback / Alignment for Turning Point
+        // Fallback / Alignment for Turning Point (strictly from actual roundTricks / swingMoments)
         let trickBlunder = this.humanBlunders && this.humanBlunders.length > 0 ? this.humanBlunders[0] : null;
         if (maxRegret <= 0.5) {
             if (trickBlunder) {
-                bestInflectionTrick = trickBlunder.trickNum || 4;
-                bestCardPlayed = trickBlunder.cardPlayed || '7♠';
+                bestInflectionTrick = trickBlunder.trickNum || 1;
+                bestCardPlayed = trickBlunder.cardPlayed || null;
                 bestOptimalCard = trickBlunder.optimalCard || bestCardPlayed;
-            } else {
-                bestInflectionTrick = 4;
-                if (!bestCardPlayed) bestCardPlayed = '7♠';
-                if (!bestOptimalCard) bestOptimalCard = bestCardPlayed;
+            } else if (this.roundTricks && this.roundTricks.length > 0) {
+                // No blunder: select decisive trick (max points, tie-break by J/9 honor capture)
+                let decisive = this.roundTricks[0];
+                let bestScore = -1;
+                for (let t of this.roundTricks) {
+                    let hasHonor = (t.plays || []).some(p => p.card && (p.card.rank === 'J' || p.card.rank === '9'));
+                    let sc = (t.points || 0) * 10 + (hasHonor ? 1 : 0);
+                    if (sc > bestScore) {
+                        bestScore = sc;
+                        decisive = t;
+                    }
+                }
+                bestInflectionTrick = decisive.trickNum || (this.roundTricks.indexOf(decisive) + 1);
+                let hp = (decisive.plays || []).find(p => p.player === humanSeat);
+                bestCardPlayed = (hp && hp.card) ? `${hp.card.rank}${hp.card.suit}` : null;
+                bestOptimalCard = bestCardPlayed;
             }
+        } else if (this.roundEventLog && this.roundEventLog.swingMoments && this.roundEventLog.swingMoments.length === 0 && bestCardPlayed) {
+            this.roundEventLog.swingMoments.push({
+                trickNum: bestInflectionTrick,
+                player: humanSeat,
+                cardPlayed: bestCardPlayed,
+                optimalCard: bestOptimalCard,
+                regret: Math.round(maxRegret * 10) / 10
+            });
         }
 
-        let dropPct = Math.min(65, Math.max(15, Math.round((Math.max(1.0, maxRegret) / (team1Target || 16)) * 100)));
-        let winProbDropStr = `-${dropPct}%`;
+        let dropPct = maxRegret > 0.5
+            ? Math.min(65, Math.max(15, Math.round((maxRegret / (team1Target || 16)) * 100)))
+            : 0;
+        let winProbDropStr = dropPct > 0 ? `-${dropPct}%` : `0%`;
 
         // Rich Game-Aware Inflection Point Explanation
-        let pRank = bestCardPlayed ? bestCardPlayed.slice(0, -1) : '7';
-        let pSuit = bestCardPlayed ? bestCardPlayed.slice(-1) : '♠';
-        let oRank = bestOptimalCard ? bestOptimalCard.slice(0, -1) : '7';
-        let oSuit = bestOptimalCard ? bestOptimalCard.slice(-1) : '♠';
+        let pRank = bestCardPlayed ? bestCardPlayed.slice(0, -1) : '';
+        let pSuit = bestCardPlayed ? bestCardPlayed.slice(-1) : '';
+        let oRank = bestOptimalCard ? bestOptimalCard.slice(0, -1) : '';
+        let oSuit = bestOptimalCard ? bestOptimalCard.slice(-1) : '';
         let playedPtVal = (pRank === 'J' ? 3 : (pRank === '9' ? 2 : ((pRank === 'A' || pRank === '10') ? 1 : 0)));
         let optPtVal = (oRank === 'J' ? 3 : (oRank === '9' ? 2 : ((oRank === 'A' || oRank === '10') ? 1 : 0)));
 
@@ -7789,33 +7887,39 @@ class TwentyEightEngine {
             bestInflectionDetail = isHi
                 ? `अनावश्यक बड़ा पत्ता: साथी पहले ही यह चाल जीत रहा था। ${bestCardPlayed} खेलने के बजाय ${bestOptimalCard} बचाकर रखना भविष्य की चालों के लिए बेहतर होता।`
                 : `Redundant Honor: Partner had already secured Trick ${bestInflectionTrick}. Playing ${bestCardPlayed} duplicated high cards; exiting with ${bestOptimalCard} saves your honors for later tricks.`;
-        } else if (pSuit === this.trumpSuit && oSuit !== this.trumpSuit) {
+        } else if (pSuit === this.trumpSuit && oSuit !== this.trumpSuit && pSuit) {
             bestInflectionDetail = isHi
                 ? `हुकुम का जल्दबाजी में उपयोग: ${bestCardPlayed} खेलने से हुकुम का नियंत्रण कमजोर हुआ। दूसरा पत्ता ${bestOptimalCard} चलना बेहतर रहता।`
                 : `Premature Trump Play: Trumping with ${bestCardPlayed} weakened your team's long-term trump barrier. Discarding ${bestOptimalCard} preserves trump length for the endgame.`;
-        } else if (playedPtVal < optPtVal) {
+        } else if (playedPtVal < optPtVal && bestCardPlayed) {
             bestInflectionDetail = isHi
                 ? `चाल जीतने का मौका गंवाया: ${bestCardPlayed} चलने से विरोधियों को सस्ती चाल मिली। ${bestOptimalCard} खेलकर महत्वपूर्ण अंक जीते जा सकते थे।`
                 : `Missed Capture Window: Playing low card ${bestCardPlayed} allowed opponents to take the trick cheaply. Stepping up with ${bestOptimalCard} would have secured vital trick points.`;
-        } else {
+        } else if (bestCardPlayed) {
             bestInflectionDetail = isHi
                 ? `निर्णायक मोड़: ट्रिक ${bestInflectionTrick} पर ${bestOptimalCard} खेलना ${bestCardPlayed} की तुलना में अधिक सुरक्षित और रक्षात्मक था (${winProbDropStr} पेस)।`
                 : `Decisive Turning Point: Trick ${bestInflectionTrick} swung contract equity by ${winProbDropStr}. Playing ${bestOptimalCard} instead of ${bestCardPlayed} preserves high tenaces.`;
+        } else {
+            bestInflectionDetail = isHi
+                ? `ट्रिक ${bestInflectionTrick} राउंड की सबसे महत्वपूर्ण चाल रही जिसमें मुख्य अंक तय हुए।`
+                : `Trick ${bestInflectionTrick} was the key trick of the round, securing critical points toward the contract.`;
         }
 
         let turningPointData = {
-            trickNumber: bestInflectionTrick || 4,
+            trickNumber: bestInflectionTrick || 1,
             winProbDrop: winProbDropStr,
-            cardPlayed: bestCardPlayed || '7♠',
-            optimalCard: bestOptimalCard || bestCardPlayed || '7♠',
+            cardPlayed: bestCardPlayed || '',
+            optimalCard: bestOptimalCard || bestCardPlayed || '',
             explanation: bestInflectionDetail,
             allHands: (this.trickSnapshots && this.trickSnapshots[bestInflectionTrick - 1]) ? this.trickSnapshots[bestInflectionTrick - 1].hands : null
         };
 
-        // 4. Guaranteed Deal 1 Cards & Rubric Bidding Audit
-        let deal1Cards = (this.deal1Hands && this.deal1Hands[humanSeat] && this.deal1Hands[humanSeat].length)
-            ? this.deal1Hands[humanSeat].map(c => `${c.rank}${c.suit}`)
-            : [];
+        // 4. Guaranteed Deal 1 Cards strictly from roundEventLog / actual deal
+        let deal1Cards = (this.roundEventLog && this.roundEventLog.bidding && this.roundEventLog.bidding.humanDeal1 && this.roundEventLog.bidding.humanDeal1.length)
+            ? this.roundEventLog.bidding.humanDeal1
+            : ((this.deal1Hands && this.deal1Hands[humanSeat] && this.deal1Hands[humanSeat].length)
+                ? this.deal1Hands[humanSeat].map(c => `${c.rank}${c.suit}`)
+                : []);
         if (!deal1Cards.length && this.trickSnapshots && this.trickSnapshots[0] && this.trickSnapshots[0].hands && this.trickSnapshots[0].hands[humanSeat]) {
             deal1Cards = this.trickSnapshots[0].hands[humanSeat].slice(0, 4).map(c => `${c.rank}${c.suit}`);
         }
@@ -7829,8 +7933,15 @@ class TwentyEightEngine {
             }
             if (played.length > 0) deal1Cards = played.slice(0, 4);
         }
-        if (!deal1Cards.length) {
-            deal1Cards = ['J♠', '9♦', 'K♥', '7♣']; // Safe visual fallback
+
+        if (this.roundEventLog && this.roundEventLog.bidding) {
+            this.roundEventLog.bidding.parPoints = parPoints;
+            this.roundEventLog.bidding.winner = this.highestBidder;
+            this.roundEventLog.bidding.contract = this.currentBid;
+            this.roundEventLog.bidding.trumpSuit = this.trumpSuit;
+            if (!this.roundEventLog.bidding.humanDeal1.length && deal1Cards.length) {
+                this.roundEventLog.bidding.humanDeal1 = deal1Cards;
+            }
         }
 
         let d1HonorPts = deal1Cards.reduce((acc, cStr) => {
@@ -7954,9 +8065,9 @@ class TwentyEightEngine {
                 summary: biddingSummary
             },
             inflection_point: {
-                trick_number: bestInflectionTrick || 4,
-                card_played: bestCardPlayed || '7♠',
-                optimal_card: bestOptimalCard || bestCardPlayed || '7♠',
+                trick_number: bestInflectionTrick || 1,
+                card_played: bestCardPlayed || '',
+                optimal_card: bestOptimalCard || bestCardPlayed || '',
                 regret_pts: Math.round(maxRegret * 10) / 10,
                 win_pace_drop: winProbDropStr,
                 explanation: bestInflectionDetail
@@ -7983,7 +8094,8 @@ class TwentyEightEngine {
             bidding_audit: biddingAuditData,
             partner_synergy: { score: synergyScore, note: synergyNote },
             bot_locker_room: { speaker: botSpeaker, taunt: botTaunt },
-            audit_ledger: auditLedger
+            audit_ledger: auditLedger,
+            event_log: this.roundEventLog
         };
     }
 
@@ -8030,6 +8142,14 @@ class TwentyEightEngine {
             }
             if (!this.trumpRevealEvent) {
                 this.trumpRevealEvent = {
+                    trickNum: this.roundTricks.length + 1,
+                    player: requesterIndex,
+                    seat: COMPASS_FULL[requesterIndex] || `Player ${requesterIndex}`,
+                    suit: this.trumpSuit
+                };
+            }
+            if (this.roundEventLog && !this.roundEventLog.trumpReveal) {
+                this.roundEventLog.trumpReveal = {
                     trickNum: this.roundTricks.length + 1,
                     player: requesterIndex,
                     seat: COMPASS_FULL[requesterIndex] || `Player ${requesterIndex}`,
@@ -11367,9 +11487,11 @@ class UIController {
             bRatingEl.className = 'trc-pill ' + (bRating.includes('Optimal') || bRating.includes('उत्कृष्ट') ? 'pill-optimal' : ((bRating.includes('Overbid') || bRating.includes('जोखिम')) ? 'pill-drop' : 'pill-warn'));
         }
 
-        let d1Cards = (telemetry && telemetry.bidding_audit && telemetry.bidding_audit.deal1_cards && telemetry.bidding_audit.deal1_cards.length) 
-            ? telemetry.bidding_audit.deal1_cards 
-            : ['J♠', '9♦', 'K♥', '7♣'];
+        let d1Cards = (telemetry && telemetry.event_log && telemetry.event_log.bidding && telemetry.event_log.bidding.humanDeal1 && telemetry.event_log.bidding.humanDeal1.length) 
+            ? telemetry.event_log.bidding.humanDeal1 
+            : ((telemetry && telemetry.bidding_audit && telemetry.bidding_audit.deal1_cards && telemetry.bidding_audit.deal1_cards.length) 
+                ? telemetry.bidding_audit.deal1_cards 
+                : []);
 
         let bCardsEl = document.getElementById('trc-bidding-cards');
         if (bCardsEl) {
@@ -11387,43 +11509,51 @@ class UIController {
         if (bSumEl) bSumEl.innerText = bSummary;
 
         // 2. Turning Point Section
-        let tpData = (res && res.turningPointTrick && res.turningPointTrick.cardPlayed) 
+        let tpData = (res && res.turningPointTrick && res.turningPointTrick.trickNumber) 
             ? res.turningPointTrick 
             : (telemetry ? telemetry.turning_point : {});
-        let tpTrickNum = tpData.trickNumber || 4;
+        let tpTrickNum = tpData.trickNumber || (telemetry && telemetry.turning_point ? telemetry.turning_point.trickNumber : 1);
         let tpTitleEl = document.getElementById('trc-tp-title');
         if (tpTitleEl) {
             tpTitleEl.innerText = isHi ? `⚡ निर्णायक मोड़: ट्रिक ${tpTrickNum}` : `⚡ INFLECTION POINT: TRICK ${tpTrickNum}`;
         }
         let tpDropEl = document.getElementById('trc-tp-drop-badge');
         if (tpDropEl) {
-            let dropText = tpData.winProbDrop ? `${tpData.winProbDrop} Pace` : '-30% Pace';
+            let dropText = tpData.winProbDrop ? `${tpData.winProbDrop} Pace` : '0% Pace';
             tpDropEl.innerText = dropText;
         }
 
-        let cardPlayedStr = tpData.cardPlayed || (telemetry && telemetry.turning_point ? telemetry.turning_point.cardPlayed : '9♦');
-        let optimalCardStr = tpData.optimalCard || (telemetry && telemetry.turning_point ? telemetry.turning_point.optimalCard : '7♦');
+        let cardPlayedStr = tpData.cardPlayed || (telemetry && telemetry.turning_point ? telemetry.turning_point.cardPlayed : '') || '';
+        let optimalCardStr = tpData.optimalCard || (telemetry && telemetry.turning_point ? telemetry.turning_point.optimalCard : '') || cardPlayedStr;
 
         let playedEl = document.getElementById('trc-played-card');
-        if (playedEl && cardPlayedStr) {
-            let rank = cardPlayedStr.slice(0, -1);
-            let suit = cardPlayedStr.slice(-1);
-            let isRed = (suit === '♥' || suit === '♦');
-            let pts = (rank === 'J' ? 3 : (rank === '9' ? 2 : ((rank === 'A' || rank === '10') ? 1 : 0)));
-            playedEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
-            playedEl.innerHTML = `${rank}${suit} <span style="font-size:0.55rem; color:#94a3b8; margin-left:2px;">(${pts}p)</span>`;
-            playedEl.style.display = 'inline-flex';
+        if (playedEl) {
+            if (cardPlayedStr) {
+                let rank = cardPlayedStr.slice(0, -1);
+                let suit = cardPlayedStr.slice(-1);
+                let isRed = (suit === '♥' || suit === '♦');
+                let pts = (rank === 'J' ? 3 : (rank === '9' ? 2 : ((rank === 'A' || rank === '10') ? 1 : 0)));
+                playedEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
+                playedEl.innerHTML = `${rank}${suit} <span style="font-size:0.55rem; color:#94a3b8; margin-left:2px;">(${pts}p)</span>`;
+                playedEl.style.display = 'inline-flex';
+            } else {
+                playedEl.style.display = 'none';
+            }
         }
 
         let optEl = document.getElementById('trc-optimal-card');
-        if (optEl && optimalCardStr) {
-            let rank = optimalCardStr.slice(0, -1);
-            let suit = optimalCardStr.slice(-1);
-            let isRed = (suit === '♥' || suit === '♦');
-            let pts = (rank === 'J' ? 3 : (rank === '9' ? 2 : ((rank === 'A' || rank === '10') ? 1 : 0)));
-            optEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
-            optEl.innerHTML = `${rank}${suit} <span style="font-size:0.55rem; color:#94a3b8; margin-left:2px;">(${pts}p)</span>`;
-            optEl.style.display = 'inline-flex';
+        if (optEl) {
+            if (optimalCardStr) {
+                let rank = optimalCardStr.slice(0, -1);
+                let suit = optimalCardStr.slice(-1);
+                let isRed = (suit === '♥' || suit === '♦');
+                let pts = (rank === 'J' ? 3 : (rank === '9' ? 2 : ((rank === 'A' || rank === '10') ? 1 : 0)));
+                optEl.className = `trc-mini-card ${isRed ? 'red' : 'black'}`;
+                optEl.innerHTML = `${rank}${suit} <span style="font-size:0.55rem; color:#94a3b8; margin-left:2px;">(${pts}p)</span>`;
+                optEl.style.display = 'inline-flex';
+            } else {
+                optEl.style.display = 'none';
+            }
         }
 
         let tpExpEl = document.getElementById('trc-tp-explanation');

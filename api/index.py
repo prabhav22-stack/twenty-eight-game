@@ -100,6 +100,59 @@ def get_groq_api_key():
         pass
     return None
 
+def get_gemini_api_key():
+    """Retrieves GEMINI_API_KEY from environment or local .env.local file without committing secrets."""
+    key = os.environ.get("GEMINI_API_KEY")
+    if key and key.strip():
+        return key.strip().strip('"').strip("'")
+    try:
+        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env.local')
+        if os.path.exists(env_path):
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('GEMINI_API_KEY='):
+                        return line.strip().split('=', 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return None
+
+def call_gemini(system_prompt, user_prompt, timeout=4.5):
+    """Executes ultra-fast structured JSON inference via Google Gemini REST API."""
+    key = get_gemini_api_key()
+    if not key:
+        return None
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": key
+    }
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "temperature": 0.2
+        }
+    }
+    models = ["gemini-3.1-flash-lite", "gemini-flash-lite-latest"]
+    for model_name in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                res = json.loads(response.read().decode('utf-8'))
+                candidates = res.get('candidates', [])
+                if not candidates:
+                    continue
+                raw_content = candidates[0]['content']['parts'][0]['text'].strip()
+                if raw_content.startswith("```"):
+                    lines = raw_content.split("\n")
+                    if len(lines) > 2 and lines[0].startswith("```"):
+                        raw_content = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+                return json.loads(raw_content)
+        except Exception:
+            continue
+    return None
+
 def call_openrouter(messages, timeout=4.5, preferred_model=None):
     """Executes AI inference via OpenRouter (defaults to nvidia/nemotron-3.5-super-vl:free)."""
     key = get_openrouter_api_key()
@@ -114,11 +167,10 @@ def call_openrouter(messages, timeout=4.5, preferred_model=None):
     }
     target_model = preferred_model or os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
     models = [target_model]
-    if target_model != DEFAULT_OPENROUTER_MODEL:
-        models.append(DEFAULT_OPENROUTER_MODEL)
-    models.extend(["meta-llama/llama-3.3-70b-instruct:free", "google/gemini-2.0-flash-exp:free"])
+    if target_model != "meta-llama/llama-3.3-70b-instruct:free":
+        models.append("meta-llama/llama-3.3-70b-instruct:free")
 
-    for model_name in models:
+    for model_name in models[:2]:
         payload = {
             "model": model_name,
             "response_format": {"type": "json_object"},
@@ -156,7 +208,7 @@ def call_groq(messages, timeout=4.5, preferred_model=None):
         "Content-Type": "application/json",
         "User-Agent": "TwentyEightGame/1.0"
     }
-    groq_models = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b", "llama-3.1-8b-instant"]
+    groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
     for model_name in groq_models:
         payload = {
             "model": model_name,
@@ -765,10 +817,10 @@ def evaluate_ai_play(hand, trick_cards, lead_suit, trump_suit, trump_revealed, p
 SUITS_MAP_EN = {'♥': 'Hearts', '♦': 'Diamonds', '♣': 'Clubs', '♠': 'Spades'}
 SUITS_MAP_HI = {'♥': 'पान (Hearts)', '♦': 'ईंट (Diamonds)', '♣': 'चिड़ी (Clubs)', '♠': 'हुकुम (Spades)'}
 
-def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts, success, trump_suit, pair_declared, language='en', tricks=None, trump_reveal_event=None, custom_names=None, telemetry=None):
+def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts, success, trump_suit, pair_declared, language='en', tricks=None, trump_reveal_event=None, custom_names=None, telemetry=None, event_log=None):
     """
-    Generates deeply analytical, event-grounded AI Grandmaster post-match coaching using Groq LLM
-    and client-pre-computed telemetry (blunders, contract pace delta, double-dummy turning points, and bidding audit).
+    Generates deeply analytical, event-grounded AI Grandmaster post-match coaching using Gemini
+    (with Groq fallback) grounded strictly in the client-captured Event-Sourced roundEventLog.
     Outputs a structured Tactical Report Card JSON payload.
     """
     winner_name = SEAT_NAMES[bidding_winner] if bidding_winner in range(4) else f"Player {bidding_winner}"
@@ -812,40 +864,80 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
             verdict_en = f"Contract Defeated (-{abs_diff} pts)"
             verdict_hi = f"अनुबंध असफल (-{abs_diff} अंक)"
 
-    # Parse telemetry elements and Causal Ledger
+    # Parse Event-Sourced Log & Telemetry
     telemetry = telemetry or {}
+    event_log = event_log or telemetry.get('event_log') or {}
     audit_ledger = telemetry.get('audit_ledger') or {}
     blunders = telemetry.get('blunders', [])
     turning_point = telemetry.get('turning_point', {})
     bidding_audit = telemetry.get('bidding_audit', {})
-    pace_graph = telemetry.get('pace_graph', [])
     partner_synergy = telemetry.get('partner_synergy', {})
-    bot_locker_room = telemetry.get('bot_locker_room', {})
+
+    el_bidding = event_log.get('bidding') or {}
+    el_tricks = event_log.get('tricks') or tricks or []
+    el_swings = event_log.get('swingMoments') or []
+    el_reveal = event_log.get('trumpReveal') or trump_reveal_event
+    el_outcome = event_log.get('outcome') or {
+        't1Pts': t1_pts,
+        't2Pts': t2_pts,
+        'contract': contract,
+        'success': success
+    }
 
     al_bidding = audit_ledger.get('bidding', {})
     al_inflection = audit_ledger.get('inflection_point', {})
     al_synergy = audit_ledger.get('partner_synergy', {})
 
-    # Extract turning point trick grounded in causal ledger
-    tp_trick_num = al_inflection.get('trick_number') or turning_point.get('trickNumber') or turning_point.get('trickNum')
-    if not tp_trick_num:
-        if tricks and len(tricks) > 0:
-            max_t = max(tricks, key=lambda t: t.get('points', 0) if isinstance(t, dict) else 0)
-            tp_trick_num = max_t.get('trickNum', 4) if isinstance(max_t, dict) else 4
-        else:
-            tp_trick_num = 4
+    # Extract turning point strictly from event_log swingMoments or decisive trick
+    top_swing = el_swings[0] if el_swings else None
+    decisive_trick = None
+    if not top_swing and el_tricks:
+        decisive_trick = max(
+            [t for t in el_tricks if isinstance(t, dict)],
+            key=lambda t: (t.get('points', 0), 1 if any(str(p.get('card', '')).startswith(('J', '9')) for p in t.get('plays', []) if isinstance(p, dict)) else 0),
+            default=None
+        )
 
-    tp_drop = al_inflection.get('win_pace_drop') or turning_point.get('winProbDrop') or turning_point.get('paceDrop') or "-25%"
-    tp_card_played = al_inflection.get('card_played') or turning_point.get('cardPlayed') or turning_point.get('southCard') or ""
+    tp_trick_num = (
+        (top_swing.get('trickNum') if top_swing else None)
+        or al_inflection.get('trick_number')
+        or turning_point.get('trickNumber')
+        or turning_point.get('trickNum')
+        or (decisive_trick.get('trickNum') if decisive_trick else None)
+        or (len(el_tricks) if el_tricks else 1)
+    )
+
+    if not tp_trick_num:
+        tp_trick_num = 1
+
+    tp_drop = al_inflection.get('win_pace_drop') or turning_point.get('winProbDrop') or turning_point.get('paceDrop') or ("-20%" if top_swing else "0%")
+    tp_card_played = (
+        (top_swing.get('cardPlayed') if top_swing else None)
+        or al_inflection.get('card_played')
+        or turning_point.get('cardPlayed')
+        or turning_point.get('southCard')
+        or ""
+    )
+    if not tp_card_played and decisive_trick and isinstance(decisive_trick.get('plays'), list):
+        south_play = next((p for p in decisive_trick['plays'] if isinstance(p, dict) and p.get('player') == 0), None)
+        if south_play:
+            c_obj = south_play.get('card')
+            tp_card_played = c_obj if isinstance(c_obj, str) else (f"{c_obj.get('rank', '')}{c_obj.get('suit', '')}" if isinstance(c_obj, dict) else "")
     if tp_card_played == "Card":
         tp_card_played = ""
-    tp_optimal_card = al_inflection.get('optimal_card') or turning_point.get('optimalCard') or ""
+
+    tp_optimal_card = (
+        (top_swing.get('optimalCard') if top_swing else None)
+        or al_inflection.get('optimal_card')
+        or turning_point.get('optimalCard')
+        or tp_card_played
+    )
     if tp_optimal_card == "Safe Exit":
         tp_optimal_card = ""
     tp_explanation = al_inflection.get('explanation') or turning_point.get('explanation') or turning_point.get('reason') or ""
 
     # Calculate overall grade based on outcome and blunders
-    blunder_count = len(blunders)
+    blunder_count = len(el_swings) if el_swings else len(blunders)
     if success:
         if diff >= 4 and blunder_count == 0: grade = "A+"
         elif diff >= 2 and blunder_count <= 1: grade = "A"
@@ -858,46 +950,58 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
         elif abs_diff >= 5 or blunder_count >= 3: grade = "D"
         else: grade = "C"
 
-    # Default speaker and taunt for locker room
-    if success:
-        default_speaker = "Wingman (North)"
-        default_taunt = (
-            f"शानदार तालमेल! हुकुम {suit_hi} का सटीक उपयोग करके अनुबंध पूरा किया।"
-            if language == 'hi' else
-            f"Outstanding partnership play! Controlling {suit_en} sealed the {contract}-point contract."
-        )
-    else:
-        default_speaker = "Saboteur (West)"
-        default_taunt = (
-            f"ट्रिक {tp_trick_num} पर आपकी चाल ने मैच का पासा पलट दिया।"
-            if language == 'hi' else
-            f"Your move in Trick {tp_trick_num} handed us the momentum—breaking {contract} was easy."
-        )
-
-    # First 4 cards bidding details
-    deal1_cards = al_bidding.get('deal1_cards') or bidding_audit.get('deal1_cards', [])
-    deal1_str = ", ".join(deal1_cards) if deal1_cards else "Standard deal"
-    deal2_cards = al_bidding.get('deal2_cards') or bidding_audit.get('deal2_cards', [])
-    deal2_str = ", ".join(deal2_cards) if deal2_cards else "Standard deal"
+    # First 4 cards bidding details strictly from event_log / audit
+    deal1_cards = el_bidding.get('humanDeal1') or al_bidding.get('deal1_cards') or bidding_audit.get('deal1_cards') or []
+    deal1_str = ", ".join(deal1_cards) if deal1_cards else "Unavailable"
     b_rating = al_bidding.get('rating') or bidding_audit.get('rating', 'Optimal' if success else 'Aggressive')
-    b_ev = al_bidding.get('par_points') or bidding_audit.get('ev', 16)
+    b_ev = el_bidding.get('parPoints') or al_bidding.get('par_points') or bidding_audit.get('ev', 16)
     human_bid_val = al_bidding.get('human_bid') or bidding_audit.get('human_bid', contract)
     b_summary_base = al_bidding.get('summary') or bidding_audit.get('summary', '')
 
     synergy_score = al_synergy.get('score') if 'score' in al_synergy else partner_synergy.get('score', 75 if success else 60)
     synergy_note_base = al_synergy.get('note') or partner_synergy.get('note', '')
 
-    # Call LLM for narrative styling only (using pure-text reasoning model)
+    # Grounded Event-Sourced JSON summary (no raw solver math)
     is_human_declarer = (bidding_winner == 0)
+    compact_tricks = []
+    for t in el_tricks:
+        if isinstance(t, dict):
+            compact_tricks.append({
+                "trickNum": t.get("trickNum"),
+                "plays": t.get("plays", []),
+                "winningPlayer": t.get("winningPlayer"),
+                "points": t.get("points", 0)
+            })
+
+    round_event_summary = {
+        "playerRole": "DECLARER" if is_human_declarer else "DEFENDER",
+        "contract": {
+            "winner": winner_name,
+            "target": contract,
+            "trumpSuit": f"{suit_en} ({trump_suit})"
+        },
+        "humanDeal1": deal1_cards,
+        "humanAction": f"Bid {human_bid_val}" if is_human_declarer else "Passed",
+        "biddingRating": b_rating,
+        "trumpReveal": el_reveal,
+        "inflectionTrick": {
+            "trickNumber": tp_trick_num,
+            "cardPlayed": tp_card_played,
+            "optimalCard": tp_optimal_card,
+            "isBlunder": bool(top_swing)
+        },
+        "tricks": compact_tricks,
+        "outcome": el_outcome
+    }
 
     system_prompt = (
         "You are an elite Twenty-Eight (28) card game grandmaster coach.\n"
-        "Deliver an insightful, razor-sharp tactical post-match analysis strictly grounded in the causal ledger provided.\n\n"
+        "Deliver an insightful, razor-sharp tactical post-match analysis strictly grounded in the roundEventLog JSON provided.\n\n"
         "CRITICAL COACHING RULES FOR TWENTY-EIGHT (28):\n"
-        "1. STRICT TRUTH: Reference ONLY the exact cards and suits South actually held in Deal 1. If South held Spades and Hearts, NEVER mention Clubs or Diamonds. Do not hallucinate cards!\n"
-        "2. ROLE ACCURACY: If South did not win the bid, South was the DEFENDER. NEVER say South bid 16 or selected trump when South was defending!\n"
-        "3. TRICK ISOLATION: In turningPointTrick.explanation, discuss ONLY the specified inflection trick. DO NOT combine or mention other trick numbers.\n"
-        "4. LEGAL PLAYS ONLY: The optimalCard is pre-computed as a strictly legal play for that trick. Do not suggest other cards.\n"
+        "1. STRICT TRUTH: Reference ONLY the exact cards and suits in humanDeal1 and tricks. Do not hallucinate cards!\n"
+        "2. ROLE ACCURACY: If playerRole is DEFENDER, NEVER say South won the bid or selected trump!\n"
+        "3. TRICK ISOLATION: In turningPointTrick.explanation, discuss ONLY inflectionTrick.trickNumber. Do not combine other trick numbers.\n"
+        "4. LEGAL PLAYS ONLY: Use only the exact cardPlayed and optimalCard provided.\n"
         "5. Respect 28 card hierarchy: strictly J (3pts) > 9 (2pts) > A (1pt) > 10 (1pt) > K (0) > Q (0) > 8 (0) > 7 (0).\n"
         "6. Return ONLY valid JSON format matching the schema exactly.\n\n"
         "OUTPUT JSON SCHEMA:\n"
@@ -922,35 +1026,24 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
     )
     if language == 'hi':
         system_prompt += (
-            "\n- LANGUAGE REQUIREMENT: Write summary, explanation, note, and taunt in authentic Hindi (Devanagari script), "
+            "\n- LANGUAGE REQUIREMENT: Write summary, explanation, and note in authentic Hindi (Devanagari script), "
             "as spoken by a seasoned Indian 28 grandmaster."
         )
 
-    role_desc = "South was the DECLARER / CONTRACTOR" if is_human_declarer else f"South was DEFENDER against {winner_name}'s {contract}-pt contract"
-    user_prompt = (
-        f"Match Context & Pre-Computed Causal Ledger:\n"
-        f"- Player Role: {role_desc}\n"
-        f"- Contract Bid: {contract} pts by {winner_name} | Trump: {suit_en} ({trump_suit})\n"
-        f"- Final Score: Team 1 (South & North) = {t1_pts}/28 pts | Team 2 (East & West) = {t2_pts}/28 pts\n"
-        f"- Match Outcome: {'VICTORY (Contract Fulfilled)' if success else f'DEFEATED by {abs_diff} pts'}\n"
-        f"- South's Deal 1: [{deal1_str}] | South Action: {'Bid ' + str(human_bid_val) if is_human_declarer else 'Passed'} | Par: {b_ev} | Rating: {b_rating}\n"
-        f"- Deterministic Bidding Assessment: {b_summary_base}\n"
-        f"- Critical Inflection Point: Trick {tp_trick_num} (Win Pace Drop: {tp_drop})\n"
-        f"  * South Card Played: {tp_card_played}\n"
-        f"  * Recommended Legal Card: {tp_optimal_card}\n"
-        f"  * Tactical Context: {tp_explanation}\n"
-        f"- Partner Synergy Score: {synergy_score}% - {synergy_note_base}\n"
-        f"Generate the exact structured JSON Tactical Report Card translating these verified facts into narrative prose."
-    )
+    user_prompt = f"roundEventLog:\n{json.dumps(round_event_summary, ensure_ascii=False)}"
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt}
-    ]
+    # Primary: ultra-fast Gemini (< 3.5s)
+    res = call_gemini(system_prompt, user_prompt, timeout=4.5)
+    # Fallback: Groq (tightened 3.0s timeout)
+    if not res:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        res = call_groq(messages, timeout=3.0, preferred_model=RECAP_PREFERRED_MODEL)
 
-    res = call_groq(messages, timeout=6.0, preferred_model=RECAP_PREFERRED_MODEL)
     if res and isinstance(res, dict) and 'biddingVerdict' in res and 'turningPointTrick' in res:
-        # Invert pipeline: Strictly enforce deterministic truth from ledger
+        # Enforce deterministic truth from event log & ledger
         res['verdict'] = verdict_hi if language == 'hi' else verdict_en
         if not isinstance(res.get('biddingVerdict'), dict):
             res['biddingVerdict'] = {}
@@ -976,16 +1069,16 @@ def generate_round_recap(bidding_winner, contract, bidding_team, t1_pts, t2_pts,
         res['recap'] = res['turningPointTrick'].get('explanation', '') or res['biddingVerdict'].get('summary', '')
         return res
 
-    # Structured Grandmaster Fallback built purely on causal ledger
+    # Grounded Fallback built strictly from actual event_log
     fallback_b_summary = (
-        f"आपकी {human_bid_val} की बोली ({deal1_str}) सांख्यिकीय रूप से {b_rating.lower()} थी। हुकुम {suit_hi} का चुनाव रणनीतिक था।"
+        f"शुरुआती पत्तों [{deal1_str}] के साथ {'आपकी ' + str(human_bid_val) + ' की बोली' if is_human_declarer else 'पास करना'} ({b_rating}) संतुलित निर्णय था।"
         if language == 'hi' else
-        f"Your {human_bid_val} bid on [{deal1_str}] was mathematically {b_rating.lower()} against deal Par ({b_ev})."
+        f"With Deal 1 [{deal1_str}], {'bidding ' + str(human_bid_val) if is_human_declarer else 'passing against ' + str(contract)} was rated {b_rating}."
     )
     fallback_tp_explanation = (
-        f"ट्रिक {tp_trick_num} मैच का मुख्य मोड़ रहा जहाँ {tp_card_played or 'पत्ता'} खेलने से गति धीमी हो गई। {tp_optimal_card or 'सुरक्षित पत्ता'} खेलना अधिक प्रभावी रहता।"
+        f"ट्रिक {tp_trick_num} मैच का निर्णायक मोड़ रहा जहाँ {tp_card_played or 'खेला गया पत्ता'} के साथ {decisive_trick.get('points', 0) if decisive_trick else ''} अंक दांव पर थे।"
         if language == 'hi' else
-        f"Trick {tp_trick_num} was the decisive inflection point: playing {tp_card_played or 'your card'} swung momentum {tp_drop}. Playing {tp_optimal_card or 'an alternate legal card'} preserved high honors."
+        f"Trick {tp_trick_num} was the decisive trick of the round with {tp_card_played or 'your play'} in action{f' (optimal: {tp_optimal_card})' if tp_optimal_card and tp_optimal_card != tp_card_played else ''}."
     )
     fallback_synergy_note = (
         "विंगमैन (नॉर्थ) के साथ तालमेल संतुलित रहा; अहम मौकों पर बड़े पत्तों का संरक्षण हुआ।"
@@ -1610,11 +1703,12 @@ class handler(BaseHTTPRequestHandler):
         self._send_json(200, {
             'status': 'healthy',
             'service': '28-game-ai-backend',
-            'version': '2.4.0',
+            'version': '2.5.0',
             'provider': 'openrouter',
             'model': DEFAULT_OPENROUTER_MODEL,
             'openrouter_active': bool(get_openrouter_api_key()),
             'groq_active': bool(get_groq_api_key()),
+            'gemini_active': bool(get_gemini_api_key()),
             'received_path': raw_path,
             'endpoints': ['/api/bot-math', '/api/bot-brain', '/api/deal', '/api/bid', '/api/trump', '/api/play', '/api/recap', '/api/health']
         })
@@ -1687,10 +1781,11 @@ class handler(BaseHTTPRequestHandler):
             trump_reveal_event = data.get('trump_reveal_event', None)
             custom_names = data.get('custom_names', None)
             telemetry = data.get('telemetry', None)
+            event_log = data.get('event_log', None)
             recap_res = generate_round_recap(
                 bidding_winner, contract, bidding_team, t1_pts, t2_pts,
                 success, trump_suit, pair_declared, language,
-                tricks, trump_reveal_event, custom_names, telemetry
+                tricks, trump_reveal_event, custom_names, telemetry, event_log
             )
             self._send_json(200, recap_res)
 
