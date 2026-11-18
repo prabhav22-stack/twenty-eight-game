@@ -2357,11 +2357,11 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
                 <span id="btn-join-title">⚡ Join Existing Room</span>
                 <span class="btn-sub" id="btn-join-sub">Connect to Host</span>
             </button>
-            <div id="join-room-container" style="display:none; flex-direction:column; gap:6px; margin-top:6px; background:rgba(0,0,0,0.45); border:1px solid rgba(56,189,248,0.4); border-radius:10px; padding:10px;">
+            <div id="join-room-container" style="display:none; flex-direction:column; gap:8px; margin-top:8px; background:rgba(0,0,0,0.5); border:1px solid rgba(56,189,248,0.45); border-radius:12px; padding:12px;">
                 <div class="config-label" id="cfg-room-label" style="font-size:0.68rem; color:#bae6fd;">Enter 6-Letter Room Code</div>
-                <div style="display:flex; gap:6px;">
-                    <input type="text" id="room-code-input" class="config-input" placeholder="e.g. ROYAL28" style="text-transform:uppercase; flex:1; padding:6px 10px; font-weight:800; letter-spacing:1.5px;">
-                    <button class="menu-btn primary-gold" style="padding:6px 14px; font-size:0.75rem;" onclick="joinNetworkGame('FULL', 'CLIENT')">
+                <div style="display:flex; gap:8px; align-items:center; width:100%;">
+                    <input type="text" id="room-code-input" class="config-input" placeholder="e.g. ROYAL28" maxlength="12" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase; flex:1 1 auto; min-width:0; padding:9px 12px; font-weight:800; letter-spacing:1.5px; font-size:0.9rem;">
+                    <button class="menu-btn primary-gold" style="width:auto; flex:0 0 auto; margin:0; padding:9px 16px; font-size:0.8rem; white-space:nowrap; justify-content:center;" onclick="joinNetworkGame('FULL', 'CLIENT')">
                         Connect ➔
                     </button>
                 </div>
