@@ -12,6 +12,7 @@ import {
     generateRandomRoom 
 } from './session.js';
 import { playSound, triggerHaptic } from '../ui/AudioHaptics.js';
+import { I18N, currentLang } from '../ui/i18n.js';
 
 function getTeamDisplayName(teamNum) {
     let s1 = (teamNum === 1) ? 0 : 1;

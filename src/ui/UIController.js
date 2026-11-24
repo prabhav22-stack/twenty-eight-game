@@ -6,7 +6,9 @@ import { RenderQueue } from './RenderQueue.js';
 import { playSound, triggerHaptic, getAudioContext } from './AudioHaptics.js';
 import { BackendAPI } from '../net/BackendAPI.js';
 import { toggleTacticalReportCard, renderTacticalReportCard } from './TacticalModal.js';
-import { updateTopCompassBar } from '../net/network.js';
+import { updateTopCompassBar, getTeamDisplayName, sendNetMessage, broadcastNetMessage } from '../net/network.js';
+import { I18N, currentLang, SUIT_FULL_NAMES } from './i18n.js';
+import { getVisualPosition, getPlayerAtVisualPosition, updateScreenMetrics, getBotThinkTimeMs } from './settings.js';
 
 // Context-aware turn duration helper
 export function getTurnDurationMs(engine, seat) {
@@ -1212,7 +1214,8 @@ export class UIController {
 
         // Initialize 3D tilt sheen on player cards
         setTimeout(() => {
-            initVanillaTilt();
+            if (typeof initVanillaTilt === 'function') initVanillaTilt();
+            else if (typeof window !== 'undefined' && typeof window.initVanillaTilt === 'function') window.initVanillaTilt();
         }, 50);
 
         this.updateTrickHUD();
@@ -3146,7 +3149,8 @@ export class UIController {
         }
 
         if (isUserWinner) {
-            triggerVictoryConfetti();
+            if (typeof triggerVictoryConfetti === 'function') triggerVictoryConfetti();
+            else if (typeof window !== 'undefined' && typeof window.triggerVictoryConfetti === 'function') window.triggerVictoryConfetti();
             playSound('win');
         } else {
             playSound('lose');

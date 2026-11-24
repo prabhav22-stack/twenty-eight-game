@@ -3,15 +3,18 @@
  * Renders turning points, move regrets, partner synergy, and Expected Contract Equity (ECE).
  */
 import { triggerHaptic } from './AudioHaptics.js';
+import { I18N as defaultI18N, currentLang as defaultLang } from './i18n.js';
 
-    function toggleTacticalReportCard(engine = null, currentLang = 'en', I18N = null) {
-        const box = document.getElementById('end-coach-box');
-        const label = document.getElementById('trc-toggle-label');
-        const arrow = document.getElementById('trc-toggle-arrow');
-        if (!box) return;
-        const isHidden = (box.style.display === 'none' || !box.style.display);
-        const t = I18N[currentLang] || I18N.en;
-        const isHi = (currentLang === 'hi');
+function toggleTacticalReportCard(engine = null, lang = null, i18nObj = null) {
+    const box = document.getElementById('end-coach-box');
+    const label = document.getElementById('trc-toggle-label');
+    const arrow = document.getElementById('trc-toggle-arrow');
+    if (!box) return;
+    const isHidden = (box.style.display === 'none' || !box.style.display);
+    const resolvedLang = lang || defaultLang || 'en';
+    const dict = i18nObj || defaultI18N;
+    const t = (dict && dict[resolvedLang]) || (dict && dict.en) || {};
+    const isHi = (resolvedLang === 'hi');
 
         if (isHidden) {
             box.style.display = 'block';

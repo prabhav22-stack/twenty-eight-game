@@ -259,6 +259,7 @@ function applyLanguage() {
 export {
     I18N,
     currentLang,
+    SUIT_FULL_NAMES,
     setLanguage,
     toggleLanguage,
     applyLanguage

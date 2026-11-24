@@ -2,7 +2,7 @@
  * ISMCTS - Information Set Monte Carlo Tree Search
  * Evaluates bot tactical moves across personality archetypes.
  */
-import { TwentyEightDDS } from '../dds/TwentyEightDDS.js';
+import { TwentyEightDDS, DDS_SUITS } from '../dds/TwentyEightDDS.js';
 
 export class ISMCTS {
     static selectBestPlay(params) {
