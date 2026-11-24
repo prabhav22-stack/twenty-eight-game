@@ -1,0 +1,208 @@
+/* CARDS */
+.card {
+    width: var(--card-w); height: var(--card-h);
+    background: linear-gradient(145deg, #ffffff 0%, #f3efe6 100%);
+    border-radius: 7px; box-shadow: -2px 3px 10px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.9);
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 4px 5px; font-family: 'Cinzel', serif; font-weight: 800;
+    position: relative; transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, filter 0.25s ease;
+}
+.card.red { color: var(--suit-red); }
+.card.black { color: var(--suit-black); }
+.card-corner { display: flex; flex-direction: column; align-items: center; line-height: 0.88; font-size: clamp(0.72rem, 1.8vh, 0.88rem); z-index: 2; width: max-content; }
+.card-corner .corner-suit { font-size: 0.72em; margin-top: 1px; }
+.card-corner.bottom { align-self: flex-end; transform: rotate(180deg); }
+.card-pt-badge {
+    position: absolute; top: 3px; right: 3px; z-index: 10;
+    background: rgba(229, 193, 88, 0.35); border: 1px solid rgba(158, 120, 24, 0.6);
+    color: #713f12; font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.52rem; font-weight: 800; padding: 1px 3px; border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25); pointer-events: none;
+}
+.trick-card .card-pt-badge {
+    top: 3px; right: 3px;
+}
+.card-center-suit {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: clamp(1.3rem, 3.8vh, 1.9rem); opacity: 0.9; pointer-events: none;
+}
+.card-back {
+    background: repeating-linear-gradient(45deg, rgba(229,193,88,0.14) 0px, rgba(229,193,88,0.14) 2px, transparent 2px, transparent 8px),
+                radial-gradient(circle, #7f1d1d 0%, #3b0707 100%);
+    border: 1.5px solid #f8fafc; border-radius: 6px; box-shadow: -2px 3px 8px rgba(0,0,0,0.6); color: transparent; position: relative;
+}
+.my-cards-row .card.playable { cursor: pointer; border: 1.5px solid var(--gold-primary); box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 10px rgba(229, 193, 88, 0.35); }
+.my-cards-row .card.playable:hover, .my-cards-row .card.playable:active {
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) - 18px)) scale(1.08) !important;
+    box-shadow: 0 14px 28px rgba(0,0,0,0.85), 0 0 18px var(--gold-glow);
+    z-index: 99 !important;
+}
+.my-cards-row .card.unplayable {
+    filter: brightness(0.55) saturate(0.75);
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) + 6px)) scale(0.96) !important;
+    cursor: not-allowed;
+}
+
+.trick-card {
+    position: absolute; transform-origin: center center;
+    transition: box-shadow 0.2s ease, opacity 0.35s ease;
+    opacity: 1; visibility: visible; display: flex; z-index: 25;
+}
+.trick-card.partner-card { border: 2px solid var(--team1-blue); box-shadow: 0 0 14px rgba(56, 189, 248, 0.6); }
+/* All trick cards centered at 50%/50%; GSAP handles proportional diamond offsets */
+.trick-card.pos-0,
+.trick-card.pos-1,
+.trick-card.pos-2,
+.trick-card.pos-3,
+.pos-0, .pos-1, .pos-2, .pos-3 {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+.anim-drop-in { opacity: 1; }
+
+/* ACTION BUTTONS & BOTTOM TURN ROW: Strictly single horizontal flex row clearing lifted playable cards */
+.bottom-action-row {
+    position: absolute;
+    bottom: calc(var(--card-h) + clamp(46px, 7.5dvh, 62px) + env(safe-area-inset-bottom, 0px));
+    left: 50%; transform: translateX(-50%);
+    display: flex; flex-wrap: nowrap; white-space: nowrap; align-items: center; justify-content: center; gap: 6px;
+    z-index: 130; pointer-events: none; max-width: 98vw; padding: 0 4px; box-sizing: border-box;
+}
+.bottom-action-row > * { pointer-events: auto; flex-shrink: 0; }
+.bottom-action-row .turn-ring-container.docked-inline {
+    position: relative; top: auto; right: auto; bottom: auto; left: auto;
+    transform: none; margin: 0; flex-shrink: 0;
+    width: clamp(22px, 5vw, 28px); height: clamp(22px, 5vw, 28px);
+}
+.action-btn-container {
+    display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap;
+}
+.act-btn { display: none; padding: clamp(4px, 0.9dvh, 6px) clamp(9px, 2.4vw, 12px); border-radius: 9999px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: clamp(0.64rem, 1.3dvh, 0.76rem); cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; transition: all 0.2s ease; }
+@media (max-width: 480px), (max-height: 500px) {
+    .bottom-action-row {
+        gap: 4px;
+        bottom: calc(var(--card-h) + clamp(42px, 7dvh, 54px) + env(safe-area-inset-bottom, 0px));
+    }
+    .act-btn {
+        padding: 3px 8px;
+        font-size: clamp(0.6rem, 2.5vw, 0.68rem);
+    }
+}
+#reveal-btn { 
+    background: linear-gradient(180deg, #f43f5e 0%, #be123c 100%); 
+    color: #fff; border: 1px solid rgba(253, 164, 175, 0.65); 
+    box-shadow: 0 0 16px rgba(244, 63, 94, 0.45); 
+}
+#reveal-btn:active { transform: scale(0.95); }
+#pair-btn { background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary)); color: #0f172a; border: 1.5px solid #fff; box-shadow: 0 4px 14px var(--gold-glow); animation: pulseGlow 1.5s infinite; }
+#reshuffle-btn { background: linear-gradient(135deg, #d97706, #92400e); color: #fff; border: 1.5px solid var(--gold-bright); box-shadow: 0 4px 14px rgba(217, 119, 6, 0.6); animation: pulseGlow 1.6s infinite; }
+.modal-reshuffle-btn { width: 100%; padding: clamp(6px, 1.3vh, 9px); margin: 4px 0 8px 0; border-radius: 10px; background: linear-gradient(135deg, #b45309, #78350f); border: 1.5px solid var(--gold-bright); color: #fff; font-weight: 800; cursor: pointer; font-size: clamp(0.72rem, 1.4vh, 0.82rem); letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.5); transition: transform 0.18s ease; }
+.modal-reshuffle-btn:hover, .modal-reshuffle-btn:active { transform: scale(1.03); box-shadow: 0 0 16px var(--gold-glow); }
+
+
+/* ==================== 3D HUMANLIKE DEALER DECK & DEALING ==================== */
+.dealer-deck {
+    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
+    width: var(--card-w); height: var(--card-h);
+    border-radius: 7px;
+    background: repeating-linear-gradient(45deg, rgba(229,193,88,0.2) 0px, rgba(229,193,88,0.2) 2px, transparent 2px, transparent 8px),
+                radial-gradient(circle, #7f1d1d 0%, #3b0707 100%);
+    border: 1.5px solid #fff;
+    box-shadow: 1px 1px 0 #d4af37, 2px 2px 0 #fff, 3px 3px 0 #d4af37, 4px 4px 0 #fff, 6px 8px 24px rgba(0,0,0,0.85);
+    z-index: 130; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+}
+.dealer-deck-badge {
+    position: absolute; top: -24px; bottom: auto; left: 50%; transform: translateX(-50%);
+    font-size: 0.58rem; font-weight: 800; letter-spacing: 1.2px; color: var(--gold-bright);
+    background: rgba(4, 20, 11, 0.92); border: 1px solid var(--gold-primary);
+    padding: 2px 8px; border-radius: 10px; white-space: nowrap; text-transform: uppercase;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+.dealing-card-flyer {
+    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
+    width: var(--card-w); height: var(--card-h);
+    border-radius: 7px; z-index: 145; pointer-events: none;
+    transform-origin: center center;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.65);
+    will-change: transform, opacity;
+}
+.dealing-card-flyer.opp-flyer {
+    width: var(--opp-card-w);
+    height: var(--opp-card-h);
+}
+
+/* Language Selector Pills */
+.lang-selector-bar {
+    display: flex; background: rgba(0,0,0,0.55); border: 1.5px solid rgba(229,193,88,0.45);
+    border-radius: 20px; padding: 2px; gap: 2px; margin-bottom: 8px; z-index: 10;
+}
+.lang-pill {
+    background: transparent; border: none; color: #94a3b8; font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.74rem; font-weight: 700; padding: 4px 14px; border-radius: 16px; cursor: pointer;
+    transition: all 0.2s ease;
+}
+.lang-pill.active {
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary));
+    color: #09150d; font-weight: 800; box-shadow: 0 0 10px var(--gold-glow);
+}
+
+/* Modal Partner Box */
+.modal-partner-box {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: rgba(56, 189, 248, 0.12); border: 1.5px solid var(--team1-blue);
+    border-radius: 12px; padding: 7px 12px; margin: 6px 0 8px 0;
+    font-size: 0.8rem; font-weight: 700; color: #bae6fd;
+}
+.modal-partner-box strong { color: #fff; font-size: 0.95rem; }
+
+/* Player Seat Bid Pill */
+.seat-bid-pill {
+    display: inline-block; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.25);
+    padding: 1px 7px; border-radius: 10px; font-size: 0.62rem; font-weight: 800; margin-top: 3px;
+    color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+.seat-bid-pill.partner {
+    border-color: var(--team1-blue); color: #bae6fd; background: rgba(12, 35, 55, 0.85);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
+
+/* ==================== 1. CARD PHYSICS & DRAG-TO-PLAY ==================== */
+.my-cards-row {
+    touch-action: pan-x;
+    user-select: none;
+}
+.my-cards-row .card {
+    touch-action: none;
+    will-change: transform, box-shadow;
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) + var(--scrub-y, 0px))) translateX(var(--scrub-x, 0px));
+}
+.my-cards-row .card.dragging-card {
+    z-index: 280 !important;
+    cursor: grabbing !important;
+    filter: drop-shadow(0 20px 30px rgba(0,0,0,0.85)) brightness(1.06);
+    box-shadow: 0 24px 48px rgba(0,0,0,0.8), 0 0 24px var(--gold-glow) !important;
+    transition: none !important;
+}
+#center-table.drag-target-active {
+    box-shadow: 0 0 35px var(--gold-glow), inset 0 0 25px rgba(229, 193, 88, 0.35);
+    border-radius: 18px;
+    background: rgba(229, 193, 88, 0.08);
+    transition: all 0.2s ease;
+}
+
+/* ==================== 2. PRE-ROUND RIFFLE SHUFFLE ==================== */
+.shuffle-packet {
+    position: absolute; top: 42%; left: 50%;
+    width: var(--card-w); height: var(--card-h);
+    border-radius: 7px;
+    background: repeating-linear-gradient(45deg, rgba(229,193,88,0.14) 0px, rgba(229,193,88,0.14) 2px, transparent 2px, transparent 8px),
+                radial-gradient(circle, #7f1d1d 0%, #3b0707 100%);
+    border: 1.5px solid #f8fafc;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.7);
+    pointer-events: none; z-index: 130;
+    transform-origin: center center;
+}
+

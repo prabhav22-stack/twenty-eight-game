@@ -1,0 +1,27 @@
+:root {
+    --felt-center: #165b36; --felt-mid: #0c3820; --felt-edge: #04140b;
+    --gold-primary: #e5c158; --gold-bright: #fff3c4; --gold-deep: #9e7818;
+    --gold-glow: rgba(229, 193, 88, 0.55);
+    --team1-blue: #38bdf8; --team2-coral: #fb7185;
+    --danger: #ef4444; --success: #22c55e;
+    --suit-red: #dc2626; --suit-black: #0f172a;
+
+    /* Scales smoothly from 360px mobile phones up to 800px+ tablets */
+    --card-w: clamp(46px, 12.5vw, 68px);
+    --card-h: calc(var(--card-w) * 1.42);
+    --mini-card-w: clamp(28px, 7.5vw, 40px);
+    --mini-card-h: calc(var(--mini-card-w) * 1.42);
+    --opp-card-w: var(--mini-card-w);
+    --opp-card-h: var(--mini-card-h);
+
+    /* Hand overlap tightens automatically on narrow screens when holding 8 cards */
+    --hand-overlap: clamp(-24px, -4.5vw, -12px);
+    --side-stack-overlap: clamp(-34px, -5.2vh, -24px);
+}
+body.theme-sapphire {
+    --felt-center: #173860; --felt-mid: #0e223c; --felt-edge: #060e19;
+}
+body.theme-crimson {
+    --felt-center: #5c1822; --felt-mid: #380d14; --felt-edge: #150407;
+}
+

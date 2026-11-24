@@ -1,7 +1,7 @@
 /**
  * PeerManager & State Redaction
  * Enforces host-authoritative state projections so connected peers
- * cannot inspect opponent hands or secret trumps via Chrome DevTools.
+ * cannot inspect opponent hands or secret trumps via Chrome DevTools or network sniffing.
  */
 export class PeerManager {
     /**
@@ -13,7 +13,6 @@ export class PeerManager {
     static getSanitizedStateForPeer(masterEngine, clientSeat) {
         if (!masterEngine) return null;
 
-        // 1. Hand Sizes only for all seats
         const handSizes = [
             (masterEngine.players[0] || []).length,
             (masterEngine.players[1] || []).length,
@@ -21,7 +20,6 @@ export class PeerManager {
             (masterEngine.players[3] || []).length
         ];
 
-        // 2. Private Hand Projection: ONLY recipient's own cards are included
         let clientHand = [];
         if (clientSeat !== 99 && clientSeat >= 0 && clientSeat < 4) {
             clientHand = (masterEngine.players[clientSeat] || []).map(card => ({
@@ -32,12 +30,13 @@ export class PeerManager {
             }));
         }
 
-        // 3. Secret Trump Redaction:
-        // Only revealed if explicitly requested/cut OR if the recipient is the bid winner
         const canSeeTrump = masterEngine.trumpRevealed || (clientSeat === masterEngine.highestBidder);
         const projectedTrumpSuit = canSeeTrump ? masterEngine.trumpSuit : null;
 
         return {
+            speedMultiplier: (typeof window !== 'undefined' && window.GAME_SPEED_MULTIPLIER) || 1.0,
+            roundId: masterEngine.roundId || 1,
+            stateSeq: masterEngine.stateSeq || 1,
             t1TrickPts: masterEngine.t1TrickPts,
             t2TrickPts: masterEngine.t2TrickPts,
             t1GamePts: masterEngine.t1GamePts,
@@ -55,14 +54,22 @@ export class PeerManager {
             trumpRevealed: masterEngine.trumpRevealed,
             trumpSuit: projectedTrumpSuit,
             highestBidder: masterEngine.highestBidder,
-            hasHiddenTrump: false, // Never expose raw token
+            hasHiddenTrump: (!masterEngine.trumpRevealed && !!masterEngine.trumpSuit),
+            trumpSet: !!masterEngine.trumpSuit,
+            justRevealedBy: masterEngine.justRevealedBy,
             hasPassed: masterEngine.hasPassed || [false, false, false, false],
             playerBids: masterEngine.playerBids || [null, null, null, null],
             tricksWonByTeam: masterEngine.tricksWonByTeam,
             roundSuccess: masterEngine.roundSuccess,
             gamePointsWon: masterEngine.gamePointsWon,
             pairDeclared: masterEngine.pairDeclared,
-            pairDeclaringTeam: masterEngine.pairDeclaringTeam
+            pairDeclaringTeam: masterEngine.pairDeclaringTeam,
+            roundTricksCount: (masterEngine.roundTricks || []).length,
+            autoPlaySeats: (typeof autoPlaySeats !== 'undefined') ? autoPlaySeats : ((typeof window !== 'undefined' && window.autoPlaySeats) || [false, false, false, false]),
+            humanSeats: (typeof humanSeats !== 'undefined') ? humanSeats : ((typeof window !== 'undefined' && window.humanSeats) || [0]),
+            playerCustomNames: (typeof playerCustomNames !== 'undefined') ? playerCustomNames : ((typeof window !== 'undefined' && window.playerCustomNames) || ["SOUTH", "EAST", "NORTH", "WEST"]),
+            turnDeadline: masterEngine.turnDeadline || null,
+            turnDurationMs: masterEngine.turnDurationMs || 30000
         };
     }
 }

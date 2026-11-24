@@ -1,0 +1,186 @@
+/* Base, Layout Reset & Global Utilities */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+html, body {
+    width: 100%;
+    height: 100%;
+    height: 100svh;
+    overflow: hidden;
+    position: fixed;
+    background: var(--felt-edge);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #f8fafc;
+}
+.game-shell {
+    width: 100%;
+    height: 100%;
+    height: 100svh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+/* ===== QoL UI IMPROVEMENTS ===== */
+
+/* Your-Turn status pill - rendered side-by-side with Reveal Trump inside .bottom-action-row */
+#your-turn-banner {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.82);
+    border: 1px solid rgba(253, 224, 71, 0.65);
+    border-radius: 9999px;
+    padding: 4px 12px;
+    color: #fef08a;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: clamp(0.66rem, 1.2vh, 0.74rem);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.25);
+    transition: opacity 0.2s ease;
+}
+#your-turn-banner.visible {
+    display: inline-flex;
+    opacity: 1;
+}
+#your-turn-banner span { animation: yourTurnPulse 0.9s ease-in-out infinite alternate; display: inline-block; }
+@keyframes yourTurnPulse {
+    from { text-shadow: 0 0 6px rgba(229,193,88,0.5); }
+    to   { text-shadow: 0 0 18px rgba(229,193,88,1), 0 0 30px rgba(229,193,88,0.4); }
+}
+
+#trick-hud-pill.your-turn-active {
+    border-color: var(--gold-bright) !important;
+    box-shadow: 0 0 22px var(--gold-glow), 0 4px 16px rgba(0,0,0,0.8) !important;
+    animation: pillTurnGlow 0.9s ease-in-out infinite alternate !important;
+}
+@keyframes pillTurnGlow {
+    from { transform: translateX(-50%) scale(1); }
+    to { transform: translateX(-50%) scale(1.05); }
+}
+
+/* Playable legal cards on your turn: lift up and pulse clearly */
+.my-cards-row .card.playable {
+    cursor: pointer;
+    border: 2px solid var(--gold-bright) !important;
+    animation: playablePulse 1.5s ease-in-out infinite alternate !important;
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) - 10px)) scale(1.03) !important;
+    z-index: 85 !important;
+}
+@keyframes playablePulse {
+    0% {
+        box-shadow: 0 8px 18px rgba(0,0,0,0.65), 0 0 8px rgba(229, 193, 88, 0.5);
+        border-color: var(--gold-primary);
+    }
+    100% {
+        box-shadow: 0 12px 24px rgba(0,0,0,0.75), 0 0 18px rgba(251, 191, 36, 0.95);
+        border-color: #ffffff;
+    }
+}
+.my-cards-row .card.playable:hover, .my-cards-row .card.playable:active {
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) - 20px)) scale(1.1) !important;
+    box-shadow: 0 16px 32px rgba(0,0,0,0.85), 0 0 24px var(--gold-glow) !important;
+    z-index: 99 !important;
+}
+
+/* Unplayable cards dim prominently */
+.my-cards-row .card.unplayable {
+    filter: brightness(0.42) saturate(0.4) contrast(0.85) !important;
+    opacity: 0.52 !important;
+    transform: rotate(var(--rot, 0deg)) translateY(calc(var(--y-lift, 0px) + 8px)) scale(0.93) !important;
+    cursor: not-allowed !important;
+}
+
+/* Card index keyboard hint */
+.card-kbd-hint {
+    position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+    background: rgba(229,193,88,0.92); color: #1a1200; border-radius: 4px;
+    font-size: 0.48rem; font-weight: 900; padding: 1px 4px;
+    font-family: 'Plus Jakarta Sans', sans-serif; pointer-events: none; z-index: 10;
+    opacity: 0; transition: opacity 0.2s ease;
+}
+body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
+
+/* Trump card in hand after reveal */
+.my-cards-row .card.is-trump-card {
+    border: 2px solid #f59e0b !important;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.65), inset 0 0 10px rgba(245, 158, 11, 0.2) !important;
+}
+.my-cards-row .card.is-trump-card::after {
+    content: '★ TRUMP';
+    position: absolute;
+    bottom: 3px;
+    right: 4px;
+    background: rgba(245, 158, 11, 0.92);
+    color: #000;
+    font-size: 0.44rem;
+    font-weight: 900;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    pointer-events: none;
+    letter-spacing: 0.5px;
+}
+.my-cards-row .card.is-trump-card.unplayable {
+    filter: brightness(0.45) saturate(0.5) !important;
+    box-shadow: none !important;
+    border-color: rgba(140, 90, 15, 0.5) !important;
+}
+
+/* Score flash animation on trick win */
+@keyframes hudScoreFlash {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(1.14); background: rgba(229,193,88,0.3); }
+    100% { transform: scale(1); }
+}
+#trick-hud-pill.score-flash { animation: hudScoreFlash 0.5s ease-out forwards; }
+
+/* Floating toast notification */
+#game-toast-container {
+    position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    z-index: 1500; pointer-events: none; width: max-content; max-width: 90vw;
+}
+.game-toast {
+    background: rgba(5, 18, 10, 0.95); border: 1px solid rgba(229,193,88,0.4);
+    border-radius: 20px; padding: 6px 16px; color: #f8fafc;
+    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.74rem; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6); white-space: nowrap;
+    opacity: 0; transform: translateY(-8px) scale(0.94);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.game-toast.show { opacity: 1; transform: translateY(0) scale(1); }
+.game-toast.hiding { opacity: 0; transform: translateY(-6px) scale(0.96); }
+
+/* Keyboard shortcut hint bar - Hidden on mobile/touch viewports */
+@media (hover: none) and (pointer: coarse), (max-width: 768px) {
+    #kbd-hint-bar { display: none !important; }
+}
+#kbd-hint-bar {
+    position: fixed; bottom: 68px; left: 50%; transform: translateX(-50%) scale(0.9);
+    background: rgba(0,0,0,0.82); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; padding: 5px 12px; color: #94a3b8;
+    font-size: 0.62rem; font-family: 'Plus Jakarta Sans', sans-serif;
+    z-index: 1100; opacity: 0; transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+    white-space: nowrap;
+}
+#kbd-hint-bar.show { opacity: 1; transform: translateX(-50%) scale(1); }
+#kbd-hint-bar kbd {
+    display: inline-block; background: rgba(255,255,255,0.12); border-radius: 3px;
+    padding: 1px 5px; margin: 0 2px; color: var(--gold-bright); font-weight: 800; font-size: 0.64rem;
+}
+
+/* Battery Saver / Reduced-Motion Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

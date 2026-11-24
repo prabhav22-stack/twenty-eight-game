@@ -1,0 +1,227 @@
+/* ==================== MOBILE-FIRST RESPONSIVE & ERGONOMIC SYSTEM ==================== */
+
+/* Viewport Lock & Safe-Area Constants */
+:root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+}
+
+/* 1. PORTRAIT PHONES (@media max-width: 600px and portrait) */
+@media (max-width: 600px) and (orientation: portrait) {
+    #compass-bar {
+        padding-top: max(4px, var(--sat));
+        padding-left: max(6px, var(--sal));
+        padding-right: max(6px, var(--sar));
+        gap: 6px;
+    }
+    .my-compass-tag {
+        font-size: 0.65rem !important;
+        padding: 2px 7px !important;
+        max-width: 140px !important;
+    }
+    .bar-quick-actions button span {
+        display: none !important;
+    }
+    .bar-icon-btn {
+        padding: 4px 6px !important;
+        font-size: 0.75rem !important;
+        min-width: 30px;
+        min-height: 30px;
+        justify-content: center;
+    }
+
+    #top-hud {
+        padding: 4px 8px;
+        gap: 6px;
+    }
+    .team-hud {
+        padding: 2px 8px;
+        max-width: 120px;
+    }
+    .team-name {
+        font-size: 0.62rem;
+    }
+    .trick-score {
+        font-size: 0.92rem;
+    }
+
+    /* Collapse Left & Right Opponent Fans into Upper-Flank Avatar Pills */
+    #player-left, #player-right {
+        top: 26% !important;
+        z-index: 40;
+    }
+    #player-left {
+        left: max(6px, var(--sal)) !important;
+    }
+    #player-right {
+        right: max(6px, var(--sar)) !important;
+    }
+    #player-left .card-back, #player-right .card-back {
+        display: none !important;
+    }
+    #player-left .player-badge, #player-right .player-badge {
+        padding: 4px 8px;
+        font-size: 0.65rem;
+        border-radius: 12px;
+        background: rgba(4, 18, 12, 0.92);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.7);
+    }
+
+    /* Card Count Badge on Avatar Pills */
+    .opp-card-count-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        background: rgba(229, 193, 88, 0.2);
+        color: var(--gold-bright);
+        border: 1px solid rgba(229, 193, 88, 0.4);
+        border-radius: 8px;
+        padding: 1px 5px;
+        font-size: 0.62rem;
+        font-weight: 800;
+        margin-left: 4px;
+    }
+
+    /* Reclaim felt center trick cluster */
+    #casino-ring, #center-table, #dealer-deck {
+        top: 47% !important;
+    }
+
+    /* Bottom Player Hand Ergonomics */
+    #player-bottom {
+        bottom: calc(var(--sab) + clamp(4px, 1.2vh, 8px)) !important;
+        width: 100vw;
+        max-width: 100vw;
+        padding-bottom: 2px;
+    }
+    .my-cards-row {
+        width: 100%;
+        max-width: 100vw;
+        padding: 0 4px;
+        justify-content: center;
+        overflow: visible;
+    }
+    .my-cards-row .card {
+        margin-left: clamp(-24px, -6.5vw, -16px) !important;
+        touch-action: none;
+    }
+    .my-cards-row .card:first-child {
+        margin-left: 0 !important;
+    }
+
+    /* Mobile Bottom-Sheet Presentation for End Modal */
+    #end-modal {
+        position: fixed !important;
+        bottom: 0 !important;
+        top: auto !important;
+        left: 0 !important;
+        transform: none !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: 84svh !important;
+        border-radius: 22px 22px 0 0 !important;
+        border-bottom: none !important;
+        padding-bottom: max(18px, var(--sab)) !important;
+        box-shadow: 0 -8px 36px rgba(0, 0, 0, 0.9);
+        overscroll-behavior: contain;
+    }
+
+    /* Minimum touch target 44px */
+    .action-btn-container {
+        bottom: calc(var(--card-h) + clamp(24px, 4.5vh, 38px));
+        gap: 8px;
+    }
+    .action-btn-container .act-btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 8px 14px;
+        font-size: 0.78rem;
+    }
+}
+
+/* 2. SHORT LANDSCAPE PHONES (@media orientation: landscape and max-height: 520px) */
+@media (orientation: landscape) and (max-height: 520px) {
+    #compass-bar {
+        padding-top: max(2px, var(--sat));
+        padding-left: max(8px, var(--sal));
+        padding-right: max(8px, var(--sar));
+        padding-bottom: 2px;
+        gap: 6px;
+    }
+    #top-hud {
+        padding: 2px 10px;
+        gap: 8px;
+    }
+    .contract-pill {
+        font-size: 0.78rem;
+        padding: 2px 10px;
+    }
+    .trump-pill {
+        font-size: 0.58rem;
+    }
+
+    /* Vertical Edge Rails */
+    #player-top {
+        top: 2px !important;
+    }
+    #player-top .player-badge {
+        padding: 2px 8px;
+        font-size: 0.6rem;
+    }
+    #player-left {
+        left: max(6px, var(--sal)) !important;
+        top: 50% !important;
+    }
+    #player-right {
+        right: max(6px, var(--sar)) !important;
+        top: 50% !important;
+    }
+    #player-left .player-badge, #player-right .player-badge {
+        padding: 2px 6px;
+        font-size: 0.58rem;
+    }
+
+    #player-bottom {
+        bottom: calc(var(--sab) + 2px) !important;
+    }
+    .my-cards-row .card {
+        margin-left: clamp(-16px, -2.8vw, -10px) !important;
+    }
+    .my-cards-row .card:first-child {
+        margin-left: 0 !important;
+    }
+
+    .action-btn-container {
+        bottom: calc(var(--card-h) + 2px);
+    }
+    .action-btn-container .act-btn {
+        min-height: 36px;
+        padding: 4px 10px;
+        font-size: 0.68rem;
+    }
+}
+
+/* 3. MODAL DIALOGS RESPONSIVENESS */
+@media (max-width: 600px) {
+    .modal {
+        width: clamp(280px, 92vw, 380px);
+        max-height: calc(100svh - 24px);
+        padding: 12px 14px;
+    }
+    .bid-options-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+    }
+    .bid-chip {
+        min-height: 44px;
+        min-width: 44px;
+        font-size: 0.95rem;
+    }
+    .modal-pass-btn {
+        min-height: 44px;
+        padding: 10px 14px;
+        font-size: 0.85rem;
+    }
+}

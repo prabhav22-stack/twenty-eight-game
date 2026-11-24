@@ -1,0 +1,342 @@
+/* ==================== BOARD & TABLE ==================== */
+#board { flex: 1 1 0; position: relative; width: 100%; min-height: 0; z-index: 10; overflow: hidden; }
+#casino-ring {
+    position: absolute; top: var(--table-center-y, 48%); left: 50%; transform: translate(-50%, -50%);
+    width: var(--ring-size, clamp(160px, min(48vw, 36vh), 230px)); height: var(--ring-size, clamp(160px, min(48vw, 36vh), 230px));
+    border-radius: 50%; border: 1.5px dashed rgba(229, 193, 88, 0.25);
+    background: radial-gradient(circle, rgba(229, 193, 88, 0.07) 0%, transparent 72%);
+    pointer-events: none; z-index: 2; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 8px;
+}
+/* ==================== CENTER TRICK METADATA CLUSTER ==================== */
+.trick-meta-cluster {
+    position: absolute;
+    top: calc(var(--table-center-y, 48%) + calc(var(--card-h) * 0.5 + 46px));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    pointer-events: none;
+    z-index: 95;
+    white-space: nowrap;
+}
+.trick-winner-pill {
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: clamp(0.62rem, 1.3vh, 0.72rem);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.trick-winner-pill.winner-user-team {
+    background: rgba(6, 78, 59, 0.90);
+    border: 1px solid rgba(52, 211, 153, 0.6);
+    color: #a7f3d0;
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+}
+.trick-winner-pill.winner-opp-team {
+    background: rgba(76, 5, 25, 0.90);
+    border: 1px solid rgba(251, 113, 133, 0.6);
+    color: #fecdd3;
+    box-shadow: 0 0 14px rgba(244, 63, 94, 0.35);
+}
+.trick-winner-card-badge {
+    padding: 1px 5px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    font-weight: 800;
+}
+.trick-pts-pill {
+    padding: 2.5px 12px;
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: clamp(0.6rem, 1.2vh, 0.68rem);
+    color: rgba(254, 240, 138, 0.95);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+#trick-hud-pill {
+    display: none !important;
+}
+#center-table, .trick-arena {
+    position: absolute; top: var(--table-center-y, 48%); left: 50%; transform: translate(-50%, -50%);
+    width: clamp(160px, 46vw, 210px); height: clamp(160px, 46vw, 210px);
+    z-index: 15; pointer-events: none;
+}
+.trick-card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--card-w);
+    height: var(--card-h);
+    transform-origin: center center;
+}
+/* Non-overlapping diamond offset: East starts at +40px, clear of North's card */
+.trick-card[data-seat="N"], .trick-card.pos-2 { z-index: 10; }
+.trick-card[data-seat="E"], .trick-card.pos-1 { z-index: 20; }
+.trick-card[data-seat="S"], .trick-card.pos-0 { z-index: 30; }
+.trick-card[data-seat="W"], .trick-card.pos-3 { z-index: 15; }
+
+/* PLAYER SEATS */
+.hand { position: absolute; display: flex; align-items: center; justify-content: center; z-index: 20; }
+#player-top { top: clamp(4px, 1.2vh, 8px); left: 50%; transform: translateX(-50%); flex-direction: column; }
+#player-left { left: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-left, 0px)); top: var(--table-center-y, 48%); transform: translateY(-50%); flex-direction: column; }
+#player-right { right: max(clamp(2px, 0.8vw, 8px), env(safe-area-inset-right, 0px)); top: var(--table-center-y, 48%); transform: translateY(-50%); flex-direction: column; }
+#player-bottom {
+    bottom: max(14px, env(safe-area-inset-bottom, 14px));
+    left: 50%; transform: translateX(-50%);
+    z-index: 120; perspective: 900px; flex-direction: column; align-items: center;
+}
+/* South identity is already shown in the top-left header */
+#player-bottom .player-badge { display: none !important; }
+
+.opp-cards-row { display: flex; align-items: center; justify-content: center; margin-top: 3px; }
+#player-top .opp-cards-row .card-back { width: var(--opp-card-w); height: var(--opp-card-h); margin-left: calc(var(--opp-card-w) * -0.55); }
+#player-top .opp-cards-row .card-back:first-child { margin-left: 0; }
+#player-left .opp-cards-row, #player-right .opp-cards-row { flex-direction: column; align-items: center; }
+#player-left .opp-cards-row .card-back, #player-right .opp-cards-row .card-back { 
+    width: var(--opp-card-w); height: var(--opp-card-h); 
+    margin-top: var(--side-stack-overlap); 
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    align-self: center;
+    transform: translate3d(0, 0, 0);
+}
+#player-left .opp-cards-row .card-back:first-child, #player-right .opp-cards-row .card-back:first-child { margin-top: 0; }
+
+.my-cards-row {
+    display: flex; align-items: flex-end; justify-content: center;
+    padding: 4px 8px 0px 8px; min-height: calc(var(--card-h) + 12px);
+    max-width: 98vw; margin: 0 auto;
+}
+.player-hand-card, .my-cards-row .card {
+    width: var(--card-w);
+    height: var(--card-h);
+    margin-left: var(--hand-overlap);
+    transform-origin: bottom center;
+    transition: transform 160ms ease, filter 160ms ease;
+}
+.player-hand-card:first-child, .my-cards-row .card:first-child {
+    margin-left: 0 !important;
+}
+.my-cards-row.dense-hand .card {
+    margin-left: clamp(-30px, -6.8vw, -22px) !important;
+}
+.my-cards-row.dense-hand .card:first-child {
+    margin-left: 0 !important;
+}
+.player-hand-card.is-playable, .my-cards-row .card.playable {
+    transform: translateY(clamp(-12px, -1.8vh, -8px));
+}
+
+.player-badge {
+    background: rgba(7, 17, 11, 0.92); border: 1.5px solid rgba(229, 193, 88, 0.45);
+    padding: 3px 9px; border-radius: 16px; font-size: clamp(0.62rem, 1.2vh, 0.68rem); font-weight: 700;
+    color: #f8fafc; display: inline-flex; align-items: center; gap: 4px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.65); white-space: nowrap; position: relative; z-index: 35; transition: all 0.25s ease;
+}
+.player-badge {
+    background: rgba(8, 18, 12, 0.88); border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 3px 9px; border-radius: 16px; font-size: clamp(0.62rem, 1.2vh, 0.68rem); font-weight: 700;
+    color: #cbd5e1; display: inline-flex; align-items: center; gap: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5); white-space: nowrap; position: relative; z-index: 35; transition: all 0.25s ease;
+}
+.player-badge.partner { border-color: rgba(56, 189, 248, 0.35); color: #bae6fd; }
+.player-badge.enemy { border-color: rgba(251, 113, 133, 0.3); color: #cbd5e1; }
+.player-badge .card-cnt { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 8px; font-size: 0.58rem; color: #f8fafc; }
+
+/* Turn indicator: Bright gold pulse is strictly reserved for the active turn player */
+@keyframes activeTurnPulse {
+    0% { box-shadow: 0 0 0 0 rgba(229, 193, 88, 0.75), 0 0 12px var(--gold-glow); border-color: #fff; }
+    100% { box-shadow: 0 0 0 4px rgba(229, 193, 88, 0), 0 0 20px var(--gold-primary); border-color: var(--gold-bright); }
+}
+.player-badge.active-turn {
+    animation: activeTurnPulse 1s infinite alternate !important;
+    background: linear-gradient(135deg, #27382b, #0e1c13) !important;
+    border-color: var(--gold-bright) !important;
+    color: #fff !important;
+    transform: scale(1.06);
+    z-index: 50 !important;
+}
+
+
+/* ==================== 4. LEAD SUIT TABLE WATERMARK ==================== */
+#lead-suit-watermark {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    pointer-events: none; z-index: 4; opacity: 0; transition: opacity 0.3s ease;
+}
+#lead-suit-watermark.visible { opacity: 1; }
+.lead-watermark-symbol {
+    font-size: clamp(3rem, 8vw, 4.4rem); font-family: 'Cinzel', serif; font-weight: 900;
+    line-height: 1; text-shadow: 0 0 25px rgba(229,193,88,0.4);
+}
+.lead-watermark-symbol.red { color: rgba(239, 68, 68, 0.28); text-shadow: 0 0 25px rgba(239, 68, 68, 0.45); }
+.lead-watermark-symbol.black { color: rgba(229, 193, 88, 0.25); text-shadow: 0 0 25px rgba(229, 193, 88, 0.45); }
+.lead-watermark-pill {
+    font-size: 0.6rem; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--gold-bright); background: rgba(5, 14, 9, 0.85); border: 1px solid rgba(229,193,88,0.3);
+    padding: 1px 8px; border-radius: 10px; margin-top: 2px;
+}
+#lead-suit-watermark.trump-cut-active .lead-watermark-symbol {
+    animation: trumpCutPulse 0.6s ease-out;
+}
+@keyframes trumpCutPulse {
+    0% { transform: scale(0.9); filter: drop-shadow(0 0 30px #ef4444); color: rgba(239, 68, 68, 0.7); }
+    50% { transform: scale(1.35); filter: drop-shadow(0 0 50px #f59e0b); color: rgba(245, 158, 11, 0.85); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(239, 68, 68, 0.4)); color: rgba(239, 68, 68, 0.35); }
+}
+
+
+/* ==================== 6. SECRET TRUMP VAULT TOKEN ==================== */
+/* Docked into top header pill; never float a card over the felt */
+#secret-trump-vault {
+    display: none !important;
+    pointer-events: none;
+}
+.vault-card-inner {
+    width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 0 10px rgba(229,193,88,0.4);
+}
+.vault-card-inner.flipped {
+    transform: rotateY(180deg);
+}
+.vault-face {
+    position: absolute; inset: 0; backface-visibility: hidden; border-radius: 6px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.vault-front {
+    background: repeating-linear-gradient(45deg, rgba(229,193,88,0.14) 0px, rgba(229,193,88,0.14) 2px, transparent 2px, transparent 6px),
+                radial-gradient(circle, #7f1d1d 0%, #3b0707 100%);
+    border: 1.5px solid var(--gold-bright); color: var(--gold-bright); font-size: 0.95rem;
+}
+.vault-front .lock-icon { font-size: 1rem; filter: drop-shadow(0 0 6px var(--gold-glow)); animation: lockPulse 2s infinite ease-in-out; }
+.vault-front .vault-label { font-size: 0.45rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; }
+@keyframes lockPulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px var(--gold-glow)); }
+    50% { transform: scale(1.12); filter: drop-shadow(0 0 10px var(--gold-bright)); }
+}
+.vault-back {
+    background: linear-gradient(145deg, #ffffff, #ede8dc); border: 2px solid var(--gold-bright);
+    transform: rotateY(180deg); font-family: 'Cinzel', serif; font-weight: 900;
+}
+.vault-back .v-suit { font-size: 1.6rem; }
+.vault-back.red { color: var(--suit-red); }
+.vault-back.black { color: var(--suit-black); }
+
+
+/* ==================== 9. DYNAMIC TRICK WINNER HALO & HOVERING CROWN ==================== */
+@keyframes winnerHaloPulseFriend {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.75), 0 0 20px rgba(56, 189, 248, 0.35);
+        border-color: #38bdf8;
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.95), 0 0 28px rgba(56, 189, 248, 0.45);
+        border-color: #bae6fd;
+    }
+}
+
+@keyframes winnerHaloPulseEnemy {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(251, 113, 133, 0.75), 0 0 20px rgba(251, 113, 133, 0.35);
+        border-color: #fb7185;
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(251, 113, 133, 0.95), 0 0 28px rgba(251, 113, 133, 0.45);
+        border-color: #fecdd3;
+    }
+}
+
+.player-badge.trick-winner-halo-friend {
+    animation: winnerHaloPulseFriend 1.2s infinite ease-in-out !important;
+    transform: scale(1.08) !important;
+    border-color: #38bdf8 !important;
+    z-index: 45 !important;
+}
+
+.player-badge.trick-winner-halo-enemy {
+    animation: winnerHaloPulseEnemy 1.2s infinite ease-in-out !important;
+    transform: scale(1.08) !important;
+    border-color: #fb7185 !important;
+    z-index: 45 !important;
+}
+
+/* Hovering halo crown over the winning seat */
+.seat-winner-crown {
+    position: absolute;
+    z-index: 55;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-family: 'Cinzel', serif;
+    font-size: 0.63rem;
+    font-weight: 800;
+    white-space: nowrap;
+    animation: crownFloat 1.2s infinite ease-in-out alternate;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+}
+.seat-winner-crown.crown-pos-bottom {
+    bottom: calc(100% + 7px);
+    left: 50%;
+    translate: -50% 0;
+}
+.seat-winner-crown.crown-pos-top {
+    top: calc(100% + 7px);
+    left: 50%;
+    translate: -50% 0;
+}
+.seat-winner-crown.crown-pos-left {
+    left: calc(100% + 7px);
+    top: 50%;
+    translate: 0 -50%;
+}
+.seat-winner-crown.crown-pos-right {
+    right: calc(100% + 7px);
+    top: 50%;
+    translate: 0 -50%;
+}
+
+.seat-winner-crown.crown-friend {
+    background: linear-gradient(135deg, rgba(8, 28, 48, 0.95), rgba(3, 14, 24, 0.98));
+    border: 1.5px solid #38bdf8;
+    color: #bae6fd;
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.7), 0 4px 12px rgba(0,0,0,0.65);
+}
+.seat-winner-crown.crown-enemy {
+    background: linear-gradient(135deg, rgba(48, 12, 20, 0.95), rgba(22, 4, 8, 0.98));
+    border: 1.5px solid #fb7185;
+    color: #fecdd3;
+    box-shadow: 0 0 18px rgba(251, 113, 133, 0.7), 0 4px 12px rgba(0,0,0,0.65);
+}
+.seat-winner-crown .crown-icon {
+    font-size: 0.85rem;
+    animation: crownTwist 1s infinite alternate ease-in-out;
+}
+@keyframes crownTwist {
+    0% { transform: translateY(0) rotate(-7deg); }
+    100% { transform: translateY(-2px) rotate(7deg); }
+}
+@keyframes crownFloat {
+    0% { margin-top: 0; }
+    100% { margin-top: -4px; }
+}
+
+

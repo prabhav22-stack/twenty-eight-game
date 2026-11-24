@@ -1,0 +1,389 @@
+/* ==================== SVG TURN COUNTDOWN RING & POLISH ==================== */
+.turn-ring-container {
+    position: absolute;
+    top: -14px;
+    right: -12px;
+    width: 36px;
+    height: 36px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 60;
+    pointer-events: none;
+}
+#player-right .turn-ring-container {
+    right: auto;
+    left: -14px;
+}
+.turn-ring-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+.turn-ring-circle-bg {
+    fill: rgba(15, 23, 42, 0.88);
+    stroke: rgba(255, 255, 255, 0.22);
+    stroke-width: 3.2;
+}
+.turn-ring-circle-progress {
+    fill: none;
+    stroke: #38bdf8;
+    stroke-width: 3.6;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.18s linear, stroke 0.3s ease;
+}
+.turn-ring-container.warning .turn-ring-circle-progress {
+    stroke: #f59e0b;
+    filter: drop-shadow(0 0 7px rgba(245, 158, 11, 0.88));
+}
+.turn-ring-container.critical .turn-ring-circle-progress {
+    stroke: #ef4444;
+    filter: drop-shadow(0 0 9px rgba(239, 68, 68, 0.95));
+}
+.turn-ring-label {
+    position: relative;
+    z-index: 2;
+    font-size: 0.68rem;
+    font-weight: 900;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+#player-top .my-cards-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 4px;
+}
+#player-left .my-cards-row, #player-right .my-cards-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 4px;
+}
+#player-left .my-cards-row .card, #player-right .my-cards-row .card {
+    margin-left: 0 !important;
+    margin-top: -38px !important;
+}
+#player-left .my-cards-row .card:first-child, #player-right .my-cards-row .card:first-child {
+    margin-top: 0 !important;
+}
+
+/* Remove duplicate .turn-timer-badge & .warning_old rules, and update hide rule: */
+body.hide-turn-timer .turn-ring-container,
+body.hide-turn-timer .turn-urgency-svg {
+    display: none !important;
+}
+#afk-resume-banner {
+    position: fixed;
+    bottom: 74px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.94);
+    border: 1.5px solid var(--gold-bright);
+    color: #f8fafc;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+    display: none;
+    align-items: center;
+    gap: 8px;
+    z-index: 500;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+}
+#afk-resume-banner:hover {
+    background: rgba(30, 41, 59, 0.98);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body, .game-shell {
+    width: 100vw; height: 100vh; height: 100dvh; margin: 0; padding: 0; position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 50% 48%, var(--felt-center) 0%, var(--felt-mid) 60%, var(--felt-edge) 100%);
+    color: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden;
+    display: flex; flex-direction: column; user-select: none; -webkit-font-smoothing: antialiased;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+}
+body::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 0);
+    background-size: 16px 16px; pointer-events: none; z-index: 0;
+}
+
+/* ==================== TOP COMPASS BAR ==================== */
+#compass-bar, .top-nav-bar {
+    display: none; position: relative; z-index: 1000; flex-shrink: 0;
+    background: linear-gradient(90deg, #040d08 0%, #0d2618 50%, #040d08 100%);
+    border-bottom: 1.5px solid var(--gold-primary);
+    padding: clamp(3px, 0.6vh, 6px) clamp(6px, 1.5vw, 10px);
+    align-items: center; justify-content: space-between;
+    gap: 8px; font-size: clamp(0.68rem, 1.3vh, 0.75rem);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.7);
+}
+.my-compass-tag, .player-identity-pill {
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary));
+    color: #09150d; font-weight: 800; padding: 2px 8px; border-radius: 20px;
+    white-space: nowrap; font-size: clamp(0.65rem, 1.2vh, 0.72rem); letter-spacing: 0.4px;
+    box-shadow: 0 0 10px var(--gold-glow); display: flex; align-items: center; gap: 4px;
+    min-width: 0; flex: 1 1 auto; max-width: fit-content; overflow: hidden; text-overflow: ellipsis;
+}
+.pill-dir-short { display: none; }
+@media (max-width: 600px) {
+    .pill-dir-full { display: none; }
+    .pill-dir-short { display: inline; }
+    #stats-btn-text, #log-btn-text, #settings-btn-text, #exit-btn-text { display: none !important; }
+    .bar-icon-btn { padding: 3px 5px !important; font-size: 0.72rem !important; }
+    .my-compass-tag, .player-identity-pill { font-size: 0.65rem !important; padding: 2px 8px !important; max-width: max-content !important; }
+}
+.compass-roster {
+    display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow-x: auto;
+}
+.c-seat {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
+    padding: 2px 6px; border-radius: 7px; font-size: clamp(0.62rem, 1.1vh, 0.68rem); font-weight: 700;
+    color: #cbd5e1; white-space: nowrap; transition: all 0.25s ease;
+}
+.c-seat.human { border-color: var(--team1-blue); color: #e0f2fe; background: rgba(56, 189, 248, 0.18); }
+.c-seat.me { border-color: var(--gold-bright); color: var(--gold-bright); background: rgba(229, 193, 88, 0.25); }
+.c-seat.turn { box-shadow: 0 0 10px var(--gold-primary); border-color: #fff; background: rgba(229, 193, 88, 0.4); }
+
+.bar-quick-actions, .top-nav-actions {
+    display: flex; align-items: center; gap: 4px; flex-shrink: 0; padding-right: 2px; box-sizing: border-box;
+}
+.bar-icon-btn {
+    background: rgba(0,0,0,0.45); border: 1px solid rgba(229, 193, 88, 0.4);
+    color: var(--gold-bright); padding: 3px 7px; border-radius: 6px; font-size: clamp(0.65rem, 1.2vh, 0.72rem);
+    cursor: pointer; display: flex; align-items: center; gap: 3px; font-weight: 600;
+}
+.bar-icon-btn:hover { background: rgba(229, 193, 88, 0.25); }
+
+
+/* ==================== TOP HUD ==================== */
+#top-hud {
+    position: relative; z-index: 60; flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(4, 12, 8, 0.96) 0%, rgba(8, 22, 14, 0.85) 100%);
+    border-bottom: 1px solid rgba(229, 193, 88, 0.28);
+    padding: clamp(3px, 0.8vh, 6px) clamp(8px, 2.5vw, 18px);
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px;
+    backdrop-filter: blur(12px); box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+.team-hud {
+    display: flex; flex-direction: column; background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+    padding: 2px 8px; max-width: 175px;
+}
+.team-hud {
+    width: clamp(100px, 28vw, 150px);
+    background: rgba(4, 18, 11, 0.88);
+    border: 1px solid rgba(229, 193, 88, 0.25);
+    border-radius: 12px;
+    padding: 4px 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.team-hud.t1 { border-left: 3px solid var(--team1-blue); }
+.team-hud.t2 { border-right: 3px solid var(--team2-coral); justify-self: end; text-align: right; }
+.team-title-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; white-space: nowrap; }
+.team-name { font-size: clamp(0.55rem, 1.4vw, 0.68rem); font-weight: 800; text-transform: uppercase; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.game-pts-row { font-size: 0.8rem; line-height: 1; display: flex; gap: 1px; }
+.team-score-row { display: flex; align-items: baseline; justify-content: space-between; margin-top: 1px; gap: 4px; }
+.round-pts { font-size: clamp(0.76rem, 2vh, 0.92rem); font-weight: 800; color: var(--gold-bright); }
+.target-pill {
+    font-size: 0.55rem; font-weight: 800; padding: 1px 5px; border-radius: 5px;
+    background: rgba(229, 193, 88, 0.2); color: var(--gold-primary); border: 1px solid var(--gold-primary);
+    display: none;
+}
+.center-hud { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 4px; text-align: center; }
+.contract-pill { font-family: 'Cinzel', serif; font-size: clamp(0.82rem, 2.5vh, 1.05rem); font-weight: 900; color: var(--gold-bright); }
+.trump-pill { font-size: clamp(0.62rem, 1.3vh, 0.7rem); color: #94a3b8; font-weight: 600; display: flex; align-items: center; gap: 4px; margin-top: 1px; }
+#pair-badge {
+    display: none; background: linear-gradient(90deg, #9e7818, #e5c158, #9e7818);
+    color: #09150d; font-size: 0.52rem; font-weight: 800; padding: 1px 6px;
+    border-radius: 6px; margin-top: 1px; text-transform: uppercase;
+}
+
+
+/* ==================== 3. LIVE TRICK POT & HONOR COUNTER ==================== */
+.pot-coin-float {
+    position: absolute; z-index: 150; pointer-events: none;
+    background: radial-gradient(circle, #fde047 0%, #eab308 60%, #ca8a04 100%);
+    color: #422006; font-family: 'Cinzel', serif; font-weight: 900;
+    font-size: 0.85rem; padding: 2px 7px; border-radius: 12px;
+    border: 1.5px solid #fff; box-shadow: 0 0 14px rgba(250, 204, 21, 0.9), 0 4px 10px rgba(0,0,0,0.6);
+    transform: translate(-50%, -50%);
+}
+#trick-pts-pill.pot-punch {
+    animation: potPulse 0.3s ease-out;
+}
+@keyframes potPulse {
+    0% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.22); filter: drop-shadow(0 0 14px var(--gold-bright)); }
+    100% { transform: translateX(-50%) scale(1); }
+}
+
+
+/* ==================== 7. RADIAL TURN URGENCY RING ==================== */
+.player-badge {
+    position: relative;
+}
+.turn-urgency-svg {
+    position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px);
+    pointer-events: none; z-index: -1; overflow: visible;
+}
+.turn-urgency-rect {
+    fill: none; stroke: var(--gold-primary); stroke-width: 2.5; stroke-linecap: round;
+    rx: 18px; ry: 18px; stroke-dasharray: 260; stroke-dashoffset: 0;
+    filter: drop-shadow(0 0 6px var(--gold-glow));
+    transition: stroke-dashoffset 0.25s linear, stroke 0.3s ease;
+}
+.turn-urgency-rect.warning { stroke: #eab308; filter: drop-shadow(0 0 8px #eab308); }
+.turn-urgency-rect.critical { stroke: #ef4444; filter: drop-shadow(0 0 10px #ef4444); animation: critPulse 0.5s infinite alternate; }
+@keyframes critPulse { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+
+/* ==================== 8. DYNAMIC FLOATING SEAT BIDDING BUBBLE ==================== */
+.floating-seat-bid {
+    position: absolute;
+    z-index: 250;
+    pointer-events: none;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px;
+    border-radius: 14px;
+    font-family: 'Cinzel', serif;
+    white-space: nowrap;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.85);
+    backdrop-filter: blur(10px);
+    transition: transform 0.2s ease, opacity 0.25s ease;
+    max-width: clamp(110px, 34vw, 160px);
+}
+.floating-seat-bid.pos-bottom {
+    bottom: calc(100% + 10px);
+    left: 50%;
+    translate: -50% 0;
+}
+.floating-seat-bid.pos-top {
+    top: calc(100% + 10px);
+    left: 50%;
+    translate: -50% 0;
+}
+.floating-seat-bid.pos-left {
+    bottom: calc(100% + 6px);
+    left: 0;
+    translate: 0 0;
+}
+.floating-seat-bid.pos-right {
+    bottom: calc(100% + 6px);
+    right: 0;
+    left: auto;
+    translate: 0 0;
+}
+
+.floating-seat-bid .float-bid-sub {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.floating-seat-bid .float-bid-main {
+    font-size: 1.25rem;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: 0.5px;
+}
+
+.floating-seat-bid.type-bid {
+    background: linear-gradient(135deg, rgba(28, 22, 6, 0.97), rgba(14, 10, 2, 0.98));
+    border: 2px solid var(--gold-bright);
+    box-shadow: 0 0 28px rgba(234, 179, 8, 0.7), 0 8px 24px rgba(0,0,0,0.85);
+    color: #fef08a;
+}
+.floating-seat-bid.type-bid .float-bid-main {
+    color: #fff;
+    text-shadow: 0 0 12px rgba(234, 179, 8, 0.9);
+}
+
+.floating-seat-bid.type-pass {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+    border: 1.5px solid rgba(148, 163, 184, 0.55);
+    box-shadow: 0 0 18px rgba(100, 116, 139, 0.45), 0 6px 20px rgba(0,0,0,0.75);
+    color: #cbd5e1;
+    padding: 5px 12px;
+}
+.floating-seat-bid.type-pass .float-bid-main {
+    color: #e2e8f0;
+    font-size: 0.95rem;
+}
+
+.floating-seat-bid.type-won {
+    background: linear-gradient(135deg, rgba(6, 44, 22, 0.97), rgba(2, 20, 10, 0.98));
+    border: 2px solid #4ade80;
+    box-shadow: 0 0 35px rgba(74, 222, 128, 0.8), 0 12px 28px rgba(0,0,0,0.85);
+    color: #86efac;
+}
+.floating-seat-bid.type-won .float-bid-main {
+    color: #ffffff;
+    font-size: 1.35rem;
+    text-shadow: 0 0 14px rgba(74, 222, 128, 0.95);
+}
+
+/* Dynamic Thinking Deliberation Badge */
+.seat-bid-thinking {
+    position: absolute;
+    z-index: 200;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 14px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    background: rgba(8, 20, 14, 0.94);
+    border: 1.5px solid var(--gold-primary);
+    color: var(--gold-bright);
+    box-shadow: 0 0 14px rgba(229, 193, 88, 0.45), 0 4px 12px rgba(0,0,0,0.65);
+    white-space: nowrap;
+    animation: thinkingLevitate 1.4s infinite ease-in-out alternate;
+}
+.seat-bid-thinking.pos-bottom {
+    bottom: calc(100% + 8px);
+    left: 50%;
+    translate: -50% 0;
+}
+.seat-bid-thinking.pos-top {
+    top: calc(100% + 8px);
+    left: 50%;
+    translate: -50% 0;
+}
+.seat-bid-thinking.pos-left {
+    left: calc(100% + 8px);
+    top: 50%;
+    translate: 0 -50%;
+}
+.seat-bid-thinking.pos-right {
+    right: calc(100% + 8px);
+    top: 50%;
+    translate: 0 -50%;
+}
+.seat-bid-thinking.my-turn {
+    border-color: #38bdf8;
+    color: #bae6fd;
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.6), 0 4px 12px rgba(0,0,0,0.65);
+    animation: thinkingLevitate 0.9s infinite ease-in-out alternate;
+}
+@keyframes thinkingLevitate {
+    0% { margin-top: 0; opacity: 0.88; }
+    100% { margin-top: -4px; opacity: 1; }
+}
+
