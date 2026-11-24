@@ -1,5 +1,5 @@
 // Twenty-Eight (28) Royal Casino - Service Worker
-const CACHE_NAME = 'twentyeight-v4.0.2';
+const CACHE_NAME = 'twentyeight-v4.0.3';
 
 const STATIC_ASSETS = [
   '/',
@@ -93,7 +93,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static Assets & ES Modules: Stale-While-Revalidate with Cache-First Fallback
+  // App Source Modules & Scripts: Network-First to guarantee immediate zero-delay updates
+  if (event.request.url.includes('/src/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Static Assets & Third-Party CDNs: Stale-While-Revalidate with Cache-First Fallback
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {
