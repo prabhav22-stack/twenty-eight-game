@@ -239,15 +239,22 @@ function generateRandomRoom() {
 }
 
 // Parse URL params
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('room')) {
-    document.getElementById('room-code-input').value = urlParams.get('room').toUpperCase();
-}
-if (urlParams.get('name')) {
-    document.getElementById('player-name-input').value = urlParams.get('name');
-}
-if (urlParams.get('mode')) {
-    viewMode = urlParams.get('mode').toUpperCase();
+function parseUrlParams() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('room')) {
+            const rIn = document.getElementById('room-code-input');
+            if (rIn) rIn.value = urlParams.get('room').toUpperCase();
+        }
+        if (urlParams.get('name')) {
+            const pIn = document.getElementById('player-name-input');
+            if (pIn) pIn.value = urlParams.get('name');
+        }
+        if (urlParams.get('mode') && typeof window !== 'undefined') {
+            window.viewMode = urlParams.get('mode').toUpperCase();
+        }
+    } catch(e) {}
 }
 
 function openShareModal() {
@@ -305,5 +312,6 @@ export {
     generateRandomRoom,
     openShareModal,
     closeShareModal,
-    copyInviteLink
+    copyInviteLink,
+    parseUrlParams
 };

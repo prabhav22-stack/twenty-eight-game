@@ -1595,6 +1595,7 @@ export class TwentyEightEngine {
                 ui.animatingTrick = false;
                 ui.animatingReveal = false;
                 ui.pendingMasterState = null;
+                ui._lastEndedRoundId = null;
             }
         } else if (state.roundId !== undefined) {
             this.roundId = state.roundId;

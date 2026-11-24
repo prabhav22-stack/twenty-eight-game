@@ -172,8 +172,6 @@ import { triggerHaptic } from './AudioHaptics.js';
         }
         if (synNoteEl) synNoteEl.innerText = synNote;
     }
-}
-
 
 // ===========================
 // QoL UI IMPROVEMENTS JS

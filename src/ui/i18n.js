@@ -2,6 +2,7 @@
  * i18n.js - Internationalization Engine (English & Hindi)
  * Localized labels, suit names, announcements, and button text.
  */
+import { updateOrientationUI, updateDifficultyUI } from './settings.js';
 const I18N = {
     en: {
         appName: "TWENTY-EIGHT",
@@ -184,6 +185,8 @@ const I18N = {
         dirs: { SOUTH: 'दक्षिण (S)', NORTH: 'उत्तर (N)', EAST: 'पूर्व (E)', WEST: 'पश्चिम (W)' }
     }
 };
+
+let currentLang = (typeof localStorage !== 'undefined' && (localStorage.getItem('twentyEight_lang') || localStorage.getItem('twentyeight_lang'))) || 'en';
 
 function setLanguage(lang) {
     currentLang = lang;

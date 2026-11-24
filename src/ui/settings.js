@@ -4,6 +4,7 @@
  */
 import { playSound } from './AudioHaptics.js';
 import { I18N, currentLang, applyLanguage } from './i18n.js';
+import { updateTopCompassBar } from '../net/network.js';
 
 function getVisualPosition(pIndex) {
     if (mySeat === 99 || tableOrientation === 'COMPASS') return pIndex;
@@ -226,7 +227,8 @@ function updateScreenMetrics() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     const ar = w / h;
-    const docEl = document.documentElement;
+    const docEl = document.documentElement || document.body;
+    if (!docEl || !docEl.style || typeof docEl.style.setProperty !== 'function') return;
 
     docEl.style.setProperty('--vh', (h * 0.01) + 'px');
     docEl.style.setProperty('--app-width', w + 'px');
@@ -312,11 +314,13 @@ function updateScreenMetrics() {
     else if (isTallPhone) safeBottom = 10;
     docEl.style.setProperty('--south-bottom', safeBottom + 'px');
 }
-updateScreenMetrics();
-window.addEventListener('resize', updateScreenMetrics);
-window.addEventListener('orientationchange', () => { setTimeout(updateScreenMetrics, 120); });
-if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', updateScreenMetrics);
+if (typeof window !== 'undefined') {
+    updateScreenMetrics();
+    window.addEventListener('resize', updateScreenMetrics);
+    window.addEventListener('orientationchange', () => { setTimeout(updateScreenMetrics, 120); });
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', updateScreenMetrics);
+    }
 }
 
 function toggleFullscreen() {
@@ -330,7 +334,7 @@ function toggleFullscreen() {
 // ==================== PROCEDURAL SOUND EFFECTS ====================
 
 // ==================== TABLE SPEED & PACING CONTROLLER ====================
-window.GAME_SPEED_MULTIPLIER = 1.0;
+if (typeof window !== 'undefined') window.GAME_SPEED_MULTIPLIER = 1.0;
 
 function initTableSpeed() {
     try {

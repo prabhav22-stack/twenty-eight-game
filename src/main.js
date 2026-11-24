@@ -60,7 +60,8 @@ import {
     handleIncomingNetworkMessage,
     handleDeviceWakeup,
     hostStartGame,
-    resetServerLobby
+    resetServerLobby,
+    updateTopCompassBar
 } from './net/network.js';
 
 // 3. UI, Audio & Settings Modules
@@ -198,8 +199,7 @@ function installPWA() {
 
 // Instantiate Singletons
 const game = new TwentyEightEngine();
-const ui = new UIController();
-ui.engine = game;
+const ui = new UIController(game);
 
 // Global Exposing for inline HTML attribute compatibility
 window.game = game;
@@ -245,6 +245,7 @@ window.setDifficulty = setDifficulty;
 window.cycleDifficulty = cycleDifficulty;
 window.setOrientationUI = setOrientationUI;
 window.toggleTableOrientation = toggleTableOrientation;
+window.updateTopCompassBar = updateTopCompassBar;
 window.setSpeedUI = setSpeedUI;
 window.cycleTableSpeed = cycleTableSpeed;
 window.setTimerVisibilityUI = setTimerVisibilityUI;
@@ -274,7 +275,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // App Initialization
-window.addEventListener('DOMContentLoaded', () => {
+function initApp() {
     updateOrientationUI();
     initTableSpeed();
     checkSavedSessionOnLoad();
@@ -282,4 +283,12 @@ window.addEventListener('DOMContentLoaded', () => {
     applyLanguage();
     refreshLucideIcons();
     initVanillaTilt();
-});
+}
+
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+        initApp();
+    }
+}

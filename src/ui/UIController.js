@@ -6,6 +6,7 @@ import { RenderQueue } from './RenderQueue.js';
 import { playSound, triggerHaptic, getAudioContext } from './AudioHaptics.js';
 import { BackendAPI } from '../net/BackendAPI.js';
 import { toggleTacticalReportCard, renderTacticalReportCard } from './TacticalModal.js';
+import { updateTopCompassBar } from '../net/network.js';
 
 // Context-aware turn duration helper
 export function getTurnDurationMs(engine, seat) {
@@ -47,18 +48,20 @@ export class UIController {
 
     constructor(engine) {
         this.engine = engine;
-        this.engine.callbacks.onLog = (msg) => this.renderLog(msg);
-        this.engine.callbacks.onBid = (pIndex, val) => this.handleRemoteBidUI(pIndex, val, false);
-        this.engine.callbacks.onBidWon = (pIndex, val) => {
-            if (pIndex === mySeat && mySeat !== 99) {
-                // Human winner: Show sole dedicated Bid Won modal, suppress redundant background splash
-                this.showBidWonModal(pIndex, val);
-                this.showSeatFloatingBid(pIndex, val, true);
-            } else {
-                // Remote/Bot winner: Show bid splash banner
-                this.handleRemoteBidUI(pIndex, val, true);
-            }
-        };
+        if (this.engine && this.engine.callbacks) {
+            this.engine.callbacks.onLog = (msg) => this.renderLog(msg);
+            this.engine.callbacks.onBid = (pIndex, val) => this.handleRemoteBidUI(pIndex, val, false);
+            this.engine.callbacks.onBidWon = (pIndex, val) => {
+                if (typeof mySeat !== 'undefined' && pIndex === mySeat && mySeat !== 99) {
+                    // Human winner: Show sole dedicated Bid Won modal, suppress redundant background splash
+                    this.showBidWonModal(pIndex, val);
+                    this.showSeatFloatingBid(pIndex, val, true);
+                } else {
+                    // Remote/Bot winner: Show bid splash banner
+                    this.handleRemoteBidUI(pIndex, val, true);
+                }
+            };
+        }
         this.playerNames = ["SOUTH", "EAST", "NORTH", "WEST"];
         this.isDealingState = false; this.uiTrumpRevealed = false; this.animatingReveal = false; 
         this.aiTimer = null; this.trickTimer = null;
@@ -73,7 +76,7 @@ export class UIController {
         this.turnSecondsLeft = 60;
         this.turnCountdownTimer = null;
         this.turnTimerSeat = -1;
-        this.animQueue = new AnimationQueue();
+        this.animQueue = new RenderQueue(this);
         this.activeTrickTimeline = null;
         this.trickBeat2Timer = null;
         this.trickBreathingTimer = null;
@@ -3466,7 +3469,8 @@ function showKbdHintBar() {
 }
 
 // --- Keyboard Shortcuts ---
-document.addEventListener('keydown', function(e) {
+if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', function(e) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     var key = e.key;
 
@@ -3514,40 +3518,41 @@ document.addEventListener('keydown', function(e) {
         if (trackerDrawer && trackerDrawer.classList.contains('open') && ui && ui.toggleTrackerDrawer) ui.toggleTrackerDrawer();
     }
 });
+}
 
 
 // ==================== TEST HARNESS FOR UI FEATURES ====================
-window.testUIFeatures = function() {
-    if (typeof ui !== 'undefined' && ui && ui.playRoyalPairAnimation) {
-        ui.playRoyalPairAnimation(0);
-    }
-    console.log("Testing UI features...");
-    if (typeof showYourTurnBanner === 'function') {
-        showYourTurnBanner("✨ YOUR TURN — Lead a Card (Test Demo)", 4000);
-    }
-    if (typeof showGameToast === 'function') {
-        showGameToast("🏆 Test Toast: You won Trick 3! (+5 pts)", 3000);
-        setTimeout(() => showGameToast("🚨 Test Toast: Trump Revealed: ♥ Hearts!", 3000), 1200);
-    }
-    if (typeof flashTrickHUD === 'function') {
-        flashTrickHUD();
-    }
-    const pill = document.getElementById('trick-hud-pill');
-    if (pill) {
-        pill.classList.add('your-turn-active');
-        setTimeout(() => pill.classList.remove('your-turn-active'), 4000);
-    }
-    // Also test card hints
-    document.body.classList.add('kbd-mode');
-    if (typeof showKbdHintBar === 'function') showKbdHintBar();
-    setTimeout(() => document.body.classList.remove('kbd-mode'), 5000);
-};
-
-const game = new TwentyEightEngine();
-const ui = new UIController(game);
+if (typeof window !== 'undefined') {
+    window.testUIFeatures = function() {
+        if (typeof ui !== 'undefined' && ui && ui.playRoyalPairAnimation) {
+            ui.playRoyalPairAnimation(0);
+        }
+        console.log("Testing UI features...");
+        if (typeof showYourTurnBanner === 'function') {
+            showYourTurnBanner("✨ YOUR TURN — Lead a Card (Test Demo)", 4000);
+        }
+        if (typeof showGameToast === 'function') {
+            showGameToast("🏆 Test Toast: You won Trick 3! (+5 pts)", 3000);
+            setTimeout(() => showGameToast("🚨 Test Toast: Trump Revealed: ♥ Hearts!", 3000), 1200);
+        }
+        if (typeof flashTrickHUD === 'function') {
+            flashTrickHUD();
+        }
+        const pill = document.getElementById('trick-hud-pill');
+        if (pill) {
+            pill.classList.add('your-turn-active');
+            setTimeout(() => pill.classList.remove('your-turn-active'), 4000);
+        }
+        // Also test card hints
+        document.body.classList.add('kbd-mode');
+        if (typeof showKbdHintBar === 'function') showKbdHintBar();
+        setTimeout(() => document.body.classList.remove('kbd-mode'), 5000);
+    };
+}
 
 // Document Visibility Listener: Prevents desync when tab is minimized or switched
-document.addEventListener('visibilitychange', () => {
+if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         if (typeof ui !== 'undefined' && ui && ui.dealingAnimationActive) {
             console.log("[visibilitychange] Tab hidden during deal animation: fast-forwarding dealing");
@@ -3605,3 +3610,4 @@ document.addEventListener('visibilitychange', () => {
         }
     }
 });
+}

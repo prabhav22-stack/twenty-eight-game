@@ -461,6 +461,85 @@ function executeSeatSwap(seatA, seatB) {
 }
 
 
+function updateTopCompassBar() {
+    if (typeof document === 'undefined') return;
+    const bar = document.getElementById('compass-bar');
+    if (!bar) return;
+    bar.style.display = 'flex';
+    const roleEl = document.getElementById('my-compass-role');
+    const shareBtn = document.getElementById('share-icon-btn');
+    const handoverBtn = document.getElementById('handover-icon-btn');
+    const rosterEl = document.querySelector('.compass-roster');
+    let t = (typeof I18N !== 'undefined' && typeof currentLang !== 'undefined' && I18N[currentLang]) ? I18N[currentLang] : {};
+
+    let seatIdx = (typeof mySeat !== 'undefined') ? mySeat : 0;
+    let compassList = (typeof COMPASS_FULL !== 'undefined') ? COMPASS_FULL : ["SOUTH", "EAST", "NORTH", "WEST"];
+    let compassShortList = (typeof COMPASS_SHORT !== 'undefined') ? COMPASS_SHORT : ["S", "E", "N", "W"];
+    let dir = compassList[seatIdx] || 'SOUTH';
+    let dirName = (typeof currentLang !== 'undefined' && currentLang === 'hi') ? (t.dirs && t.dirs[dir] ? t.dirs[dir] : dir) : dir;
+    let dirShort = compassShortList[seatIdx] || 'S';
+    let teamNum = (seatIdx === 0 || seatIdx === 2) ? 1 : 2;
+    let selfName = (typeof myNickname !== 'undefined' && myNickname) ? myNickname : ((typeof currentLang !== 'undefined' && currentLang === 'hi') ? 'आप' : 'Player 1');
+
+    if (handoverBtn) {
+        if (typeof gameMode !== 'undefined' && gameMode === 'multi' && seatIdx !== 99 && seatIdx >= 0 && seatIdx < 4) {
+            handoverBtn.style.display = 'inline-flex';
+        } else {
+            handoverBtn.style.display = 'none';
+        }
+    }
+
+    if (typeof gameMode !== 'undefined' && gameMode === 'multi' && seatIdx !== 99 && typeof currentRoom !== 'undefined' && currentRoom) {
+        saveActiveSeatSession(currentRoom, seatIdx);
+    }
+
+    if (roleEl) {
+        if (typeof gameMode !== 'undefined' && gameMode !== 'multi') {
+            if (shareBtn) shareBtn.style.display = 'none';
+            let isMobile = (typeof window !== 'undefined' && window.innerWidth <= 600);
+            let seatText = isMobile ? `${dirShort} (T${teamNum})` : `${dirName} • Team ${teamNum}`;
+            roleEl.innerHTML = `<span>🧭</span> <span style="font-weight:800;">${selfName}</span> &bull; <span>${seatText}</span>`;
+        } else {
+            if (shareBtn) shareBtn.style.display = 'inline-flex';
+            if (seatIdx === 99) {
+                roleEl.innerHTML = `<span>📺</span> <span>${(typeof currentLang !== 'undefined' && currentLang === 'hi') ? 'मुख्य टेबल' : 'SPECTATOR'}</span>`;
+            } else {
+                let isMobile = (typeof window !== 'undefined' && window.innerWidth <= 600);
+                let seatText = isMobile ? `${dirShort} (T${teamNum})` : `${dirName} • Team ${teamNum}`;
+                roleEl.innerHTML = `<span>🧭</span> <span style="font-weight:800;">${selfName}</span> &bull; <span>${seatText}</span>`;
+            }
+        }
+    }
+
+    if (rosterEl) {
+        rosterEl.style.display = 'flex';
+        let hSeats = (typeof humanSeats !== 'undefined') ? humanSeats : [0];
+        let pNames = (typeof playerCustomNames !== 'undefined') ? playerCustomNames : compassList;
+        for (let i = 0; i < 4; i++) {
+            const seatEl = document.getElementById(`c-seat-${i}`);
+            if (!seatEl) continue;
+            let isHuman = hSeats.includes(i);
+            let seatFull = compassList[i] || 'SOUTH';
+            let seatDirName = (typeof currentLang !== 'undefined' && currentLang === 'hi') ? (t.dirs && t.dirs[seatFull] ? t.dirs[seatFull] : seatFull) : seatFull;
+            let customName = pNames[i];
+            let isDefaultName = !customName || compassList.includes(customName);
+            let botLabel = (typeof currentLang !== 'undefined' && currentLang === 'hi') ? 'बॉट' : 'Bot';
+            let youLabel = (typeof currentLang !== 'undefined' && currentLang === 'hi') ? 'आप' : 'YOU';
+            let name = isDefaultName ? seatDirName : customName;
+            let shortDir = compassShortList[i] || 'S';
+            let label = `${shortDir}: ${isHuman ? ('👤' + (i === seatIdx && seatIdx !== 99 ? youLabel : name)) : ('🤖' + botLabel)}`;
+            seatEl.innerText = label;
+
+            seatEl.className = 'c-seat';
+            if (i === seatIdx && seatIdx !== 99) seatEl.classList.add('me');
+            else if (isHuman) seatEl.classList.add('human');
+            if (typeof game !== 'undefined' && game && game.phase && game.phase !== 'ROUND_OVER' && game.currentTurn === i) {
+                seatEl.classList.add('turn');
+            }
+        }
+    }
+}
+
 function resetServerLobby() {
     if (isHost) {
         broadcastNetMessage({type: 'RESET_LOBBY'});
@@ -1087,9 +1166,13 @@ function handleIncomingNetworkMessage(sourceConn, data) {
 
 // Client active sync watchdog: Checks if client is out of sync or hasn't received state
 setInterval(() => {
-    if (gameMode === 'multi' && !isHost && document.getElementById('start-screen').style.display === 'none') {
-        let hasNoCards = (game.players[mySeat] || []).length === 0;
-        let lastAge = Date.now() - (ui.lastStateUpdateTime || 0);
+    const isMulti = (typeof gameMode !== 'undefined' ? gameMode : (typeof window !== 'undefined' ? window.gameMode : 'ai')) === 'multi';
+    const hostFlag = (typeof isHost !== 'undefined' ? isHost : (typeof window !== 'undefined' ? window.isHost : true));
+    const startScr = (typeof document !== 'undefined') ? document.getElementById('start-screen') : null;
+    if (isMulti && !hostFlag && startScr && startScr.style.display === 'none') {
+        const myS = (typeof mySeat !== 'undefined' ? mySeat : (typeof window !== 'undefined' ? window.mySeat : 0));
+        let hasNoCards = (typeof game !== 'undefined' && game && game.players && game.players[myS]) ? game.players[myS].length === 0 : true;
+        let lastAge = (typeof ui !== 'undefined' && ui) ? (Date.now() - (ui.lastStateUpdateTime || 0)) : 0;
         let isStalled = (lastAge > 2800);
 
         // Stuck animation auto-recovery: if animation flags have been stuck for >3.5s, force clear them
@@ -1168,13 +1251,17 @@ function handleDeviceWakeup() {
     }
 }
 
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        handleDeviceWakeup();
-    }
-});
-window.addEventListener('pageshow', handleDeviceWakeup);
-window.addEventListener('focus', handleDeviceWakeup);
+if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            handleDeviceWakeup();
+        }
+    });
+}
+if (typeof window !== 'undefined') {
+    window.addEventListener('pageshow', handleDeviceWakeup);
+    window.addEventListener('focus', handleDeviceWakeup);
+}
 
 function hostStartGame() {
     if (gameMode === 'ai') {
@@ -1224,5 +1311,6 @@ export {
     handleIncomingNetworkMessage,
     handleDeviceWakeup,
     hostStartGame,
-    resetServerLobby
+    resetServerLobby,
+    updateTopCompassBar
 };

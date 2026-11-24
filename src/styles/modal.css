@@ -289,6 +289,27 @@
 }
 .config-input:focus { outline: none; border-color: var(--gold-primary); box-shadow: 0 0 10px var(--gold-glow); }
 
+#join-room-container {
+    width: 100%;
+    box-sizing: border-box;
+}
+#join-room-container .config-input {
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 44px !important;
+    box-sizing: border-box !important;
+}
+#join-room-container .menu-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    height: 44px !important;
+    margin: 0 !important;
+    padding: 0 20px !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+}
+
 .diff-btn-group {
     display: flex; gap: 6px; width: 100%; margin-top: 3px;
 }
