@@ -1260,8 +1260,9 @@ if (typeof document !== 'undefined') {
     });
 }
 if (typeof window !== 'undefined') {
-    window.addEventListener('pageshow', handleDeviceWakeup);
-    window.addEventListener('focus', handleDeviceWakeup);
+    window.addEventListener('pageshow', (e) => {
+        if (e && e.persisted) handleDeviceWakeup();
+    });
 }
 
 function hostStartGame() {

@@ -158,8 +158,8 @@ function setDifficultyUI(diff) {
 }
 
 function setOrientationUI(mode) {
-    tableOrientation = mode;
-    try { localStorage.setItem('twentyEight_orientation', mode); } catch(e) {}
+    tableOrientation = (mode === 'COMPASS') ? 'COMPASS' : 'FIRST_PERSON';
+    try { localStorage.setItem('twentyeight_orientation', tableOrientation); } catch(e) {}
     updateOrientationUI();
     syncSettingsModalUI();
     if (typeof ui !== 'undefined' && ui) {
@@ -168,7 +168,7 @@ function setOrientationUI(mode) {
         ui.syncTable();
     }
     if (typeof showGameToast === 'function') {
-        let label = mode === 'FIRST_PERSON' ? '1st-Person (You at Bottom)' : 'Fixed Compass';
+        let label = tableOrientation === 'FIRST_PERSON' ? '1st-Person (You at Bottom)' : 'Fixed Compass';
         showGameToast(`🧭 Table View: <b>${label}</b>`, 1800);
     }
 }
@@ -198,6 +198,7 @@ function toggleTableOrientation() {
         localStorage.setItem('twentyeight_orientation', tableOrientation);
     } catch(e) {}
     updateOrientationUI();
+    syncSettingsModalUI();
     if (typeof ui !== 'undefined' && ui) {
         ui.updatePlayerNames();
         ui.renderStaticBoard();

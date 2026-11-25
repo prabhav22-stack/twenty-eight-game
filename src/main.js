@@ -126,13 +126,15 @@ import {
 function initVanillaTilt() {
     if (typeof VanillaTilt !== 'undefined' && typeof VanillaTilt.init === 'function') {
         try {
-            const tiltEls = document.querySelectorAll('.card, .tilt-box');
-            VanillaTilt.init(tiltEls, {
-                max: 12,
-                speed: 400,
-                glare: true,
-                "max-glare": 0.25
-            });
+            const tiltEls = document.querySelectorAll('.tilt-box');
+            if (tiltEls.length > 0) {
+                VanillaTilt.init(tiltEls, {
+                    max: 10,
+                    speed: 400,
+                    glare: true,
+                    "max-glare": 0.2
+                });
+            }
         } catch(e) {}
     }
 }

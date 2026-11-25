@@ -596,13 +596,19 @@
         var clientConns = {};
         var stateHeartbeatTimer = null;
         var currentDifficulty = 'medium';
-        var tableOrientation = 'SOUTH';
+        var tableOrientation = (function() {
+            try {
+                var saved = localStorage.getItem('twentyeight_orientation') || localStorage.getItem('twentyEight_orientation');
+                if (saved === 'COMPASS' || saved === 'FIRST_PERSON') return saved;
+            } catch(e) {}
+            return 'FIRST_PERSON';
+        })();
         var showTurnTimerSetting = true;
         var GAME_SPEED_MULTIPLIER = 1.0;
         var game = null;
         var ui = null;
     </script>
-    <script type="module" src="src/main.js?v=4.0.3"></script>
+    <script type="module" src="src/main.js?v=4.0.4"></script>
 <!-- ==================== HONOR TRACKER DRAWER ==================== -->
 <div id="tracker-drawer">
     <div class="tracker-header">

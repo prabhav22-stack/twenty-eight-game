@@ -176,23 +176,25 @@ export class UIController {
         for(let i=0; i<4; i++) {
             let isHuman = humanSeats.includes(i);
             let dir = COMPASS_FULL[i];
+            let dirShort = COMPASS_SHORT[i];
             let dirName = currentLang === 'hi' ? (t.dirs && t.dirs[dir] ? t.dirs[dir] : dir) : dir;
             let isDefaultName = !playerCustomNames[i] || COMPASS_FULL.includes(playerCustomNames[i]);
             let displayName = isDefaultName ? dirName : playerCustomNames[i];
 
             if (i === mySeat) { 
                 let youLabel = myNickname || (currentLang === 'hi' ? 'आप' : 'You');
-                this.playerNames[i] = `👤 ${youLabel} (${dirName})`; 
+                this.playerNames[i] = `👤 ${youLabel} (${dirShort})`; 
             } else if (isHuman) {
-                this.playerNames[i] = `👤 ${displayName}`;
+                this.playerNames[i] = `👤 ${displayName} (${dirShort})`;
             } else {
-                // Distinctive AI Personalities
-                if (i === (mySeat + 2) % 4) {
-                    this.playerNames[i] = currentLang === 'hi' ? "🛡️ साथी (वफादार विंगमैन)" : "🛡️ Partner (Wingman)";
-                } else if (i === 1) {
-                    this.playerNames[i] = currentLang === 'hi' ? "⚔️ ईस्ट (आक्रामक हमलावर)" : "⚔️ East (Striker)";
-                } else if (i === 3) {
-                    this.playerNames[i] = currentLang === 'hi' ? "♟️ वेस्ट (शातिर चालबाज़)" : "♟️ West (Saboteur)";
+                // Distinctive AI Personalities relative to mySeat (or Compass if spectator)
+                let baseSeat = (mySeat === 99) ? 0 : mySeat;
+                if (i === (baseSeat + 2) % 4) {
+                    this.playerNames[i] = (currentLang === 'hi' ? "🛡️ साथी" : "🛡️ Partner") + ` (${dirShort})`;
+                } else if (i === (baseSeat + 1) % 4) {
+                    this.playerNames[i] = (currentLang === 'hi' ? `⚔️ ${dirName}` : `⚔️ ${dirName} (Striker)`);
+                } else if (i === (baseSeat + 3) % 4) {
+                    this.playerNames[i] = (currentLang === 'hi' ? `♟️ ${dirName}` : `♟️ ${dirName} (Saboteur)`);
                 } else {
                     this.playerNames[i] = `🤖 ${displayName}`;
                 }
@@ -206,9 +208,8 @@ export class UIController {
             if (t1Header) t1Header.innerText = isHi ? "टीम 1 (द व उ)" : "Team 1 (S & N)";
             if (t2Header) t2Header.innerText = isHi ? "टीम 2 (पू व प)" : "Team 2 (E & W)";
         } else {
-            let isT1Mine = (myTeamNum === 1);
-            if (t1Header) t1Header.innerText = isT1Mine ? (isHi ? "आप (T1)" : "YOU (T1)") : (isHi ? "विरोधी" : "OPPONENTS");
-            if (t2Header) t2Header.innerText = !isT1Mine ? (isHi ? "आप (T2)" : "YOU (T2)") : (isHi ? "विरोधी" : "OPPONENTS");
+            if (t1Header) t1Header.innerText = isHi ? `आप (T${myTeamNum})` : `YOU (T${myTeamNum})`;
+            if (t2Header) t2Header.innerText = isHi ? "विरोधी" : "OPPONENTS";
         }
     }
 
@@ -338,6 +339,7 @@ export class UIController {
 
 
     async animateBotPrePlayTell(pIndex, isSaboteurBluff = false) {
+        if (!this.engine || this.engine.phase !== 'PLAYING' || this.engine.currentTurn !== pIndex) return;
         const positions = ['bottom', 'right', 'top', 'left'];
         let visualPos = getVisualPosition(pIndex);
         const seatEl = document.getElementById(`player-${positions[visualPos]}`);
@@ -353,15 +355,18 @@ export class UIController {
         let moveOffset = (pos === 'top') ? { y: 12 } : (pos === 'left' ? { x: 12 } : (pos === 'right' ? { x: -12 } : { y: -12 }));
 
         if (isSaboteurBluff && cards.length > 1) {
-            // Saboteur hesitation bluff: lifts one card halfway, slides it back, then pulls a different card!
             let altIdx = (targetIdx + 1) % cards.length;
             let altCard = cards[altIdx];
 
             playSound('rustle');
             await gsap.to(targetCard, { ...moveOffset, duration: 0.2, ease: "power2.out" });
             await new Promise(r => setTimeout(r, 220));
-            await gsap.to(targetCard, { x: 0, y: 0, duration: 0.16, ease: "power2.in" });
+            if (targetCard.isConnected) {
+                await gsap.to(targetCard, { x: 0, y: 0, duration: 0.16, ease: "power2.in", clearProps: 'x,y' });
+            }
+            if (!this.isAIThinking || this.engine.currentTurn !== pIndex) return;
             await new Promise(r => setTimeout(r, 160));
+            if (!this.isAIThinking || this.engine.currentTurn !== pIndex || !altCard.isConnected) return;
 
             playSound('rustle');
             await gsap.to(altCard, { ...moveOffset, duration: 0.22, ease: "power2.out" });
@@ -375,7 +380,10 @@ export class UIController {
 
     resetBotPrePlayTell() {
         if (this._currentlyLiftedCard && window.gsap) {
-            gsap.set(this._currentlyLiftedCard, { x: 0, y: 0 });
+            if (this._currentlyLiftedCard.isConnected) {
+                gsap.killTweensOf(this._currentlyLiftedCard);
+                gsap.set(this._currentlyLiftedCard, { clearProps: 'x,y' });
+            }
             this._currentlyLiftedCard = null;
         }
     }
@@ -571,9 +579,9 @@ export class UIController {
                         y: 0,
                         scale: 1,
                         rotation: baseRot,
-                        duration: 0.28,
+                        duration: 0.24,
                         ease: "back.out(2)",
-                        clearProps: "x,y",
+                        clearProps: "x,y,scale,rotation",
                         onComplete: () => {
                             cardEl.style.transform = 'rotate(var(--rot)) translateY(var(--y-lift))';
                             cardEl.style.zIndex = (cardIndex + 10).toString();
@@ -594,25 +602,37 @@ export class UIController {
 
     attachMagneticScrub(row) {
         if (!row) return;
-        row.addEventListener('pointermove', (e) => {
-            if (this.isCardDragging) return;
+        let rafPending = false;
+        let lastClientX = 0;
+        const updateScrub = () => {
+            rafPending = false;
+            if (this.isCardDragging || !row.isConnected) return;
             const cards = Array.from(row.querySelectorAll('.card:not(.dragging-card)'));
-            cards.forEach((c) => {
-                const r = c.getBoundingClientRect();
+            const rects = cards.map(c => c.getBoundingClientRect());
+            cards.forEach((c, idx) => {
+                const r = rects[idx];
                 const cardCenter = r.left + r.width / 2;
-                const dist = e.clientX - cardCenter;
+                const dist = lastClientX - cardCenter;
                 const maxDist = 65;
                 if (Math.abs(dist) < maxDist) {
                     const factor = 1 - Math.abs(dist) / maxDist;
-                    const shiftX = dist < 0 ? -factor * 10 : factor * 10;
-                    const liftY = factor * 16;
-                    c.style.setProperty('--scrub-x', `${shiftX}px`);
-                    c.style.setProperty('--scrub-y', `-${liftY}px`);
+                    const shiftX = dist < 0 ? -factor * 8 : factor * 8;
+                    const liftY = factor * 14;
+                    c.style.setProperty('--scrub-x', `${shiftX.toFixed(1)}px`);
+                    c.style.setProperty('--scrub-y', `-${liftY.toFixed(1)}px`);
                 } else {
                     c.style.setProperty('--scrub-x', '0px');
                     c.style.setProperty('--scrub-y', '0px');
                 }
             });
+        };
+        row.addEventListener('pointermove', (e) => {
+            if (e.pointerType === 'touch' || this.isCardDragging) return;
+            lastClientX = e.clientX;
+            if (!rafPending) {
+                rafPending = true;
+                requestAnimationFrame(updateScrub);
+            }
         });
         row.addEventListener('pointerleave', () => {
             const cards = Array.from(row.querySelectorAll('.card'));
@@ -1030,7 +1050,8 @@ export class UIController {
                 }
             });
             const splash = document.getElementById('partner-bid-splash');
-            if (splash && this.engine.currentTurn !== 2) {
+            let partnerSeatIdx = (mySeat === 99) ? 2 : (mySeat + 2) % 4;
+            if (splash && this.engine.currentTurn !== partnerSeatIdx) {
                 splash.classList.remove('show');
             }
         }
@@ -1126,6 +1147,18 @@ export class UIController {
             let cardStartIndex = (this.engine.phase === 'DEALING_2') ? 4 : 0;
             let displayedCount = this.isDealingState ? cardStartIndex : cardCount;
 
+            // If a deal animation is actively flying cards into existing DOM slots, preserve those card DOM nodes
+            // so in-flight onCardLanded callbacks never target detached elements and leave cards hidden.
+            const existingHandCards = el.querySelectorAll('[data-seat][data-card-idx]');
+            if (this.dealingAnimationActive && this.isDealingState && existingHandCards.length === cardCount && cardCount > 0) {
+                const badgeElOnly = el.querySelector('.player-badge');
+                if (badgeElOnly) {
+                    badgeElOnly.className = badgeClass;
+                    this.updateTurnUrgencyRing(badgeElOnly, isCurrent, actualPlayerIndex);
+                }
+                continue;
+            }
+
             const activeBubble = el.querySelector('.speech-bubble');
             const activeFloatBid = el.querySelector('.floating-seat-bid');
             el.innerHTML = `<div class="${badgeClass}">${this.playerNames[actualPlayerIndex]}${bidderCrown} <span class="card-cnt" id="badge-cnt-${actualPlayerIndex}">${displayedCount}</span></div>${bidBadge}`; 
@@ -1138,6 +1171,7 @@ export class UIController {
                 const row = document.createElement('div');
                 row.className = 'my-cards-row';
                 let total = (this.engine.players[mySeat] || []).length;
+                el.style.setProperty('--hand-count', String(total));
                 if (total >= 5) row.classList.add('dense-hand');
                 let mid = (total - 1) / 2;
                 let isMobile = window.innerWidth <= 680 || (window.innerWidth / window.innerHeight < 1.05 && window.innerWidth <= 820);
@@ -1211,12 +1245,6 @@ export class UIController {
                 el.appendChild(row);
             }
         }
-
-        // Initialize 3D tilt sheen on player cards
-        setTimeout(() => {
-            if (typeof initVanillaTilt === 'function') initVanillaTilt();
-            else if (typeof window !== 'undefined' && typeof window.initVanillaTilt === 'function') window.initVanillaTilt();
-        }, 50);
 
         this.updateTrickHUD();
         this.updateSecretTrumpVault();
@@ -1347,15 +1375,22 @@ export class UIController {
 
                     // Seamless transition: reveal card in hand the instant flyer lands
                     const onCardLanded = () => {
-                        if (targetCardEl) {
-                            targetCardEl.style.visibility = 'visible';
-                            targetCardEl.style.opacity = '1';
-                            targetCardEl.style.transform = 'translate3d(0, 0, 0)';
+                        const liveTarget = document.querySelector(`[data-seat="${seatInfo.actualPlayerIndex}"][data-card-idx="${cardIndex}"]`) || targetCardEl;
+                        if (liveTarget) {
+                            liveTarget.style.visibility = 'visible';
+                            liveTarget.style.opacity = '1';
+                            if (isMe) {
+                                liveTarget.style.transform = 'rotate(var(--rot)) translateY(var(--y-lift))';
+                            } else {
+                                liveTarget.style.transform = 'translate3d(0, 0, 0)';
+                            }
                             if (window.gsap) {
-                                gsap.fromTo(targetCardEl,
+                                gsap.fromTo(liveTarget,
                                     { scale: 1.08 },
-                                    { scale: 1, duration: 0.18, ease: "power2.out", onComplete: () => {
-                                        targetCardEl.style.transform = 'translate3d(0, 0, 0)';
+                                    { scale: 1, duration: 0.16, ease: "power2.out", clearProps: "scale", onComplete: () => {
+                                        liveTarget.style.transform = isMe
+                                            ? 'rotate(var(--rot)) translateY(var(--y-lift))'
+                                            : 'translate3d(0, 0, 0)';
                                     }}
                                 );
                             }
@@ -1417,6 +1452,8 @@ export class UIController {
                             c.style.opacity = '1';
                             if (c.classList.contains('card-back')) {
                                 c.style.transform = 'translate3d(0, 0, 0)';
+                            } else {
+                                c.style.transform = 'rotate(var(--rot)) translateY(var(--y-lift))';
                             }
                         });
                         for (let i = 0; i < 4; i++) {
@@ -1620,23 +1657,54 @@ export class UIController {
     }
 
     syncTable() {
-        if(this.animatingTrick) return;
+        if (this.animatingTrick) return;
         const table = document.getElementById('center-table'); 
         if (!table) return;
-        if (this.engine.trickCards.length === 0) {
+        const trickCards = this.engine.trickCards || [];
+        if (trickCards.length === 0) {
             table.innerHTML = '';
             return;
         }
-        while (table.children.length > this.engine.trickCards.length) {
-            table.removeChild(table.lastChild);
+
+        // Compute desired card keys including current visualPos (so orientation toggles update positions!)
+        const desiredKeys = trickCards.map(play => {
+            const vp = getVisualPosition(play.player);
+            return `${play.player}_${play.card.rank}_${play.card.suit}_vp${vp}`;
+        });
+        const existingEls = Array.from(table.children);
+        const existingKeys = existingEls.map(el => el.dataset.trickKey || '');
+
+        // Check if existing prefix matches desired prefix cleanly
+        let prefixMatches = existingKeys.length <= desiredKeys.length;
+        if (prefixMatches) {
+            for (let i = 0; i < existingKeys.length; i++) {
+                if (existingKeys[i] !== desiredKeys[i]) {
+                    prefixMatches = false;
+                    break;
+                }
+            }
         }
+
+        if (!prefixMatches) {
+            // Orientation changed or previous trick remnants remain: rebuild cleanly
+            if (window.gsap) gsap.killTweensOf(existingEls);
+            table.innerHTML = '';
+        }
+
         let staggerCount = 0;
-        while (table.children.length < this.engine.trickCards.length) {
+        while (table.children.length < trickCards.length) {
             let indexToRender = table.children.length;
-            let play = this.engine.trickCards[indexToRender];
+            let play = trickCards[indexToRender];
             if (play) {
-                this.renderPlayedCard(play.card, play.player, staggerCount * 0.28);
+                const vp = getVisualPosition(play.player);
+                this.renderPlayedCard(play.card, play.player, staggerCount * 0.22);
+                const lastChild = table.lastElementChild;
+                if (lastChild) {
+                    lastChild.dataset.trickKey = `${play.player}_${play.card.rank}_${play.card.suit}_vp${vp}`;
+                }
                 staggerCount++;
+            } else {
+                break;
             }
         }
     }
@@ -1771,6 +1839,19 @@ export class UIController {
             return;
         }
 
+        // Failsafe timeout so a backgrounded tab or interrupted GSAP tween can never deadlock animatingReveal
+        clearTimeout(this._revealFailsafeTimer);
+        this._revealFailsafeTimer = setTimeout(() => {
+            if (this.animatingReveal) {
+                console.warn('[playTrumpRevealAnimation] Failsafe timeout triggered, clearing reveal lock.');
+                blast.style.display = 'none';
+                blast.style.pointerEvents = 'none';
+                this.animatingReveal = false;
+                this.applyPendingMasterState();
+                this.gameLoop();
+            }
+        }, Math.round(3500 * (window.GAME_SPEED_MULTIPLIER || 1.0)));
+
         try {
             let speedMult = window.GAME_SPEED_MULTIPLIER || 1.0;
             let caller = (this.engine.justRevealedBy >= 0) ? this.engine.justRevealedBy : (this.engine.justRevealedByPlayer >= 0 ? this.engine.justRevealedByPlayer : 0);
@@ -1869,55 +1950,34 @@ export class UIController {
                             ease: "power2.in"
                         });
                     }
+                    const finishReveal = () => {
+                        clearTimeout(this._revealFailsafeTimer);
+                        blast.style.display = 'none';
+                        blast.style.pointerEvents = 'none';
+                        this.animatingReveal = false;
+                        this.applyPendingMasterState();
+                        this.gameLoop();
+                    };
                     if (window.gsap) {
                         gsap.to(blast, {
                             scale: 0.85,
                             opacity: 0,
                             duration: 0.35,
                             ease: "power2.in",
-                            onComplete: () => {
-                                blast.style.display = 'none';
-                                blast.style.pointerEvents = 'none';
-                                this.animatingReveal = false;
-                                if (!isHost && this.pendingMasterState) {
-                                    let pState = this.pendingMasterState;
-                                    this.pendingMasterState = null;
-                                    this.engine.syncFromMasterState(pState);
-                                    this.renderStaticBoard();
-                                    this.syncTable();
-                                }
-                                this.gameLoop();
-                            }
+                            onComplete: finishReveal
                         });
                     } else {
-                        setTimeout(() => {
-                            blast.style.display = 'none';
-                            blast.style.pointerEvents = 'none';
-                            this.animatingReveal = false;
-                            if (!isHost && this.pendingMasterState) {
-                                let pState = this.pendingMasterState;
-                                this.pendingMasterState = null;
-                                this.engine.syncFromMasterState(pState);
-                                this.renderStaticBoard();
-                                this.syncTable();
-                            }
-                            this.gameLoop();
-                        }, Math.round(350 * speedMult));
+                        setTimeout(finishReveal, Math.round(350 * speedMult));
                     }
                 }, holdDuration);
             }, pause1);
         } catch (err) {
             console.error("Trump reveal animation error:", err);
+            clearTimeout(this._revealFailsafeTimer);
             blast.style.display = 'none';
             blast.style.pointerEvents = 'none';
             this.animatingReveal = false;
-            if (!isHost && this.pendingMasterState) {
-                let pState = this.pendingMasterState;
-                this.pendingMasterState = null;
-                this.engine.syncFromMasterState(pState);
-                this.renderStaticBoard();
-                this.syncTable();
-            }
+            this.applyPendingMasterState();
             this.gameLoop();
         }
     }
@@ -2550,13 +2610,10 @@ export class UIController {
                 }
                 this.renderStaticBoard();
                 if (window.gsap) {
-                    gsap.from('.my-cards-row .card', {
-                        y: 12,
-                        scale: 0.96,
-                        stagger: 0.025,
-                        duration: 0.28,
-                        ease: "power2.out"
-                    });
+                    gsap.fromTo('.my-cards-row .card',
+                        { opacity: 0.7 },
+                        { opacity: 1, stagger: 0.02, duration: 0.22, ease: "power2.out", clearProps: "opacity" }
+                    );
                 }
                 this.gameLoop();
             });
@@ -2695,7 +2752,8 @@ export class UIController {
 
                         // Stage 1: Tell animation
                         let stage1Delay = Math.max(120, Math.round(thinkTimeMs * 0.48));
-                        let isSaboteurBluff = (turnPlayer === 3 && thinkTimeMs >= 1300 * speedMult);
+                        let saboteurSeat = (mySeat === 99) ? 3 : (mySeat + 3) % 4;
+                        let isSaboteurBluff = (turnPlayer === saboteurSeat && thinkTimeMs >= 1300 * speedMult);
 
                         setTimeout(() => {
                             if (this.isAIThinking) this.animateBotPrePlayTell(turnPlayer, isSaboteurBluff);
