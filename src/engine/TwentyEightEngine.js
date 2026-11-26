@@ -5,6 +5,9 @@
 import { InferenceMatrix } from './InferenceMatrix.js';
 import { ISMCTS } from './ISMCTS.js';
 import { TwentyEightDDS, DDS_SUITS, DDS_RANKS, DDS_RANK_VALUES, DDS_RANK_POWERS, DDS_SUIT_MASKS } from '../dds/TwentyEightDDS.js';
+import { playSound } from '../ui/AudioHaptics.js';
+import { currentLang } from '../ui/i18n.js';
+import { recordMatchInCareer } from '../ui/stats.js';
 
 const COMPASS_FULL = ['South', 'East', 'North', 'West'];
 
@@ -1364,7 +1367,8 @@ export class TwentyEightEngine {
 
         let deal2Cards = (this.deal2Hands && this.deal2Hands[humanSeat]) ? this.deal2Hands[humanSeat].map(c => `${c.rank}${c.suit}`) : [];
         let humanBid = (this.playerBids && this.playerBids[humanSeat] && this.playerBids[humanSeat] !== 'Pass') ? parseInt(this.playerBids[humanSeat]) : null;
-        let bidderName = this.playerNames[this.highestBidder] || COMPASS_FULL[this.highestBidder] || `Player ${this.highestBidder}`;
+        let pNames = this.playerNames || (typeof playerCustomNames !== 'undefined' ? playerCustomNames : COMPASS_FULL);
+        let bidderName = pNames[this.highestBidder] || COMPASS_FULL[this.highestBidder] || `Player ${this.highestBidder}`;
 
         let biddingRating = "Optimal";
         let biddingSummary = "";
@@ -1524,10 +1528,17 @@ export class TwentyEightEngine {
             if (bidTeam === 1) this.t1GamePts -= this.gamePointsWon; else this.t2GamePts -= this.gamePointsWon;
         }
 
-        // Record career stats for Human player (Team 1)
-        let isHumanWin = (bidTeam === 1 && this.roundSuccess) || (bidTeam === 2 && !this.roundSuccess);
-        let humanBidder = (this.highestBidder === 0 || this.highestBidder === 2);
-        recordMatchInCareer(isHumanWin, humanBidder, this.roundSuccess, this.currentBid, this.t1TrickPts, currentDifficulty);
+        // Record career stats for the local human player's team
+        try {
+            let myTeam = (typeof mySeat !== 'undefined' && (mySeat === 1 || mySeat === 3)) ? 2 : 1;
+            let isHumanWin = (bidTeam === myTeam && this.roundSuccess) || (bidTeam !== myTeam && !this.roundSuccess);
+            let humanBidder = (bidTeam === myTeam);
+            let myTrickPts = (myTeam === 1) ? this.t1TrickPts : this.t2TrickPts;
+            let diff = (typeof currentDifficulty !== 'undefined') ? currentDifficulty : 'medium';
+            recordMatchInCareer(isHumanWin, humanBidder, this.roundSuccess, this.currentBid, myTrickPts, diff);
+        } catch (statsErr) {
+            console.warn('[calculateRoundScore] Failed to record career stats:', statsErr);
+        }
     }
 
     revealTrump(requesterIndex, autoEndReveal = false) {

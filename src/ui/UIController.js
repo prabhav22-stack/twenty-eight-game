@@ -23,14 +23,12 @@ export function getTurnDurationMs(engine, seat) {
 export class UIController {
     clearActiveDealAnimation() {
         this._dealAnimSeq = (this._dealAnimSeq || 0) + 1;
-        if (this.dealFlyerTimers && this.dealFlyerTimers.length > 0) {
-            for (let t of this.dealFlyerTimers) clearTimeout(t);
-            this.dealFlyerTimers = [];
-        }
+        this.dealFlyerTimers = [];
         const dealLayer = document.getElementById('deal-layer');
         if (dealLayer) dealLayer.innerHTML = '';
         this.dealingAnimationActive = false;
         this.isDealingState = false;
+        this._dealFlyersBuilt = false;
     }
 
     applyPendingMasterState() {
@@ -1150,7 +1148,7 @@ export class UIController {
             // If a deal animation is actively flying cards into existing DOM slots, preserve those card DOM nodes
             // so in-flight onCardLanded callbacks never target detached elements and leave cards hidden.
             const existingHandCards = el.querySelectorAll('[data-seat][data-card-idx]');
-            if (this.dealingAnimationActive && this.isDealingState && existingHandCards.length === cardCount && cardCount > 0) {
+            if (this.dealingAnimationActive && this.isDealingState && this._dealFlyersBuilt && existingHandCards.length === cardCount && cardCount > 0) {
                 const badgeElOnly = el.querySelector('.player-badge');
                 if (badgeElOnly) {
                     badgeElOnly.className = badgeClass;
@@ -1260,6 +1258,7 @@ export class UIController {
         this.clearActiveDealAnimation();
         const dealToken = this._dealAnimSeq;
         this.dealFlyerTimers = [];
+        this._dealFlyersBuilt = true;
 
         let dealLayer = document.getElementById('deal-layer');
         if (!dealLayer) {
@@ -2531,6 +2530,15 @@ export class UIController {
             return; 
         }
 
+        // Ensure isDealingState is active BEFORE renderStaticBoard() if we are about to animate a new deal phase,
+        // so incoming cards are never flashed visibly in hand before the deal animation begins.
+        if (this.engine.phase === 'DEALING_1' || this.engine.phase === 'DEALING_2') {
+            let preDealKey = `${this.engine.roundId || 1}_${this.engine.phase}`;
+            if (this.lastAnimatedDealKey !== preDealKey && !this.dealingAnimationActive) {
+                this.isDealingState = true;
+            }
+        }
+
         this.renderStaticBoard();
         this.syncTable();
         
@@ -2552,7 +2560,7 @@ export class UIController {
                 }, freezeDuration);
             } else {
                 let totalRemaining = this.engine.players.reduce((sum, p) => sum + (p ? p.length : 0), 0);
-                this.engine.phase = (totalRemaining === 0 && this.engine.roundTricks.length >= 8) ? 'ROUND_OVER' : 'PLAYING';
+                this.engine.phase = (totalRemaining === 0 && (this.engine.roundTricks.length >= 8 || !isHost)) ? 'ROUND_OVER' : 'PLAYING';
                 this.gameLoop();
             }
             return;
