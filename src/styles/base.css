@@ -114,17 +114,19 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 .my-cards-row .card.is-trump-card::after {
     content: '★ TRUMP';
     position: absolute;
-    bottom: 3px;
-    right: 4px;
+    bottom: 4px;
+    left: 4px;
+    right: auto;
     background: rgba(245, 158, 11, 0.92);
     color: #000;
-    font-size: 0.44rem;
+    font-size: 0.42rem;
     font-weight: 900;
     padding: 1px 4px;
     border-radius: 3px;
     font-family: 'Plus Jakarta Sans', sans-serif;
     pointer-events: none;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
+    z-index: 12;
 }
 .my-cards-row .card.is-trump-card.unplayable {
     filter: brightness(0.45) saturate(0.5) !important;
@@ -142,9 +144,9 @@ body.kbd-mode .my-cards-row .card.playable .card-kbd-hint { opacity: 1; }
 
 /* Floating toast notification */
 #game-toast-container {
-    position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+    position: fixed; top: calc(env(safe-area-inset-top, 0px) + 84px); left: 50%; transform: translateX(-50%);
     display: flex; flex-direction: column; align-items: center; gap: 5px;
-    z-index: 1500; pointer-events: none; width: max-content; max-width: 90vw;
+    z-index: 1500; pointer-events: none; width: max-content; max-width: 92vw;
 }
 .game-toast {
     background: rgba(5, 18, 10, 0.95); border: 1px solid rgba(229,193,88,0.4);

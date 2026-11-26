@@ -1,5 +1,5 @@
 // Twenty-Eight (28) Royal Casino - Service Worker
-const CACHE_NAME = 'twentyeight-v4.0.5';
+const CACHE_NAME = 'twentyeight-v4.0.6';
 
 const STATIC_ASSETS = [
   '/',

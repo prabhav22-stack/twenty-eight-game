@@ -61,13 +61,13 @@
 }
 .anim-drop-in { opacity: 1; }
 
-/* ACTION BUTTONS & BOTTOM TURN ROW: Strictly single horizontal flex row clearing lifted playable cards */
+/* ACTION BUTTONS & BOTTOM TURN ROW: Strictly clears lifted playable cards & trick metadata */
 .bottom-action-row {
     position: absolute;
-    bottom: calc(var(--card-h) + clamp(46px, 7.5dvh, 62px) + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--card-h) + var(--south-bottom, 10px) + 28px + env(safe-area-inset-bottom, 0px));
     left: 50%; transform: translateX(-50%);
-    display: flex; flex-wrap: nowrap; white-space: nowrap; align-items: center; justify-content: center; gap: 6px;
-    z-index: 130; pointer-events: none; max-width: 98vw; padding: 0 4px; box-sizing: border-box;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px;
+    z-index: 130; pointer-events: none; width: max-content; max-width: 96vw; padding: 0 4px; box-sizing: border-box;
 }
 .bottom-action-row > * { pointer-events: auto; flex-shrink: 0; }
 .bottom-action-row .turn-ring-container.docked-inline {

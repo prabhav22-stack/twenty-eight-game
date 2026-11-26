@@ -14,12 +14,18 @@
         padding-top: max(4px, var(--sat));
         padding-left: max(6px, var(--sal));
         padding-right: max(6px, var(--sar));
-        gap: 6px;
+        gap: 4px;
+    }
+    .compass-roster {
+        display: none !important;
+    }
+    #orientation-btn-text {
+        display: none !important;
     }
     .my-compass-tag {
-        font-size: 0.65rem !important;
+        font-size: 0.62rem !important;
         padding: 2px 7px !important;
-        max-width: 140px !important;
+        max-width: 132px !important;
     }
     .bar-quick-actions button span {
         display: none !important;
@@ -104,8 +110,11 @@
         overflow: visible;
     }
     .my-cards-row .card {
-        margin-left: clamp(-24px, -6.5vw, -16px) !important;
+        margin-left: var(--sparse-card-margin, clamp(-16px, -4vw, -8px)) !important;
         touch-action: none;
+    }
+    .my-cards-row.dense-hand .card {
+        margin-left: var(--dense-card-margin, clamp(-28px, -7.2vw, -18px)) !important;
     }
     .my-cards-row .card:first-child {
         margin-left: 0 !important;
@@ -128,16 +137,22 @@
         overscroll-behavior: contain;
     }
 
-    /* Minimum touch target 44px */
-    .action-btn-container {
-        bottom: calc(var(--card-h) + clamp(24px, 4.5vh, 38px));
-        gap: 8px;
+    /* Keep bid & trump modals above player's 4 cards so hand remains visible */
+    #bid-modal, #trump-modal {
+        top: 42% !important;
+        max-height: calc(100svh - var(--card-h) - 105px) !important;
+    }
+
+    /* Minimum touch target 44px on action row */
+    .bottom-action-row {
+        bottom: calc(var(--card-h) + var(--sab) + 22px);
+        gap: 6px;
     }
     .action-btn-container .act-btn {
-        min-height: 44px;
+        min-height: 40px;
         min-width: 44px;
-        padding: 8px 14px;
-        font-size: 0.78rem;
+        padding: 6px 12px;
+        font-size: 0.72rem;
     }
 }
 
@@ -172,34 +187,40 @@
     }
     #player-left {
         left: max(6px, var(--sal)) !important;
-        top: 50% !important;
+        top: 44% !important;
     }
     #player-right {
         right: max(6px, var(--sar)) !important;
-        top: 50% !important;
+        top: 44% !important;
+    }
+    #player-left .card-back, #player-right .card-back {
+        display: none !important;
     }
     #player-left .player-badge, #player-right .player-badge {
-        padding: 2px 6px;
-        font-size: 0.58rem;
+        padding: 3px 8px;
+        font-size: 0.6rem;
     }
 
     #player-bottom {
-        bottom: calc(var(--sab) + 2px) !important;
+        bottom: calc(var(--sab) + 4px) !important;
     }
     .my-cards-row .card {
-        margin-left: clamp(-16px, -2.8vw, -10px) !important;
+        margin-left: var(--sparse-card-margin, clamp(-14px, -2.5vw, -8px)) !important;
+    }
+    .my-cards-row.dense-hand .card {
+        margin-left: var(--dense-card-margin, clamp(-20px, -3.5vw, -12px)) !important;
     }
     .my-cards-row .card:first-child {
         margin-left: 0 !important;
     }
 
-    .action-btn-container {
-        bottom: calc(var(--card-h) + 2px);
+    .bottom-action-row {
+        bottom: calc(var(--card-h) + var(--sab) + 12px);
     }
     .action-btn-container .act-btn {
-        min-height: 36px;
+        min-height: 34px;
         padding: 4px 10px;
-        font-size: 0.68rem;
+        font-size: 0.66rem;
     }
 }
 

@@ -11,7 +11,7 @@
 /* ==================== CENTER TRICK METADATA CLUSTER ==================== */
 .trick-meta-cluster {
     position: absolute;
-    top: calc(var(--table-center-y, 48%) + calc(var(--card-h) * 0.5 + 46px));
+    top: calc(var(--table-center-y, 48%) + clamp(66px, 13.5svh, 102px));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -124,7 +124,7 @@
 .player-hand-card, .my-cards-row .card {
     width: var(--card-w);
     height: var(--card-h);
-    margin-left: var(--hand-overlap);
+    margin-left: var(--sparse-card-margin, var(--hand-overlap));
     transform-origin: bottom center;
     transition: transform 160ms ease, filter 160ms ease;
 }
@@ -132,7 +132,7 @@
     margin-left: 0 !important;
 }
 .my-cards-row.dense-hand .card {
-    margin-left: clamp(-30px, -6.8vw, -22px) !important;
+    margin-left: var(--dense-card-margin, clamp(-30px, -6.8vw, -22px)) !important;
 }
 .my-cards-row.dense-hand .card:first-child {
     margin-left: 0 !important;
