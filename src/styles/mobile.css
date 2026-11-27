@@ -137,15 +137,16 @@
         overscroll-behavior: contain;
     }
 
-    /* Keep bid & trump modals above player's 4 cards so hand remains visible */
+    /* Keep bid & trump modals clear of player's 4 cards and top HUD */
     #bid-modal, #trump-modal {
-        top: 42% !important;
-        max-height: calc(100svh - var(--card-h) - 105px) !important;
+        top: 44% !important;
+        max-height: calc(100svh - var(--card-h) - 115px) !important;
+        padding: 10px 12px !important;
     }
 
-    /* Minimum touch target 44px on action row */
+    /* Minimum touch target 44px on action row, cleanly above lifted cards */
     .bottom-action-row {
-        bottom: calc(var(--card-h) + var(--sab) + 22px);
+        bottom: calc(var(--card-h) + var(--sab) + 34px);
         gap: 6px;
     }
     .action-btn-container .act-btn {
@@ -164,6 +165,36 @@
         padding-right: max(8px, var(--sar));
         padding-bottom: 2px;
         gap: 6px;
+    }
+    .compass-roster {
+        display: none !important;
+    }
+    .trick-meta-cluster {
+        top: 6px !important;
+        left: max(8px, var(--sal)) !important;
+        transform: none !important;
+        align-items: flex-start !important;
+    }
+    #bid-modal, #trump-modal {
+        top: 45% !important;
+        width: clamp(270px, 72vw, 390px) !important;
+        max-height: calc(100svh - var(--card-h) - 86px) !important;
+        padding: 8px 12px !important;
+    }
+    #bid-modal .bid-options-grid {
+        grid-template-columns: repeat(8, 1fr) !important;
+        gap: 4px !important;
+        margin: 4px 0 6px 0 !important;
+    }
+    #bid-modal .bid-chip {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 0.76rem !important;
+    }
+    #bid-modal .modal-partner-box, #bid-modal .modal-bid-history-row {
+        margin: 3px 0 !important;
+        padding: 3px 8px !important;
+        font-size: 0.68rem !important;
     }
     #top-hud {
         padding: 2px 10px;
@@ -215,7 +246,7 @@
     }
 
     .bottom-action-row {
-        bottom: calc(var(--card-h) + var(--sab) + 12px);
+        bottom: calc(var(--card-h) + var(--sab) + 26px);
     }
     .action-btn-container .act-btn {
         min-height: 34px;

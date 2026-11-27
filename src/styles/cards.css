@@ -64,7 +64,7 @@
 /* ACTION BUTTONS & BOTTOM TURN ROW: Strictly clears lifted playable cards & trick metadata */
 .bottom-action-row {
     position: absolute;
-    bottom: calc(var(--card-h) + var(--south-bottom, 10px) + 28px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--card-h) + var(--south-bottom, 14px) + 34px + env(safe-area-inset-bottom, 0px));
     left: 50%; transform: translateX(-50%);
     display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px;
     z-index: 130; pointer-events: none; width: max-content; max-width: 96vw; padding: 0 4px; box-sizing: border-box;
@@ -82,7 +82,7 @@
 @media (max-width: 480px), (max-height: 500px) {
     .bottom-action-row {
         gap: 4px;
-        bottom: calc(var(--card-h) + clamp(42px, 7dvh, 54px) + env(safe-area-inset-bottom, 0px));
+        bottom: calc(var(--card-h) + var(--south-bottom, 10px) + 28px + env(safe-area-inset-bottom, 0px));
     }
     .act-btn {
         padding: 3px 8px;

@@ -118,7 +118,7 @@
 
 .my-cards-row {
     display: flex; align-items: flex-end; justify-content: center;
-    padding: 4px 8px 0px 8px; min-height: calc(var(--card-h) + 12px);
+    padding: 0 8px; min-height: var(--card-h);
     max-width: 98vw; margin: 0 auto;
 }
 .player-hand-card, .my-cards-row .card {

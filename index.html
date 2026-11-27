@@ -356,7 +356,7 @@
     <div id="player-top" class="hand"></div>
     <div id="player-left" class="hand"></div>
     <div id="player-right" class="hand"></div>
-    <div id="recent-trick-dock" onclick="toggleLogModal()" title="Click to view full game log" style="display:none; cursor:pointer; background:rgba(0,0,0,0.55); border:1px solid rgba(229,193,88,0.3); border-radius:12px; padding:2px 10px; font-size:0.65rem; color:#cbd5e1; margin-bottom:4px; box-shadow:0 2px 8px rgba(0,0,0,0.4); backdrop-filter:blur(4px);">
+    <div id="recent-trick-dock" onclick="toggleLogModal()" title="Click to view full game log" style="display:none; position:absolute; top:6px; right:max(8px, env(safe-area-inset-right, 0px)); z-index:90; cursor:pointer; background:rgba(0,0,0,0.55); border:1px solid rgba(229,193,88,0.3); border-radius:12px; padding:2px 10px; font-size:0.65rem; color:#cbd5e1; box-shadow:0 2px 8px rgba(0,0,0,0.4); backdrop-filter:blur(4px);">
         <span id="recent-trick-dock-text">📜 Trick History</span>
     </div>
     <div id="player-bottom" class="hand"></div>
@@ -608,7 +608,7 @@
         var game = null;
         var ui = null;
     </script>
-    <script type="module" src="src/main.js?v=4.0.6"></script>
+    <script type="module" src="src/main.js?v=4.0.7"></script>
 <!-- ==================== HONOR TRACKER DRAWER ==================== -->
 <div id="tracker-drawer">
     <div class="tracker-header">
